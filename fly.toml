@@ -1,0 +1,28 @@
+# fly.toml app configuration file generated for rasende2-api on 2023-05-06T01:18:52+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = "rasende2-api"
+primary_region = "ams"
+
+[build]
+builder = "paketobuildpacks/builder:base"
+buildpacks = ["gcr.io/paketo-buildpacks/go"]
+
+[env]
+PORT = "8080"
+APP_ENV = "production"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = true
+auto_start_machines = true
+
+[checks]
+[checks.alive]
+type = "tcp"
+interval = "15s"
+timeout = "2s"
+grace_period = "5s"
