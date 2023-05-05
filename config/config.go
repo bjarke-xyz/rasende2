@@ -34,13 +34,7 @@ func (c *Config) RedisConnectionString() string {
 }
 
 func NewConfig() (*Config, error) {
-	err := godotenv.Load()
-	if err != nil {
-		err = godotenv.Load("/run/secrets/env")
-		if err != nil {
-			return nil, fmt.Errorf("failed to load env: %w", err)
-		}
-	}
+	godotenv.Load()
 	appEnv := os.Getenv("APP_ENV")
 	if appEnv == "" {
 		appEnv = AppEnvDevelopment

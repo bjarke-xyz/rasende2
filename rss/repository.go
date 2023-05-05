@@ -1,9 +1,9 @@
 package rss
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/db"
@@ -25,8 +25,11 @@ type RssUrlDto struct {
 	Urls []string `json:"urls"`
 }
 
+//go:embed data
+var dataFs embed.FS
+
 func (r *RssRepository) GetRssUrls() ([]RssUrlDto, error) {
-	jsonBytes, err := os.ReadFile("rss.json")
+	jsonBytes, err := dataFs.ReadFile("data/rss.json")
 	if err != nil {
 		return nil, fmt.Errorf("could not load rss.json: %w", err)
 	}
