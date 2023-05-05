@@ -39,7 +39,7 @@ func main() {
 	context.JobManager.Cron("1 * * * *", rss.JobIdentifierIngestion, func() error {
 		job := rss.NewIngestionJob(rssService)
 		return job.ExecuteJob()
-	}, cfg.AppEnv == config.AppEnvProduction)
+	}, false)
 	go context.JobManager.Start()
 
 	rssHttpHandlers := rss.NewHttpHandlers(context, rssService)
