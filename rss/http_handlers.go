@@ -178,7 +178,12 @@ func (h *HttpHandlers) RunJob(key string) gin.HandlerFunc {
 			c.AbortWithStatus(401)
 			return
 		}
-		h.context.JobManager.RunJob(JobIdentifierIngestion)
+		fireAndForget := c.Query("fireAndForget") == "true"
+		if fireAndForget {
+			go h.context.JobManager.RunJob(JobIdentifierIngestion)
+		} else {
+			h.context.JobManager.RunJob(JobIdentifierIngestion)
+		}
 		c.Status(http.StatusOK)
 	}
 }
