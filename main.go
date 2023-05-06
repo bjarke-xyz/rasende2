@@ -26,8 +26,12 @@ func main() {
 		log.Printf("failed to migrate: %v", err)
 	}
 
+	redis, err := db.NewRedisCache(cfg)
+	if err != nil {
+		log.Printf("failed to create redis: %v", err)
+	}
 	context := &pkg.AppContext{
-		Cache:      db.NewRedisCache(cfg),
+		Cache:      redis,
 		Config:     cfg,
 		JobManager: *jobs.NewJobManager(),
 	}

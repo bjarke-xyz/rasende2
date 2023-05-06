@@ -11,10 +11,8 @@ type Config struct {
 	Port      string
 	DbConnStr string
 
-	RedisConnStr  string
-	RedisUsername string
-	RedisPassword string
-	RedisPrefix   string
+	RedisConnStr string
+	RedisPrefix  string
 
 	JobKey string
 
@@ -45,13 +43,11 @@ func NewConfig() (*Config, error) {
 		}
 	}
 	return &Config{
-		Port:          os.Getenv("PORT"),
-		DbConnStr:     os.Getenv("DB_CONN_STR"),
-		RedisConnStr:  os.Getenv("REDIS_CONN_STR"),
-		RedisUsername: os.Getenv("REDIS_USERNAME"),
-		RedisPassword: os.Getenv("REDIS_PASSWORD"),
-		RedisPrefix:   os.Getenv("REDIS_PREFIX"),
-		JobKey:        os.Getenv("JOB_KEY"),
-		AppEnv:        os.Getenv("APP_ENV"),
+		Port:         os.Getenv("PORT"),
+		DbConnStr:    os.Getenv("DB_CONN_STR"),
+		RedisConnStr: os.Getenv("REDIS_CONN_STR"),
+		RedisPrefix:  os.Getenv("REDIS_PREFIX"),
+		JobKey:       os.Getenv("JOB_KEY"),
+		AppEnv:       os.Getenv("APP_ENV"),
 	}, nil
 }

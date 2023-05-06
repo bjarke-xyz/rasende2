@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -16,11 +17,12 @@ type RedisCache struct {
 	keyPrefix string
 }
 
-func NewRedisCache(cfg *config.Config) *RedisCache {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisConnectionString(),
-		Password: cfg.RedisPassword,
-	})
+func NewRedisCache(cfg *config.Config) (*RedisCache, error) {
+	opt, err := redis.ParseURL(cfg.RedisConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse redis connection string: %w", err)
+	}
+	rdb := redis.NewClient(opt)
 	mycache := cache.New(&cache.Options{
 		Redis:      rdb,
 		LocalCache: cache.NewTinyLFU(1000, time.Minute),
@@ -28,7 +30,7 @@ func NewRedisCache(cfg *config.Config) *RedisCache {
 	return &RedisCache{
 		cache:     mycache,
 		keyPrefix: cfg.RedisPrefix,
-	}
+	}, nil
 }
 
 func (r *RedisCache) getKey(key string) string {
