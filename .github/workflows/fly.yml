@@ -25,7 +25,7 @@ jobs:
           method: "POST"
           username: "${{ secrets.NOTIFICATIONS_USERNAME }}"
           password: "${{ secrets.NOTIFICATIONS_PASSWORD }}"
-          data: '{ "channels": ["discord", "email"], "message": { "message": "⚠️ recipesapi failed to release. <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}>" } }'
+          data: '{ "channels": ["discord", "email"], "message": { "message": "⚠️ ${{ github.repository }} failed to release. <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}>" } }'
       - name: Notify on success
         uses: fjogeleit/http-request-action@v1
         if: steps.deploy.outcome == 'success'
@@ -34,4 +34,4 @@ jobs:
           method: "POST"
           username: "${{ secrets.NOTIFICATIONS_USERNAME }}"
           password: "${{ secrets.NOTIFICATIONS_PASSWORD }}"
-          data: '{ "channels": ["discord", "email"], "message": { "message": "🚀 recipesapi has been released. <https://github.com/${{ github.repository }}/>" } }'
+          data: '{ "channels": ["discord", "email"], "message": { "message": "🚀 ${{ github.repository }} has been released. <https://github.com/${{ github.repository }}/>" } }'
