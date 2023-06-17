@@ -1,6 +1,7 @@
 package rss
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"sort"
@@ -28,19 +29,30 @@ type SearchResult struct {
 	Items            []RssItemDto `json:"items"`
 }
 
+var defaultLimit = 10
+var defaultOffset = 0
+
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	query := c.Query("q")
-	limitStr := c.DefaultQuery("limit", "5")
+	offsetStr := c.DefaultQuery("offset", fmt.Sprintf("%v", defaultOffset))
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil {
+		offset = defaultOffset
+	}
+	limitStr := c.DefaultQuery("limit", fmt.Sprintf("%v", defaultLimit))
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
-		limit = 5
+		limit = defaultLimit
+	}
+	if limit > 100 {
+		limit = defaultLimit
 	}
 	searchContentStr := c.DefaultQuery("content", "false")
 	searchContent, err := strconv.ParseBool(searchContentStr)
 	if err != nil {
 		searchContent = false
 	}
-	results, err := h.service.SearchItems(c.Request.Context(), query, searchContent)
+	results, err := h.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, nil)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, SearchResult{})
@@ -150,7 +162,8 @@ func MakeDoughnutChart(items []RssItemDto, title string) ChartResult {
 
 func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 	query := c.Query("q")
-	results, err := h.service.SearchItems(c.Request.Context(), query, false)
+	sevenDaysAgo := time.Now().Add(-time.Hour * 24 * 6)
+	results, err := h.service.SearchItems(c.Request.Context(), query, false, 0, 100000, &sevenDaysAgo)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, nil)

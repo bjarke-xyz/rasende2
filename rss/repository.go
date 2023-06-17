@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/db"
@@ -51,20 +52,30 @@ type RssItemDto struct {
 	Published time.Time `db:"published" json:"published"`
 }
 
-func (r *RssRepository) SearchItems(query string, searchContent bool) ([]RssItemDto, error) {
+func (r *RssRepository) SearchItems(query string, searchContent bool, offset int, limit int, after *time.Time) ([]RssItemDto, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
 	var rssItems []RssItemDto
-	sql := "SELECT * FROM rss_items WHERE ts_title @@ to_tsquery('danish', $1)"
+	args := make([]interface{}, 0)
+	args = append(args, query)
+	sql := "SELECT * FROM rss_items WHERE ( ts_title @@ to_tsquery('danish', $1)"
 	if searchContent {
-		sql = sql + " OR ts_content @@ to_tsquery('danish', $1)"
+		sql = sql + " OR ts_content @@ to_tsquery('danish', $1) )"
+	} else {
+		sql = sql + " )" // Close where
+	}
+	if after != nil {
+		sql = sql + " AND published > $2"
+		args = append(args, *after)
 	}
 	sql = sql + " ORDER BY published DESC"
+	sql = sql + fmt.Sprintf(" OFFSET %v LIMIT %v", offset, limit)
 	// err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE LOWER(title) LIKE '%' || $1 || '%' order by published desc", query)
-	err = db.Select(&rssItems, sql, query)
+	log.Printf("SearchItems SQL: %v -- args: %v", sql, len(args))
+	err = db.Select(&rssItems, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items with query %v: %w", query, err)
 	}

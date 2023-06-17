@@ -72,16 +72,16 @@ func (r *RssService) convertToDto(feedItem *gofeed.Item, rssUrl RssUrlDto) RssIt
 	}
 }
 
-func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool) ([]RssItemDto, error) {
+func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, after *time.Time) ([]RssItemDto, error) {
 	var items []RssItemDto = []RssItemDto{}
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	cacheKey := fmt.Sprintf("SearchItems:%v:%v", query, searchContent)
+	cacheKey := fmt.Sprintf("SearchItems:%v:%v:%v:%v:%v", query, searchContent, offset, limit, after)
 	if err := r.context.Cache.Get(ctx, cacheKey, &items); err == nil {
 		return items, nil
 	}
-	items, err := r.repository.SearchItems(query, searchContent)
+	items, err := r.repository.SearchItems(query, searchContent, offset, limit, after)
 	if err == nil {
 		r.context.Cache.Set(ctx, cacheKey, items, time.Hour)
 	}
