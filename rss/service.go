@@ -28,7 +28,7 @@ var (
 		Name: "rasende2_rss_fetch_status_codes",
 		Help: "The total number of rss fetch status codes",
 	}, []string{
-		"status_code", "name",
+		"status_code", "name", "url",
 	})
 
 	rssArticleCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -178,7 +178,7 @@ func (r *RssService) getContents(rssUrl RssUrlDto) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error getting %v: %w", url, err)
 		}
-		rssFetchStatusCodes.WithLabelValues(fmt.Sprintf("%v", resp.StatusCode), rssUrl.Name).Inc()
+		rssFetchStatusCodes.WithLabelValues(fmt.Sprintf("%v", resp.StatusCode), rssUrl.Name, url).Inc()
 		if resp.StatusCode > 299 {
 			return nil, fmt.Errorf("error getting %v, returned error code %v", url, resp.StatusCode)
 		}
