@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS site_name_index ON rss_items(site_name);

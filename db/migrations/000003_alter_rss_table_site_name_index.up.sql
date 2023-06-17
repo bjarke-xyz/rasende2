@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS site_name_index ON rss_items(site_name);

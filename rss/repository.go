@@ -8,6 +8,7 @@ import (
 
 	"github.com/bjarke-xyz/rasende2-api/db"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
+	"github.com/jmoiron/sqlx"
 )
 
 type RssRepository struct {
@@ -84,6 +85,42 @@ func (r *RssRepository) GetItems(siteName string) ([]RssItemDto, error) {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteName, err)
 	}
 	return rssItems, nil
+}
+
+func (r *RssRepository) GetItemsByIds(siteName string, itemIds []string) ([]RssItemDto, error) {
+	var rssItems []RssItemDto
+	if len(itemIds) == 0 {
+		return rssItems, nil
+	}
+	db, err := db.Connect(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	db = db.Unsafe()
+	defer db.Close()
+	query, args, err := sqlx.In("SELECT * FROM rss_items WHERE site_name = ? AND item_id IN (?)", siteName, itemIds)
+	if err != nil {
+		return nil, fmt.Errorf("error doing sqlx in for site %v: %w", siteName, err)
+	}
+	query = db.Rebind(query)
+	err = db.Select(&rssItems, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error getting items by id for site %v: %w", siteName, err)
+	}
+	return rssItems, nil
+}
+
+func (r *RssRepository) GetItemCount(siteName string) (int, error) {
+	db, err := db.Connect(r.context.Config)
+	if err != nil {
+		return 0, err
+	}
+	var count int
+	err = db.Get(&count, "SELECT count(*) FROM rss_items WHERE site_name = $1", siteName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get item count for site %v: %w", siteName, err)
+	}
+	return count, nil
 }
 
 func (r *RssRepository) InsertItems(items []RssItemDto) error {

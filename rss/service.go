@@ -94,8 +94,19 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	}
 	errors := make([]error, 0)
 	for _, rssUrl := range rssUrls {
-		toInsert := make([]RssItemDto, 0)
-		existing, err := r.repository.GetItems(rssUrl.Name)
+
+		fromFeed, err := r.parse(rssUrl)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err))
+			continue
+		}
+
+		fromFeedItemIds := make([]string, len(fromFeed))
+		for i, fromFeedItem := range fromFeed {
+			fromFeedItemIds[i] = fromFeedItem.ItemId
+		}
+
+		existing, err := r.repository.GetItemsByIds(rssUrl.Name, fromFeedItemIds)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err))
 			continue
@@ -104,12 +115,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 		for _, item := range existing {
 			existingIds[item.ItemId] = true
 		}
-
-		fromFeed, err := r.parse(rssUrl)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err))
-			continue
-		}
+		toInsert := make([]RssItemDto, 0)
 		for _, item := range fromFeed {
 			_, exists := existingIds[item.ItemId]
 			if !exists {
@@ -123,8 +129,12 @@ func (r *RssService) FetchAndSaveNewItems() error {
 			errors = append(errors, fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err))
 			continue
 		}
-		totalCount := len(existing) + len(toInsert)
-		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(totalCount))
+		totalCount, err := r.repository.GetItemCount(rssUrl.Name)
+		if err != nil {
+			log.Printf("failed to get item count: %v", err)
+		} else {
+			rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(totalCount))
+		}
 	}
 	if len(errors) > 0 {
 		err := errors[0]
