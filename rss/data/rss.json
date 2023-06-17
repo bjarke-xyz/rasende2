@@ -58,5 +58,7 @@
 
   { "name": "Arbejderen", "urls": ["https://arbejderen.dk/feed/"] },
 
-  { "name": "Version2", "urls": ["https://www.version2.dk/rss"] }
+  { "name": "Version2", "urls": ["https://www.version2.dk/rss"] },
+
+  { "name": "Ritzau", "urls": ["https://via.ritzau.dk/rss/releases/latest"] }
 ]
