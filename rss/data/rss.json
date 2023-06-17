@@ -33,7 +33,10 @@
     "urls": ["https://feeds.services.tv2.dk/api/feeds/nyheder/rss"]
   },
 
-  { "name": "Dagens", "urls": ["https://www.dagens.dk/rss"] },
+  {
+    "name": "Dagens",
+    "urls": ["https://www.dagens.dk/feeds/rss/articles/latest-news/"]
+  },
 
   { "name": "Børsen", "urls": ["https://borsen.dk/rss"] },
 
