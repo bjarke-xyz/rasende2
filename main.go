@@ -11,6 +11,7 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/rss"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -46,6 +47,8 @@ func main() {
 	}, false)
 	go context.JobManager.Start()
 
+	runMetricsServer()
+
 	rssHttpHandlers := rss.NewHttpHandlers(context, rssService)
 
 	r := ginRouter(cfg)
@@ -73,4 +76,12 @@ func ginRouter(cfg *config.Config) *gin.Engine {
 		})
 	})
 	return r
+}
+
+func runMetricsServer() {
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":9091", mux)
+	}()
 }

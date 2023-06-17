@@ -13,6 +13,8 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 type RssService struct {
@@ -20,6 +22,22 @@ type RssService struct {
 	repository *RssRepository
 	sanitizer  *bluemonday.Policy
 }
+
+var (
+	rssFetchStatusCodes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "rasende2_rss_fetch_status_codes",
+		Help: "The total number of rss fetch status codes",
+	}, []string{
+		"status_code", "name",
+	})
+
+	rssArticleCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rasende2_rss_article_count",
+		Help: "The total number of rss articles, by site name",
+	}, []string{
+		"name",
+	})
+)
 
 func NewRssService(context *pkg.AppContext, repository *RssRepository) *RssService {
 	return &RssService{
@@ -105,6 +123,8 @@ func (r *RssService) FetchAndSaveNewItems() error {
 			errors = append(errors, fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err))
 			continue
 		}
+		totalCount := len(existing) + len(toInsert)
+		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(totalCount))
 	}
 	if len(errors) > 0 {
 		err := errors[0]
@@ -158,6 +178,7 @@ func (r *RssService) getContents(rssUrl RssUrlDto) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error getting %v: %w", url, err)
 		}
+		rssFetchStatusCodes.WithLabelValues(fmt.Sprintf("%v", resp.StatusCode), rssUrl.Name).Inc()
 		if resp.StatusCode > 299 {
 			return nil, fmt.Errorf("error getting %v, returned error code %v", url, resp.StatusCode)
 		}
