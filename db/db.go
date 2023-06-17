@@ -10,10 +10,18 @@ type ConnectionStringer interface {
 	ConnectionString() string
 }
 
-func Connect(connStringer ConnectionStringer) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("postgres", connStringer.ConnectionString())
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to db: %w", err)
+var connections map[string]*sqlx.DB = make(map[string]*sqlx.DB)
+
+func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
+	existingDb, ok := connections[connStringer.ConnectionString()]
+	if ok {
+		return existingDb, nil
+	} else {
+		db, err := sqlx.Open("postgres", connStringer.ConnectionString())
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to db: %w", err)
+		}
+		connections[connStringer.ConnectionString()] = db
+		return db, nil
 	}
-	return db, nil
 }

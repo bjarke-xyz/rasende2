@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/pkg"
@@ -87,65 +88,65 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	return items, err
 }
 
+func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
+	fromFeed, err := r.parse(rssUrl)
+	if err != nil {
+		return fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err)
+	}
+
+	fromFeedItemIds := make([]string, len(fromFeed))
+	for i, fromFeedItem := range fromFeed {
+		fromFeedItemIds[i] = fromFeedItem.ItemId
+	}
+
+	existing, err := r.repository.GetItemsByIds(rssUrl.Name, fromFeedItemIds)
+	if err != nil {
+		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
+	}
+	existingIds := make(map[string]bool)
+	for _, item := range existing {
+		existingIds[item.ItemId] = true
+	}
+	toInsert := make([]RssItemDto, 0)
+	for _, item := range fromFeed {
+		_, exists := existingIds[item.ItemId]
+		if !exists {
+			toInsert = append(toInsert, item)
+		}
+	}
+
+	log.Printf("FetchAndSaveNewItems: %v inserted %v new items", rssUrl.Name, len(toInsert))
+	err = r.repository.InsertItems(toInsert)
+	if err != nil {
+		return fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err)
+	}
+	totalCount, err := r.repository.GetItemCount(rssUrl.Name)
+	if err != nil {
+		log.Printf("failed to get item count: %v", err)
+	} else {
+		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(totalCount))
+	}
+	return nil
+}
+
 func (r *RssService) FetchAndSaveNewItems() error {
 	rssUrls, err := r.repository.GetRssUrls()
 	if err != nil {
 		return fmt.Errorf("failed to get rss urls: %w", err)
 	}
-	errors := make([]error, 0)
+	var wg sync.WaitGroup
 	for _, rssUrl := range rssUrls {
-
-		fromFeed, err := r.parse(rssUrl)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err))
-			continue
-		}
-
-		fromFeedItemIds := make([]string, len(fromFeed))
-		for i, fromFeedItem := range fromFeed {
-			fromFeedItemIds[i] = fromFeedItem.ItemId
-		}
-
-		existing, err := r.repository.GetItemsByIds(rssUrl.Name, fromFeedItemIds)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err))
-			continue
-		}
-		existingIds := make(map[string]bool)
-		for _, item := range existing {
-			existingIds[item.ItemId] = true
-		}
-		toInsert := make([]RssItemDto, 0)
-		for _, item := range fromFeed {
-			_, exists := existingIds[item.ItemId]
-			if !exists {
-				toInsert = append(toInsert, item)
+		wg.Add(1)
+		rssUrl := rssUrl
+		go func() {
+			defer wg.Done()
+			siteErr := r.fetchAndSaveNewItemsForSite(rssUrl)
+			if siteErr != nil {
+				log.Printf("fetchAndSaveNewItemsForSite failed for %v: %v", rssUrl.Name, siteErr)
 			}
-		}
-
-		log.Printf("FetchAndSaveNewItems: %v inserted %v new items", rssUrl.Name, len(toInsert))
-		err = r.repository.InsertItems(toInsert)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err))
-			continue
-		}
-		totalCount, err := r.repository.GetItemCount(rssUrl.Name)
-		if err != nil {
-			log.Printf("failed to get item count: %v", err)
-		} else {
-			rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(totalCount))
-		}
+		}()
 	}
-	if len(errors) > 0 {
-		err := errors[0]
-		for i, e := range errors {
-			if i == 0 {
-				continue
-			}
-			err = fmt.Errorf("%v. %w", err, e)
-		}
-		return err
-	}
+	wg.Wait()
 	return nil
 }
 

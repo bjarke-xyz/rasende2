@@ -52,12 +52,11 @@ type RssItemDto struct {
 }
 
 func (r *RssRepository) SearchItems(query string, searchContent bool) ([]RssItemDto, error) {
-	db, err := db.Connect(r.context.Config)
+	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
-	defer db.Close()
 	var rssItems []RssItemDto
 	sql := "SELECT * FROM rss_items WHERE ts_title @@ to_tsquery('danish', $1)"
 	if searchContent {
@@ -73,12 +72,11 @@ func (r *RssRepository) SearchItems(query string, searchContent bool) ([]RssItem
 }
 
 func (r *RssRepository) GetItems(siteName string) ([]RssItemDto, error) {
-	db, err := db.Connect(r.context.Config)
+	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
-	defer db.Close()
 	var rssItems []RssItemDto
 	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = $1", siteName)
 	if err != nil {
@@ -92,12 +90,11 @@ func (r *RssRepository) GetItemsByIds(siteName string, itemIds []string) ([]RssI
 	if len(itemIds) == 0 {
 		return rssItems, nil
 	}
-	db, err := db.Connect(r.context.Config)
+	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
-	defer db.Close()
 	query, args, err := sqlx.In("SELECT * FROM rss_items WHERE site_name = ? AND item_id IN (?)", siteName, itemIds)
 	if err != nil {
 		return nil, fmt.Errorf("error doing sqlx in for site %v: %w", siteName, err)
@@ -111,7 +108,7 @@ func (r *RssRepository) GetItemsByIds(siteName string, itemIds []string) ([]RssI
 }
 
 func (r *RssRepository) GetItemCount(siteName string) (int, error) {
-	db, err := db.Connect(r.context.Config)
+	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return 0, err
 	}
@@ -127,11 +124,10 @@ func (r *RssRepository) InsertItems(items []RssItemDto) error {
 	if len(items) == 0 {
 		return nil
 	}
-	db, err := db.Connect(r.context.Config)
+	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return err
 	}
-	defer db.Close()
 
 	tx, err := db.Begin()
 	if err != nil {
