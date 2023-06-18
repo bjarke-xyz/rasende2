@@ -3,9 +3,9 @@ package ai
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/bjarke-xyz/rasende2-api/pkg"
+	"github.com/pkoukk/tiktoken-go"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -26,9 +26,22 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	if newTitlesCount > 10 {
 		newTitlesCount = 10
 	}
-	previousTitlesStr := strings.Join(previousTitles, "\n")
+	previousTitlesStr := ""
+	model := openai.GPT3Dot5Turbo
+	tkm, err := tiktoken.EncodingForModel(model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tiktoken encoding")
+	}
+	for _, prevTitle := range previousTitles {
+		tmpStr := previousTitlesStr + "\n" + prevTitle
+		token := tkm.Encode(tmpStr, nil, nil)
+		if len(token) > 4097 {
+			break
+		}
+		previousTitlesStr = tmpStr
+	}
 	req := openai.ChatCompletionRequest{
-		Model: openai.GPT3Dot5Turbo,
+		Model: model,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
