@@ -45,6 +45,15 @@ func intQuery(c *gin.Context, query string, defaultVal int) int {
 	return val
 }
 
+func float32Query(c *gin.Context, query string, defaultVal float32) float32 {
+	valStr := c.DefaultQuery(query, fmt.Sprintf("%v", defaultVal))
+	val, err := strconv.ParseFloat(valStr, 32)
+	if err != nil {
+		val = float64(defaultVal)
+	}
+	return float32(val)
+}
+
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	query := c.Query("q")
 	offset := intQuery(c, "offset", 0)
@@ -231,6 +240,13 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 	if limit > defaultLimit {
 		limit = defaultLimit
 	}
+	temperature := float32Query(c, "temperature", 0.5)
+	if temperature > 1 {
+		temperature = 1
+	}
+	if temperature < 0 {
+		temperature = 0
+	}
 	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteName, offset, limit)
 	if err != nil {
 		log.Printf("get items failed: %v", err)
@@ -246,7 +262,8 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, itemTitles, 10)
+	log.Println(temperature)
+	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 

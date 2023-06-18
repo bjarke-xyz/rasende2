@@ -23,7 +23,7 @@ func NewOpenAIClient(appContext *pkg.AppContext) *OpenAIClient {
 	}
 }
 
-func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, previousTitles []string, newTitlesCount int) (*openai.ChatCompletionStream, error) {
+func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
 	if newTitlesCount > 10 {
 		newTitlesCount = 10
 	}
@@ -46,7 +46,8 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	}
 	log.Printf("GenerateArticleTitles - site: %v, tokens: %v, previousTitles: %v", siteName, len(token), previousTitlesCount)
 	req := openai.ChatCompletionRequest{
-		Model: model,
+		Model:       model,
+		Temperature: temperature,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
