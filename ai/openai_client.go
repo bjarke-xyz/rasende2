@@ -48,7 +48,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Du er en journalist på mediet %v. Du vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. Begynd hver overskrift på en ny linje. Start hver linje med tegnet '-'", siteName, newTitlesCount),
+				Content: fmt.Sprintf("Du er en journalist på mediet %v. Du vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, newTitlesCount, newTitlesCount),
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,
