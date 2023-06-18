@@ -71,6 +71,15 @@ func (r *RssService) convertToDto(feedItem *gofeed.Item, rssUrl RssUrlDto) RssIt
 		Published: *published,
 	}
 }
+func (r *RssService) GetSiteNames() ([]string, error) {
+	siteNames, err := r.repository.GetSiteNames()
+	return siteNames, err
+}
+
+func (r *RssService) GetRecentItems(ctx context.Context, siteName string, offset int, limit int) ([]RssItemDto, error) {
+	items, err := r.repository.GetRecentItems(ctx, siteName, offset, limit)
+	return items, err
+}
 
 func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, after *time.Time) ([]RssItemDto, error) {
 	var items []RssItemDto = []RssItemDto{}

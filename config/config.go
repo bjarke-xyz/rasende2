@@ -16,6 +16,8 @@ type Config struct {
 
 	JobKey string
 
+	OpenAIAPIKey string
+
 	AppEnv string
 }
 
@@ -48,6 +50,7 @@ func NewConfig() (*Config, error) {
 		RedisConnStr: os.Getenv("REDIS_CONN_STR"),
 		RedisPrefix:  os.Getenv("REDIS_PREFIX"),
 		JobKey:       os.Getenv("JOB_KEY"),
+		OpenAIAPIKey: os.Getenv("OPENAI_API_KEY"),
 		AppEnv:       os.Getenv("APP_ENV"),
 	}, nil
 }

@@ -1,26 +1,31 @@
 package rss
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"time"
 
+	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/gin-gonic/gin"
 )
 
 type HttpHandlers struct {
-	context *pkg.AppContext
-	service *RssService
+	context      *pkg.AppContext
+	service      *RssService
+	openaiClient *ai.OpenAIClient
 }
 
-func NewHttpHandlers(context *pkg.AppContext, service *RssService) *HttpHandlers {
+func NewHttpHandlers(context *pkg.AppContext, service *RssService, openaiClient *ai.OpenAIClient) *HttpHandlers {
 	return &HttpHandlers{
-		context: context,
-		service: service,
+		context:      context,
+		service:      service,
+		openaiClient: openaiClient,
 	}
 }
 
@@ -199,4 +204,67 @@ func (h *HttpHandlers) RunJob(key string) gin.HandlerFunc {
 		}
 		c.Status(http.StatusOK)
 	}
+}
+
+func (h *HttpHandlers) HandleSites(c *gin.Context) {
+	siteNames, err := h.service.GetSiteNames()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	c.JSON(http.StatusOK, siteNames)
+}
+
+type ContentEvent struct {
+	Content string
+}
+
+func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
+	siteName := c.Query("siteName")
+	if siteName == "" {
+		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteName, 0, 200)
+	if err != nil {
+		log.Printf("get items failed: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	if len(items) == 0 {
+		c.JSON(http.StatusNotFound, nil)
+		return
+	}
+	itemTitles := make([]string, len(items))
+	for i, item := range items {
+		itemTitles[i] = item.Title
+	}
+	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, itemTitles, 10)
+	if err != nil {
+		log.Printf("openai failed: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	c.Stream(func(w io.Writer) bool {
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				log.Println("\nStream finished")
+				return false
+			}
+			if err != nil {
+				log.Printf("\nStream error: %v\n", err)
+				return false
+			}
+			contentEvent := ContentEvent{
+				Content: response.Choices[0].Delta.Content,
+			}
+			c.SSEvent("message", contentEvent)
+		}
+	})
 }

@@ -1,6 +1,7 @@
 package rss
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -52,6 +53,19 @@ type RssItemDto struct {
 	Published time.Time `db:"published" json:"published"`
 }
 
+func (r *RssRepository) GetSiteNames() ([]string, error) {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	var sites []string
+	err = db.Select(&sites, "SELECT DISTINCT site_name FROM rss_items")
+	if err != nil {
+		return nil, fmt.Errorf("error getting site names: %w", err)
+	}
+	return sites, nil
+}
+
 func (r *RssRepository) SearchItems(query string, searchContent bool, offset int, limit int, after *time.Time) ([]RssItemDto, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
@@ -82,14 +96,14 @@ func (r *RssRepository) SearchItems(query string, searchContent bool, offset int
 	return rssItems, nil
 }
 
-func (r *RssRepository) GetItems(siteName string) ([]RssItemDto, error) {
+func (r *RssRepository) GetRecentItems(ctx context.Context, siteName string, offset int, limit int) ([]RssItemDto, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
 	var rssItems []RssItemDto
-	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = $1", siteName)
+	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = $1 ORDER BY published OFFSET $2 LIMIT $3", siteName, offset, limit)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteName, err)
 	}

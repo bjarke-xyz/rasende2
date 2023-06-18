@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/config"
 	"github.com/bjarke-xyz/rasende2-api/db"
 	"github.com/bjarke-xyz/rasende2-api/jobs"
@@ -40,6 +41,8 @@ func main() {
 	rssRepository := rss.NewRssRepository(context)
 	rssService := rss.NewRssService(context, rssRepository)
 
+	openAiClient := ai.NewOpenAIClient(context)
+
 	defer context.JobManager.Stop()
 	context.JobManager.Cron("1 * * * *", rss.JobIdentifierIngestion, func() error {
 		job := rss.NewIngestionJob(rssService)
@@ -49,11 +52,13 @@ func main() {
 
 	runMetricsServer()
 
-	rssHttpHandlers := rss.NewHttpHandlers(context, rssService)
+	rssHttpHandlers := rss.NewHttpHandlers(context, rssService, openAiClient)
 
 	r := ginRouter(cfg)
 	r.GET("/search", rssHttpHandlers.HandleSearch)
 	r.GET("/charts", rssHttpHandlers.HandleCharts)
+	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)
+	r.GET("/sites", rssHttpHandlers.HandleSites)
 	r.POST("/job", rssHttpHandlers.RunJob(cfg.JobKey))
 
 	r.Run()
