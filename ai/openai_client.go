@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/pkoukk/tiktoken-go"
@@ -32,14 +33,16 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tiktoken encoding")
 	}
+	var token []int
 	for _, prevTitle := range previousTitles {
 		tmpStr := previousTitlesStr + "\n" + prevTitle
-		token := tkm.Encode(tmpStr, nil, nil)
+		token = tkm.Encode(tmpStr, nil, nil)
 		if len(token) > 3900 {
 			break
 		}
 		previousTitlesStr = tmpStr
 	}
+	log.Printf("token count for site %v: %v", siteName, len(token))
 	req := openai.ChatCompletionRequest{
 		Model: model,
 		Messages: []openai.ChatCompletionMessage{
@@ -52,6 +55,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 				Content: previousTitlesStr,
 			},
 		},
+		Stream: true,
 	}
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
