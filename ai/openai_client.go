@@ -39,7 +39,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		previousTitlesCount++
 		tmpStr := previousTitlesStr + "\n" + prevTitle
 		token = tkm.Encode(tmpStr, nil, nil)
-		if len(token) > 3900 {
+		if len(token) > 2900 {
 			break
 		}
 		previousTitlesStr = tmpStr
