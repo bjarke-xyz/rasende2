@@ -36,23 +36,21 @@ type SearchResult struct {
 	Items            []RssItemDto `json:"items"`
 }
 
-var defaultLimit = 10
-var defaultOffset = 0
+func intQuery(c *gin.Context, query string, defaultVal int) int {
+	valStr := c.DefaultQuery(query, fmt.Sprintf("%v", defaultVal))
+	val, err := strconv.Atoi(valStr)
+	if err != nil {
+		val = defaultVal
+	}
+	return val
+}
 
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	query := c.Query("q")
-	offsetStr := c.DefaultQuery("offset", fmt.Sprintf("%v", defaultOffset))
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil {
-		offset = defaultOffset
-	}
-	limitStr := c.DefaultQuery("limit", fmt.Sprintf("%v", defaultLimit))
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = defaultLimit
-	}
+	offset := intQuery(c, "offset", 0)
+	limit := intQuery(c, "limit", 10)
 	if limit > 100 {
-		limit = defaultLimit
+		limit = 10
 	}
 	searchContentStr := c.DefaultQuery("content", "false")
 	searchContent, err := strconv.ParseBool(searchContentStr)
@@ -227,7 +225,13 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, nil)
 		return
 	}
-	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteName, 0, 200)
+	offset := intQuery(c, "offset", 0)
+	defaultLimit := 300
+	limit := intQuery(c, "limit", defaultLimit)
+	if limit > defaultLimit {
+		limit = defaultLimit
+	}
+	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteName, offset, limit)
 	if err != nil {
 		log.Printf("get items failed: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
