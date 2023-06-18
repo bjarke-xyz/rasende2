@@ -13,6 +13,7 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/gin-gonic/gin"
+	openai "github.com/sashabaranov/go-openai"
 )
 
 type HttpHandlers struct {
@@ -242,7 +243,13 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, itemTitles, 10)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
-		c.JSON(http.StatusInternalServerError, nil)
+
+		var apiError *openai.APIError
+		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
+			c.JSON(http.StatusTooManyRequests, nil)
+		} else {
+			c.JSON(http.StatusInternalServerError, nil)
+		}
 		return
 	}
 
