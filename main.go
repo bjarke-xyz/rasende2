@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/config"
@@ -17,6 +19,7 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	rand.Seed(time.Now().UnixNano())
 
 	cfg, err := config.NewConfig()
 	if err != nil {

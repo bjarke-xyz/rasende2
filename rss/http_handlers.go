@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strconv"
@@ -240,6 +241,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 	for i, item := range items {
 		itemTitles[i] = item.Title
 	}
+	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
 	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, itemTitles, 10)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
