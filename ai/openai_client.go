@@ -34,7 +34,9 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		return nil, fmt.Errorf("failed to get tiktoken encoding")
 	}
 	var token []int
+	previousTitlesCount := 0
 	for _, prevTitle := range previousTitles {
+		previousTitlesCount++
 		tmpStr := previousTitlesStr + "\n" + prevTitle
 		token = tkm.Encode(tmpStr, nil, nil)
 		if len(token) > 14000 {
@@ -42,7 +44,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		}
 		previousTitlesStr = tmpStr
 	}
-	log.Printf("token count for site %v: %v", siteName, len(token))
+	log.Printf("GenerateArticleTitles - site: %v, tokens: %v, previousTitles: %v", siteName, len(token), previousTitlesCount)
 	req := openai.ChatCompletionRequest{
 		Model: model,
 		Messages: []openai.ChatCompletionMessage{
