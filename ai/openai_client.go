@@ -28,7 +28,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		newTitlesCount = 10
 	}
 	previousTitlesStr := ""
-	model := openai.GPT3Dot5Turbo16K
+	model := openai.GPT3Dot5Turbo
 	tkm, err := tiktoken.EncodingForModel(model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tiktoken encoding")
@@ -39,7 +39,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		previousTitlesCount++
 		tmpStr := previousTitlesStr + "\n" + prevTitle
 		token = tkm.Encode(tmpStr, nil, nil)
-		if len(token) > 14000 {
+		if len(token) > 3900 {
 			break
 		}
 		previousTitlesStr = tmpStr
