@@ -2,8 +2,10 @@ package rss
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -24,8 +26,9 @@ func NewRssRepository(context *pkg.AppContext) *RssRepository {
 }
 
 type RssUrlDto struct {
-	Name string   `json:"name"`
-	Urls []string `json:"urls"`
+	Name        string   `json:"name"`
+	Urls        []string `json:"urls"`
+	Description string   `json:"description"`
 }
 
 //go:embed data
@@ -50,6 +53,13 @@ type RssItemDto struct {
 	Title     string    `db:"title" json:"title"`
 	Content   string    `db:"content" json:"content"`
 	Link      string    `db:"link" json:"link"`
+	Published time.Time `db:"published" json:"published"`
+}
+
+type FakeNewsDto struct {
+	SiteName  string    `db:"site_name" json:"siteName"`
+	Title     string    `db:"title" json:"title"`
+	Content   string    `db:"content" json:"content"`
 	Published time.Time `db:"published" json:"published"`
 }
 
@@ -170,4 +180,33 @@ func (r *RssRepository) InsertItems(items []RssItemDto) error {
 	}
 	return nil
 
+}
+
+func (r *RssRepository) GetFakeNews(siteName string, title string) (*FakeNewsDto, error) {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	var fakeNewsDto FakeNewsDto
+	err = db.Get(&fakeNewsDto, "SELECT * FROM fake_news WHERE site_name = $1 and title = $2", siteName, title)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &fakeNewsDto, nil
+}
+
+func (r *RssRepository) CreateFakeNews(siteName string, title string, content string) error {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES ($1, $2, $3, $4) on conflict do nothing", siteName, title, content, now)
+	if err != nil {
+		return fmt.Errorf("error inserting fake news: %w", err)
+	}
+	return nil
 }

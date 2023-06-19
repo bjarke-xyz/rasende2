@@ -23,7 +23,7 @@ func NewOpenAIClient(appContext *pkg.AppContext) *OpenAIClient {
 	}
 }
 
-func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
+func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
 	if newTitlesCount > 10 {
 		newTitlesCount = 10
 	}
@@ -39,7 +39,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		previousTitlesCount++
 		tmpStr := previousTitlesStr + "\n" + prevTitle
 		token = tkm.Encode(tmpStr, nil, nil)
-		if len(token) > 3300 {
+		if len(token) > 3000 {
 			break
 		}
 		previousTitlesStr = tmpStr
@@ -51,11 +51,36 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Du er en journalist på mediet %v. Du vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, newTitlesCount, newTitlesCount),
+				Content: fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, siteDescription, newTitlesCount, newTitlesCount),
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,
 				Content: previousTitlesStr,
+			},
+		},
+		Stream: true,
+	}
+	stream, err := o.client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("OpenAI API error: %w", err)
+	}
+	return stream, err
+}
+
+func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (*openai.ChatCompletionStream, error) {
+	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", siteName, articleTitle, temperature)
+	model := openai.GPT3Dot5Turbo
+	req := openai.ChatCompletionRequest{
+		Model:       model,
+		Temperature: temperature,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få en overskrift, og du skal skrive en artikel der passer til den overskrift.", siteName, siteDescription),
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: articleTitle,
 			},
 		},
 		Stream: true,

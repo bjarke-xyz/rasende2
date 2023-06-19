@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
@@ -247,6 +248,19 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 	if temperature < 0 {
 		temperature = 0
 	}
+	rssUrls, err := h.service.GetRssUrls()
+	if err != nil {
+		log.Printf("get rss urls failed: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+	}
+	rssUrl := RssUrlDto{}
+	for _, r := range rssUrls {
+		if r.Name == siteName {
+			rssUrl = r
+			break
+		}
+	}
+
 	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteName, offset, limit)
 	if err != nil {
 		log.Printf("get items failed: %v", err)
@@ -262,8 +276,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	log.Println(temperature)
-	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, itemTitles, 10, temperature)
+	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, rssUrl.Description, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
@@ -297,4 +310,133 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 			c.SSEvent("message", contentEvent)
 		}
 	})
+}
+
+func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
+
+	siteName := c.Query("siteName")
+	if siteName == "" {
+		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+	articleTitle := c.Query("title")
+	if articleTitle == "" {
+		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+	siteNames, err := h.service.GetSiteNames()
+	if err != nil {
+		log.Printf("error getting site names: %v", err)
+	}
+	siteFound := false
+	for _, site := range siteNames {
+		if site == siteName {
+			siteFound = true
+			break
+		}
+	}
+	if !siteFound {
+		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+	existing, err := h.service.GetFakeNews(siteName, articleTitle)
+	if err != nil {
+		log.Printf("error getting existing news: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	if existing != nil {
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("Transfer-Encoding", "chunked")
+		c.Stream(func(w io.Writer) bool {
+			chunks := Chunks(existing.Content, 10)
+			for _, chunk := range chunks {
+				contentEvent := ContentEvent{
+					Content: chunk,
+				}
+				c.SSEvent("message", contentEvent)
+			}
+			return false
+		})
+		return
+	}
+
+	var temperature float32 = 1.0
+	rssUrls, err := h.service.GetRssUrls()
+	if err != nil {
+		log.Printf("get rss urls failed: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+	}
+	rssUrl := RssUrlDto{}
+	for _, r := range rssUrls {
+		if r.Name == siteName {
+			rssUrl = r
+			break
+		}
+	}
+	stream, err := h.openaiClient.GenerateArticleContent(c.Request.Context(), siteName, rssUrl.Description, articleTitle, temperature)
+	if err != nil {
+		log.Printf("openai failed: %v", err)
+
+		var apiError *openai.APIError
+		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
+			c.JSON(http.StatusTooManyRequests, nil)
+		} else {
+			c.JSON(http.StatusInternalServerError, nil)
+		}
+		return
+	}
+
+	var sb strings.Builder
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	c.Stream(func(w io.Writer) bool {
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				log.Println("\nStream finished")
+				articleContent := sb.String()
+				err = h.service.CreateFakeNews(siteName, articleTitle, articleContent)
+				if err != nil {
+					log.Printf("error saving fake news: %v", err)
+				}
+				return false
+			}
+			if err != nil {
+				log.Printf("\nStream error: %v\n", err)
+				return false
+			}
+			sb.WriteString(response.Choices[0].Delta.Content)
+			contentEvent := ContentEvent{
+				Content: response.Choices[0].Delta.Content,
+			}
+			c.SSEvent("message", contentEvent)
+		}
+	})
+}
+
+func Chunks(s string, chunkSize int) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	if chunkSize >= len(s) {
+		return []string{s}
+	}
+	var chunks []string = make([]string, 0, (len(s)-1)/chunkSize+1)
+	currentLen := 0
+	currentStart := 0
+	for i := range s {
+		if currentLen == chunkSize {
+			chunks = append(chunks, s[currentStart:i])
+			currentLen = 0
+			currentStart = i
+		}
+		currentLen++
+	}
+	chunks = append(chunks, s[currentStart:])
+	return chunks
 }

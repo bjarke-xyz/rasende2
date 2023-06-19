@@ -61,6 +61,7 @@ func main() {
 	r.GET("/search", rssHttpHandlers.HandleSearch)
 	r.GET("/charts", rssHttpHandlers.HandleCharts)
 	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)
+	r.GET("/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
 	r.GET("/sites", rssHttpHandlers.HandleSites)
 	r.POST("/job", rssHttpHandlers.RunJob(cfg.JobKey))
 

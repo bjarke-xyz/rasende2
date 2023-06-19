@@ -138,6 +138,10 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 	return nil
 }
 
+func (r *RssService) GetRssUrls() ([]RssUrlDto, error) {
+	return r.repository.GetRssUrls()
+}
+
 func (r *RssService) FetchAndSaveNewItems() error {
 	rssUrls, err := r.repository.GetRssUrls()
 	if err != nil {
@@ -211,4 +215,12 @@ func (r *RssService) getContents(rssUrl RssUrlDto) ([]string, error) {
 		contents = append(contents, bodyStr)
 	}
 	return contents, nil
+}
+
+func (r *RssService) GetFakeNews(siteName string, title string) (*FakeNewsDto, error) {
+	return r.repository.GetFakeNews(siteName, title)
+}
+
+func (r *RssService) CreateFakeNews(siteName string, title string, content string) error {
+	return r.repository.CreateFakeNews(siteName, title, content)
 }
