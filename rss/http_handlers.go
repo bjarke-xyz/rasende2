@@ -308,6 +308,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 				Content: response.Choices[0].Delta.Content,
 			}
 			c.SSEvent("message", contentEvent)
+			c.Writer.Flush()
 		}
 	})
 }
@@ -357,6 +358,8 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 					Content: chunk,
 				}
 				c.SSEvent("message", contentEvent)
+				c.Writer.Flush()
+				time.Sleep(25 * time.Millisecond)
 			}
 			return false
 		})
@@ -415,6 +418,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 				Content: response.Choices[0].Delta.Content,
 			}
 			c.SSEvent("message", contentEvent)
+			c.Writer.Flush()
 		}
 	})
 }
