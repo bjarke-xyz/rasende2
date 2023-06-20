@@ -338,6 +338,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, nil)
 		return
 	}
+	articleTitle = strings.TrimSpace(articleTitle)
 	siteNames, err := h.service.GetSiteNames()
 	if err != nil {
 		log.Printf("error getting site names: %v", err)
