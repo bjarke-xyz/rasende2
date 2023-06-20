@@ -221,6 +221,9 @@ func (r *RssService) GetFakeNews(siteName string, title string) (*FakeNewsDto, e
 	return r.repository.GetFakeNews(siteName, title)
 }
 
-func (r *RssService) CreateFakeNews(siteName string, title string, content string) error {
-	return r.repository.CreateFakeNews(siteName, title, content)
+func (r *RssService) CreateFakeNews(siteName string, title string) error {
+	return r.repository.CreateFakeNews(siteName, title)
+}
+func (r *RssService) UpdateFakeNews(siteName string, title string, content string) error {
+	return r.repository.UpdateFakeNews(siteName, title, content)
 }

@@ -198,13 +198,26 @@ func (r *RssRepository) GetFakeNews(siteName string, title string) (*FakeNewsDto
 	return &fakeNewsDto, nil
 }
 
-func (r *RssRepository) CreateFakeNews(siteName string, title string, content string) error {
+func (r *RssRepository) CreateFakeNews(siteName string, title string) error {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return err
 	}
 	now := time.Now()
-	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES ($1, $2, $3, $4) on conflict do nothing", siteName, title, content, now)
+	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES ($1, $2, $3, $4) on conflict do nothing", siteName, title, "", now)
+	if err != nil {
+		return fmt.Errorf("error inserting fake news: %w", err)
+	}
+	return nil
+}
+
+func (r *RssRepository) UpdateFakeNews(siteName string, title string, content string) error {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	_, err = db.Exec("UPDATE fake_news SET content = $3, published = $4 WHERE site_name = $1 AND title = $2", siteName, title, content, now)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}

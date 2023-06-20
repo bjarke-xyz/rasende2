@@ -289,6 +289,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		return
 	}
 
+	var sb strings.Builder
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -298,12 +299,24 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 			response, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
 				log.Println("\nStream finished")
+				titlesStr := sb.String()
+				titles := strings.Split(titlesStr, "\n")
+				for _, title := range titles {
+					title := strings.TrimSpace(title)
+					if len(title) > 0 {
+						err = h.service.CreateFakeNews(siteName, title)
+						if err != nil {
+							log.Printf("create fake news failed for site %v, title %v: %v", siteName, title, err)
+						}
+					}
+				}
 				return false
 			}
 			if err != nil {
 				log.Printf("\nStream error: %v\n", err)
 				return false
 			}
+			sb.WriteString(response.Choices[0].Delta.Content)
 			contentEvent := ContentEvent{
 				Content: response.Choices[0].Delta.Content,
 			}
@@ -346,7 +359,11 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	if existing != nil {
+	if existing == nil {
+		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+	if len(existing.Content) > 0 {
 		c.Writer.Header().Set("Content-Type", "text/event-stream")
 		c.Writer.Header().Set("Cache-Control", "no-cache")
 		c.Writer.Header().Set("Connection", "keep-alive")
@@ -403,7 +420,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 			if errors.Is(err, io.EOF) {
 				log.Println("\nStream finished")
 				articleContent := sb.String()
-				err = h.service.CreateFakeNews(siteName, articleTitle, articleContent)
+				err = h.service.UpdateFakeNews(siteName, articleTitle, articleContent)
 				if err != nil {
 					log.Printf("error saving fake news: %v", err)
 				}
