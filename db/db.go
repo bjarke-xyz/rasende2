@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -11,8 +12,11 @@ type ConnectionStringer interface {
 }
 
 var connections map[string]*sqlx.DB = make(map[string]*sqlx.DB)
+var lock sync.RWMutex
 
 func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
+	lock.Lock()
+	defer lock.Unlock()
 	existingDb, ok := connections[connStringer.ConnectionString()]
 	if ok {
 		return existingDb, nil
