@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
@@ -20,6 +20,7 @@ func Migrate(direction string, dbConnStr string) error {
 		return fmt.Errorf("failed to load migration files: %w", err)
 	}
 
+	dbConnStr = "mysql://" + dbConnStr
 	m, err := migrate.NewWithSourceInstance("iofs", d, dbConnStr)
 	if err != nil {
 		return fmt.Errorf("failed create new source instance: %w", err)

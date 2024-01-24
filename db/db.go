@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -21,7 +22,7 @@ func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
 	if ok {
 		return existingDb, nil
 	} else {
-		db, err := sqlx.Open("postgres", connStringer.ConnectionString())
+		db, err := sqlx.Open("mysql", connStringer.ConnectionString())
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to db: %w", err)
 		}

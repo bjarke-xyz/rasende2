@@ -1,1 +1,1 @@
-drop table if exists fake_news;
+DROP TABLE IF EXISTS fake_news;

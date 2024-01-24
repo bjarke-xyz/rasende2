@@ -85,19 +85,19 @@ func (r *RssRepository) SearchItems(query string, searchContent bool, offset int
 	var rssItems []RssItemDto
 	args := make([]interface{}, 0)
 	args = append(args, query)
-	sql := "SELECT * FROM rss_items WHERE ( ts_title @@ to_tsquery('danish', $1)"
+	sql := "SELECT * FROM rss_items WHERE ( MATCH(title) AGAINST(?)"
 	if searchContent {
-		sql = sql + " OR ts_content @@ to_tsquery('danish', $1) )"
+		args = append(args, query)
+		sql = sql + " OR MATCH(title, content) AGAINST(?) )"
 	} else {
 		sql = sql + " )" // Close where
 	}
 	if after != nil {
-		sql = sql + " AND published > $2"
+		sql = sql + " AND published > ?"
 		args = append(args, *after)
 	}
 	sql = sql + " ORDER BY published DESC"
-	sql = sql + fmt.Sprintf(" OFFSET %v LIMIT %v", offset, limit)
-	// err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE LOWER(title) LIKE '%' || $1 || '%' order by published desc", query)
+	sql = sql + fmt.Sprintf(" LIMIT %v OFFSET %v", limit, offset)
 	log.Printf("SearchItems SQL: %v -- args: %v", sql, len(args))
 	err = db.Select(&rssItems, sql, args...)
 	if err != nil {
@@ -113,7 +113,7 @@ func (r *RssRepository) GetRecentItems(ctx context.Context, siteName string, off
 	}
 	db = db.Unsafe()
 	var rssItems []RssItemDto
-	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = $1 ORDER BY published OFFSET $2 LIMIT $3", siteName, offset, limit)
+	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = ? ORDER BY published LIMIT ? OFFSET ?", siteName, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteName, err)
 	}
@@ -148,7 +148,7 @@ func (r *RssRepository) GetItemCount(siteName string) (int, error) {
 		return 0, err
 	}
 	var count int
-	err = db.Get(&count, "SELECT count(*) FROM rss_items WHERE site_name = $1", siteName)
+	err = db.Get(&count, "SELECT count(*) FROM rss_items WHERE site_name = ?", siteName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get item count for site %v: %w", siteName, err)
 	}
@@ -169,7 +169,7 @@ func (r *RssRepository) InsertItems(items []RssItemDto) error {
 		return fmt.Errorf("failed to begin tx: %w", err)
 	}
 	_, err = db.NamedExec("INSERT INTO rss_items (item_id, site_name, title, content, link, published) "+
-		"values (:item_id, :site_name, :title, :content, :link, :published) on conflict do nothing", items)
+		"values (:item_id, :site_name, :title, :content, :link, :published) ON DUPLICATE KEY UPDATE item_id = item_id", items)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("failed to insert: %w", err)
@@ -188,7 +188,7 @@ func (r *RssRepository) GetFakeNews(siteName string, title string) (*FakeNewsDto
 		return nil, err
 	}
 	var fakeNewsDto FakeNewsDto
-	err = db.Get(&fakeNewsDto, "SELECT * FROM fake_news WHERE site_name = $1 and title = $2", siteName, title)
+	err = db.Get(&fakeNewsDto, "SELECT * FROM fake_news WHERE site_name = ? and title = ?", siteName, title)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -203,8 +203,16 @@ func (r *RssRepository) CreateFakeNews(siteName string, title string) error {
 	if err != nil {
 		return err
 	}
+	var count int
+	err = db.Get(&count, "SELECT COUNT(*) FROM fake_news WHERE site_name = ? AND title = ?", siteName, title)
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
 	now := time.Now()
-	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES ($1, $2, $3, $4) on conflict do nothing", siteName, title, "", now)
+	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES (?, ?, ?, ?)", siteName, title, "", now)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}
@@ -217,7 +225,7 @@ func (r *RssRepository) UpdateFakeNews(siteName string, title string, content st
 		return err
 	}
 	now := time.Now()
-	_, err = db.Exec("UPDATE fake_news SET content = $3, published = $4 WHERE site_name = $1 AND title = $2", siteName, title, content, now)
+	_, err = db.Exec("UPDATE fake_news SET content = ?, published = ? WHERE site_name = ? AND title = ?", content, now, siteName, title)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}
