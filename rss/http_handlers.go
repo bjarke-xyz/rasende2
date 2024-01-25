@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,9 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	"github.com/samber/lo"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -53,6 +57,60 @@ func float32Query(c *gin.Context, query string, defaultVal float32) float32 {
 		val = float64(defaultVal)
 	}
 	return float32(val)
+}
+
+func (h *HttpHandlers) HandleMigrateDate(c *gin.Context) {
+	pgDb, err := sqlx.Open("postgres", os.Getenv("POSTGRES_DB_CONN_STR"))
+	if err != nil {
+		log.Printf("error connecting to postgres: %v", err)
+		c.Status(500)
+		return
+	}
+	var pgRssItems []RssItemDto
+	err = pgDb.Select(&pgRssItems, "SELECT item_id, site_name, title, content, link, published FROM rss_items")
+	if err != nil {
+		log.Printf("error: %v", err)
+		c.Status(500)
+		return
+	}
+	var mysqlRssItemids []string
+	mysqlDb, err := sqlx.Open("mysql", os.Getenv("DB_CONN_STR"))
+	if err != nil {
+		log.Printf("error conn to mysql: %v", err)
+		c.Status(500)
+		return
+	}
+	// TODO: fix `Row count exceeded 100000`
+	err = mysqlDb.Select(&mysqlRssItemids, "SELECT item_id FROM rss_items")
+	if err != nil {
+		log.Printf("error: %v", err)
+		c.Status(500)
+		return
+	}
+	mysqlRssItemIdsMap := make(map[string]any, len(mysqlRssItemids))
+	for _, id := range mysqlRssItemids {
+		var a interface{}
+		mysqlRssItemIdsMap[id] = a
+	}
+	pgRssItems = lo.Filter(pgRssItems, func(item RssItemDto, index int) bool {
+		_, ok := mysqlRssItemIdsMap[item.ItemId]
+		return !ok
+	})
+	rssItemChunks := lo.Chunk(pgRssItems, 25000)
+	log.Printf("pgrssItems: %v", len(pgRssItems))
+	c.String(200, fmt.Sprintf("%v", len(pgRssItems)))
+	return
+
+	log.Printf("chunks: %v", len(rssItemChunks))
+	for _, chunk := range rssItemChunks {
+		err = h.service.repository.InsertItems(chunk)
+		if err != nil {
+			log.Printf("insert error: %v", err)
+			c.Status(500)
+			return
+		}
+	}
+	c.String(200, fmt.Sprintf("%v", len(pgRssItems)))
 }
 
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {
