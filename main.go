@@ -58,6 +58,7 @@ func main() {
 	rssHttpHandlers := rss.NewHttpHandlers(context, rssService, openAiClient)
 
 	r := ginRouter(cfg)
+	r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
 	r.GET("/search", rssHttpHandlers.HandleSearch)
 	r.GET("/charts", rssHttpHandlers.HandleCharts)
 	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)

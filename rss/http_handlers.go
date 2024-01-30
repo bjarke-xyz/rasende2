@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,9 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	"github.com/samber/lo"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -53,6 +57,41 @@ func float32Query(c *gin.Context, query string, defaultVal float32) float32 {
 		val = float64(defaultVal)
 	}
 	return float32(val)
+}
+
+func returnError(c *gin.Context, err error) {
+	log.Printf("error: %v", err)
+	c.Status(500)
+}
+
+func (h *HttpHandlers) HandleMigrate(key string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != key {
+			c.AbortWithStatus(401)
+			return
+		}
+		pgDb, err := sqlx.Open("postgres", os.Getenv("POSTGRES_DB_CONN_STR"))
+		if err != nil {
+			returnError(c, fmt.Errorf("failed to open: %w", err))
+			return
+		}
+		var pgRssItems []RssItemDto
+		err = pgDb.Select(&pgRssItems, "SELECT item_id, site_name, title, content, link, published FROM rss_items")
+		if err != nil {
+			returnError(c, err)
+			return
+		}
+		chunks := lo.Chunk(pgRssItems, 5000)
+		for i, chunk := range chunks {
+			log.Printf("chunk %v of %v", i, len(chunks))
+			err = h.service.repository.InsertItems(chunk)
+			if err != nil {
+				returnError(c, err)
+				return
+			}
+		}
+		c.String(200, fmt.Sprintf("%v", len(pgRssItems)))
+	}
 }
 
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {

@@ -6,3 +6,5 @@ create table if not exists rss_items(
     link text,
     published timestamp
 );
+
+CREATE INDEX IF NOT EXISTS site_name_index ON rss_items(site_name);
