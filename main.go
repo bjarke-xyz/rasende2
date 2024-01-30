@@ -2,9 +2,7 @@ package main
 
 import (
 	"log"
-	"math/rand"
 	"net/http"
-	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/config"
@@ -19,7 +17,6 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	rand.Seed(time.Now().UnixNano())
 
 	cfg, err := config.NewConfig()
 	if err != nil {
@@ -42,7 +39,13 @@ func main() {
 	}
 
 	rssRepository := rss.NewRssRepository(context)
-	rssService := rss.NewRssService(context, rssRepository)
+	rssSearch := rss.NewRssSearch(cfg.SearchIndexPath)
+	rssService := rss.NewRssService(context, rssRepository, rssSearch)
+
+	err = rssSearch.CreateIndexIfNotExists()
+	if err != nil {
+		log.Printf("failed to create index: %v", err)
+	}
 
 	openAiClient := ai.NewOpenAIClient(context)
 
@@ -55,7 +58,7 @@ func main() {
 
 	runMetricsServer()
 
-	rssHttpHandlers := rss.NewHttpHandlers(context, rssService, openAiClient)
+	rssHttpHandlers := rss.NewHttpHandlers(context, rssService, openAiClient, rssSearch)
 
 	r := ginRouter(cfg)
 	r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))

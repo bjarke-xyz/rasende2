@@ -11,6 +11,8 @@ type Config struct {
 	Port      string
 	DbConnStr string
 
+	SearchIndexPath string
+
 	RedisConnStr string
 	RedisPrefix  string
 
@@ -45,12 +47,13 @@ func NewConfig() (*Config, error) {
 		}
 	}
 	return &Config{
-		Port:         os.Getenv("PORT"),
-		DbConnStr:    os.Getenv("DB_CONN_STR"),
-		RedisConnStr: os.Getenv("REDIS_CONN_STR"),
-		RedisPrefix:  os.Getenv("REDIS_PREFIX"),
-		JobKey:       os.Getenv("JOB_KEY"),
-		OpenAIAPIKey: os.Getenv("OPENAI_API_KEY"),
-		AppEnv:       os.Getenv("APP_ENV"),
+		Port:            os.Getenv("PORT"),
+		DbConnStr:       os.Getenv("DB_CONN_STR"),
+		RedisConnStr:    os.Getenv("REDIS_CONN_STR"),
+		RedisPrefix:     os.Getenv("REDIS_PREFIX"),
+		JobKey:          os.Getenv("JOB_KEY"),
+		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
+		AppEnv:          os.Getenv("APP_ENV"),
+		SearchIndexPath: os.Getenv("SEARCH_INDEX_PATH"),
 	}, nil
 }

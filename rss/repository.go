@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/db"
@@ -76,36 +75,6 @@ func (r *RssRepository) GetSiteNames() ([]string, error) {
 	return sites, nil
 }
 
-func (r *RssRepository) SearchItems(query string, searchContent bool, offset int, limit int, after *time.Time) ([]RssItemDto, error) {
-	db, err := db.Open(r.context.Config)
-	if err != nil {
-		return nil, err
-	}
-	db = db.Unsafe()
-	var rssItems []RssItemDto
-	args := make([]interface{}, 0)
-	args = append(args, query)
-	sql := "SELECT * FROM rss_items WHERE ( ts_title @@ to_tsquery('danish', $1)"
-	if searchContent {
-		sql = sql + " OR ts_content @@ to_tsquery('danish', $1) )"
-	} else {
-		sql = sql + " )" // Close where
-	}
-	if after != nil {
-		sql = sql + " AND published > $2"
-		args = append(args, *after)
-	}
-	sql = sql + " ORDER BY published DESC"
-	sql = sql + fmt.Sprintf(" OFFSET %v LIMIT %v", offset, limit)
-	// err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE LOWER(title) LIKE '%' || $1 || '%' order by published desc", query)
-	log.Printf("SearchItems SQL: %v -- args: %v", sql, len(args))
-	err = db.Select(&rssItems, sql, args...)
-	if err != nil {
-		return nil, fmt.Errorf("error getting items with query %v: %w", query, err)
-	}
-	return rssItems, nil
-}
-
 func (r *RssRepository) GetRecentItems(ctx context.Context, siteName string, offset int, limit int) ([]RssItemDto, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
@@ -113,14 +82,50 @@ func (r *RssRepository) GetRecentItems(ctx context.Context, siteName string, off
 	}
 	db = db.Unsafe()
 	var rssItems []RssItemDto
-	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = $1 ORDER BY published OFFSET $2 LIMIT $3", siteName, offset, limit)
+	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_name = ? ORDER BY published LIMIT ? OFFSET ?", siteName, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteName, err)
 	}
 	return rssItems, nil
 }
 
-func (r *RssRepository) GetItemsByIds(siteName string, itemIds []string) ([]RssItemDto, error) {
+func (r *RssRepository) GetItemsByIds(itemIds []string, after *time.Time, orderBy string) ([]RssItemDto, error) {
+	var rssItems []RssItemDto
+	if len(itemIds) == 0 {
+		return rssItems, nil
+	}
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	db = db.Unsafe()
+	inArgs := []interface{}{itemIds}
+	afterStr := ""
+	if after != nil {
+		afterStr = " AND published > ?"
+		inArgs = append(inArgs, after)
+	}
+	descAsc := "ASC"
+	if orderBy[0] == '-' {
+		descAsc = "DESC"
+		orderBy = orderBy[1:]
+	}
+	orderByStr := " ORDER BY " + orderBy + " " + descAsc
+	query, args, err := sqlx.In("SELECT * FROM rss_items WHERE item_id IN (?)"+afterStr+orderByStr, inArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("error doing sqlx in: %w", err)
+	}
+	// log.Printf("GetItemsByIds-- QUERY:%v", query)
+	// log.Printf("GetItemsByIds-- ARGS:%v", args)
+	query = db.Rebind(query)
+	err = db.Select(&rssItems, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error getting items by id: %w", err)
+	}
+	return rssItems, nil
+}
+
+func (r *RssRepository) GetItemsByNameAndIds(siteName string, itemIds []string) ([]RssItemDto, error) {
 	var rssItems []RssItemDto
 	if len(itemIds) == 0 {
 		return rssItems, nil
@@ -148,7 +153,7 @@ func (r *RssRepository) GetItemCount(siteName string) (int, error) {
 		return 0, err
 	}
 	var count int
-	err = db.Get(&count, "SELECT count(*) FROM rss_items WHERE site_name = $1", siteName)
+	err = db.Get(&count, "SELECT count(*) FROM rss_items WHERE site_name = ?", siteName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get item count for site %v: %w", siteName, err)
 	}
@@ -188,7 +193,7 @@ func (r *RssRepository) GetFakeNews(siteName string, title string) (*FakeNewsDto
 		return nil, err
 	}
 	var fakeNewsDto FakeNewsDto
-	err = db.Get(&fakeNewsDto, "SELECT * FROM fake_news WHERE site_name = $1 and title = $2", siteName, title)
+	err = db.Get(&fakeNewsDto, "SELECT * FROM fake_news WHERE site_name = ? and title = ?", siteName, title)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -204,7 +209,7 @@ func (r *RssRepository) CreateFakeNews(siteName string, title string) error {
 		return err
 	}
 	now := time.Now()
-	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES ($1, $2, $3, $4) on conflict do nothing", siteName, title, "", now)
+	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published) VALUES (?, ?, ?, ?) on conflict do nothing", siteName, title, "", now)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}
@@ -217,7 +222,7 @@ func (r *RssRepository) UpdateFakeNews(siteName string, title string, content st
 		return err
 	}
 	now := time.Now()
-	_, err = db.Exec("UPDATE fake_news SET content = $3, published = $4 WHERE site_name = $1 AND title = $2", siteName, title, content, now)
+	_, err = db.Exec("UPDATE fake_news SET content = ?, published = ? WHERE site_name = ? AND title = ?", content, now, siteName, title)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}

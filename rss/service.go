@@ -22,6 +22,7 @@ type RssService struct {
 	context    *pkg.AppContext
 	repository *RssRepository
 	sanitizer  *bluemonday.Policy
+	search     *RssSearch
 }
 
 var (
@@ -40,11 +41,12 @@ var (
 	})
 )
 
-func NewRssService(context *pkg.AppContext, repository *RssRepository) *RssService {
+func NewRssService(context *pkg.AppContext, repository *RssRepository, search *RssSearch) *RssService {
 	return &RssService{
 		context:    context,
 		repository: repository,
 		sanitizer:  bluemonday.StrictPolicy(),
+		search:     search,
 	}
 }
 
@@ -81,19 +83,20 @@ func (r *RssService) GetRecentItems(ctx context.Context, siteName string, offset
 	return items, err
 }
 
-func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, after *time.Time) ([]RssItemDto, error) {
+func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, after *time.Time, orderBy string) ([]RssItemDto, error) {
 	var items []RssItemDto = []RssItemDto{}
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	cacheKey := fmt.Sprintf("SearchItems:%v:%v:%v:%v:%v", query, searchContent, offset, limit, after)
-	if err := r.context.Cache.Get(ctx, cacheKey, &items); err == nil {
-		return items, nil
+	searchResult, err := r.search.Search(ctx, query, limit, offset, after, orderBy)
+	if err != nil {
+		return items, fmt.Errorf("failed to search: %w", err)
 	}
-	items, err := r.repository.SearchItems(query, searchContent, offset, limit, after)
-	if err == nil {
-		r.context.Cache.Set(ctx, cacheKey, items, time.Hour)
+	itemIds := make([]string, len(searchResult.Hits))
+	for i, doc := range searchResult.Hits {
+		itemIds[i] = doc.ID
 	}
+	items, err = r.repository.GetItemsByIds(itemIds, after, orderBy)
 	return items, err
 }
 
@@ -108,7 +111,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 		fromFeedItemIds[i] = fromFeedItem.ItemId
 	}
 
-	existing, err := r.repository.GetItemsByIds(rssUrl.Name, fromFeedItemIds)
+	existing, err := r.repository.GetItemsByNameAndIds(rssUrl.Name, fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
 	}
@@ -128,6 +131,10 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 	err = r.repository.InsertItems(toInsert)
 	if err != nil {
 		return fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err)
+	}
+	err = r.search.Index(toInsert)
+	if err != nil {
+		log.Printf("failed to index items: %v", err)
 	}
 	totalCount, err := r.repository.GetItemCount(rssUrl.Name)
 	if err != nil {

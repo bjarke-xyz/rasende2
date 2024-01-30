@@ -26,13 +26,15 @@ type HttpHandlers struct {
 	context      *pkg.AppContext
 	service      *RssService
 	openaiClient *ai.OpenAIClient
+	search       *RssSearch
 }
 
-func NewHttpHandlers(context *pkg.AppContext, service *RssService, openaiClient *ai.OpenAIClient) *HttpHandlers {
+func NewHttpHandlers(context *pkg.AppContext, service *RssService, openaiClient *ai.OpenAIClient, search *RssSearch) *HttpHandlers {
 	return &HttpHandlers{
 		context:      context,
 		service:      service,
 		openaiClient: openaiClient,
+		search:       search,
 	}
 }
 
@@ -90,9 +92,12 @@ func (h *HttpHandlers) HandleMigrate(key string) gin.HandlerFunc {
 				return
 			}
 		}
+		h.search.Index(pgRssItems)
 		c.String(200, fmt.Sprintf("%v", len(pgRssItems)))
 	}
 }
+
+var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	query := c.Query("q")
@@ -103,10 +108,14 @@ func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	}
 	searchContentStr := c.DefaultQuery("content", "false")
 	searchContent, err := strconv.ParseBool(searchContentStr)
+	orderBy := c.DefaultQuery("orderBy", allowedOrderBys[0])
+	if !lo.Contains(allowedOrderBys, orderBy) {
+		orderBy = allowedOrderBys[0]
+	}
 	if err != nil {
 		searchContent = false
 	}
-	results, err := h.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, nil)
+	results, err := h.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, nil, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, SearchResult{})
@@ -217,7 +226,7 @@ func MakeDoughnutChart(items []RssItemDto, title string) ChartResult {
 func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 	query := c.Query("q")
 	sevenDaysAgo := time.Now().Add(-time.Hour * 24 * 6)
-	results, err := h.service.SearchItems(c.Request.Context(), query, false, 0, 100000, &sevenDaysAgo)
+	results, err := h.service.SearchItems(c.Request.Context(), query, false, 0, 100000, &sevenDaysAgo, "published")
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, nil)
