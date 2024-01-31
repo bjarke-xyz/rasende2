@@ -88,7 +88,7 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	searchResult, err := r.search.Search(ctx, query, limit, offset, after, orderBy)
+	searchResult, err := r.search.Search(ctx, query, limit, offset, after, orderBy, searchContent)
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}

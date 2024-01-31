@@ -8,6 +8,7 @@ import (
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis/lang/da"
+	"github.com/blevesearch/bleve/v2/search/query"
 )
 
 type RssSearch struct {
@@ -84,13 +85,23 @@ func (s *RssSearch) Index(items []RssItemDto) error {
 	return nil
 }
 
-func (s *RssSearch) Search(ctx context.Context, query string, size int, from int, after *time.Time, orderBy string) (*bleve.SearchResult, error) {
+func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, after *time.Time, orderBy string, searchContent bool) (*bleve.SearchResult, error) {
 	index, err := bleve.Open(s.indexPath)
 	if err != nil {
 		return nil, err
 	}
 	defer index.Close()
-	bleveQuery := bleve.NewQueryStringQuery(query)
+	// bleveQuery := bleve.NewQueryStringQuery(query)
+	titleQuery := bleve.NewMatchQuery(searchQuery)
+	titleQuery.SetField("title")
+	var bleveQuery query.Query = titleQuery
+	if searchContent {
+		contentQuery := bleve.NewMatchQuery(searchQuery)
+		contentQuery.SetField("content")
+		disjunctuinQuery := query.NewDisjunctionQuery([]query.Query{titleQuery, contentQuery})
+		disjunctuinQuery.Min = 1 // match at least one, either title or content
+		bleveQuery = disjunctuinQuery
+	}
 	searchReq := bleve.NewSearchRequestOptions(bleveQuery, size, from, false)
 	searchReq.SortBy([]string{orderBy})
 	searchResult, err := index.Search(searchReq)
