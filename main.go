@@ -68,6 +68,7 @@ func main() {
 	r.GET("/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
 	r.GET("/sites", rssHttpHandlers.HandleSites)
 	r.POST("/job", rssHttpHandlers.RunJob(cfg.JobKey))
+	r.POST("/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
 
 	r.Run()
 

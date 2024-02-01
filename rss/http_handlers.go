@@ -1,6 +1,7 @@
 package rss
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -259,6 +260,36 @@ func (h *HttpHandlers) RunJob(key string) gin.HandlerFunc {
 			go h.context.JobManager.RunJob(JobIdentifierIngestion)
 		} else {
 			h.context.JobManager.RunJob(JobIdentifierIngestion)
+		}
+		c.Status(http.StatusOK)
+	}
+}
+
+func (h *HttpHandlers) BackupDb(key string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != key {
+			c.AbortWithStatus(401)
+			return
+		}
+		fireAndForget := c.Query("fireAndForget") == "true"
+		if fireAndForget {
+			go func() {
+				err := h.service.BackupDb(context.Background())
+				if err != nil {
+					log.Printf("backup failed: %v", err)
+				} else {
+					log.Printf("backup success")
+				}
+			}()
+		} else {
+			ctx := c.Request.Context()
+			err := h.service.BackupDb(ctx)
+			if err != nil {
+				log.Printf("backup failed: %v", err)
+				c.String(http.StatusInternalServerError, "backup failed: %v", err)
+				return
+			}
+			log.Printf("backup success")
 		}
 		c.Status(http.StatusOK)
 	}

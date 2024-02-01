@@ -8,8 +8,14 @@ import (
 )
 
 type Config struct {
-	Port      string
-	DbConnStr string
+	Port         string
+	DbConnStr    string
+	BackupDbPath string
+
+	S3BackupUrl             string
+	S3BackupBucket          string
+	S3BackupAccessKeyId     string
+	S3BackupSecretAccessKey string
 
 	SearchIndexPath string
 
@@ -47,13 +53,18 @@ func NewConfig() (*Config, error) {
 		}
 	}
 	return &Config{
-		Port:            os.Getenv("PORT"),
-		DbConnStr:       os.Getenv("DB_CONN_STR"),
-		RedisConnStr:    os.Getenv("REDIS_CONN_STR"),
-		RedisPrefix:     os.Getenv("REDIS_PREFIX"),
-		JobKey:          os.Getenv("JOB_KEY"),
-		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
-		AppEnv:          os.Getenv("APP_ENV"),
-		SearchIndexPath: os.Getenv("SEARCH_INDEX_PATH"),
+		Port:                    os.Getenv("PORT"),
+		DbConnStr:               os.Getenv("DB_CONN_STR"),
+		BackupDbPath:            os.Getenv("BACKUP_DB_PATH"),
+		S3BackupUrl:             os.Getenv("S3_BACKUP_URL"),
+		S3BackupBucket:          os.Getenv("S3_BACKUP_BUCKET"),
+		S3BackupAccessKeyId:     os.Getenv("S3_BACKUP_ACCESS_KEY_ID"),
+		S3BackupSecretAccessKey: os.Getenv("S3_BACKUP_SECRET_ACCESS_KEY"),
+		RedisConnStr:            os.Getenv("REDIS_CONN_STR"),
+		RedisPrefix:             os.Getenv("REDIS_PREFIX"),
+		JobKey:                  os.Getenv("JOB_KEY"),
+		OpenAIAPIKey:            os.Getenv("OPENAI_API_KEY"),
+		AppEnv:                  os.Getenv("APP_ENV"),
+		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
 	}, nil
 }

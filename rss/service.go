@@ -7,10 +7,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
@@ -233,4 +238,52 @@ func (r *RssService) CreateFakeNews(siteName string, title string) error {
 }
 func (r *RssService) UpdateFakeNews(siteName string, title string, content string) error {
 	return r.repository.UpdateFakeNews(siteName, title, content)
+}
+
+func (r *RssService) BackupDb(ctx context.Context) error {
+	err := r.repository.BackupDb(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to backup db: %v", err)
+	}
+	dbBackupFile, err := os.Open(r.context.Config.BackupDbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open backup db file: %v", err)
+	}
+	r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		return aws.Endpoint{
+			URL: r.context.Config.S3BackupUrl,
+		}, nil
+	})
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithEndpointResolverWithOptions(r2Resolver),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(r.context.Config.S3BackupAccessKeyId, r.context.Config.S3BackupSecretAccessKey, "")),
+		config.WithRegion("auto"),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to load r2 config")
+	}
+
+	client := s3.NewFromConfig(cfg)
+
+	key := "rasende2/db-backup.db"
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &r.context.Config.S3BackupBucket,
+		Key:    &key,
+		Body:   dbBackupFile,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upload db backup file: %v", err)
+	}
+
+	err = dbBackupFile.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close db backup file: %v", err)
+	}
+
+	err = os.Remove(r.context.Config.BackupDbPath)
+	if err != nil {
+		return fmt.Errorf("failed to remove local db backup file: %v", err)
+	}
+
+	return nil
 }
