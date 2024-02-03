@@ -240,6 +240,34 @@ func (r *RssService) UpdateFakeNews(siteName string, title string, content strin
 	return r.repository.UpdateFakeNews(siteName, title, content)
 }
 
+func (r *RssService) BackupDbAndLogError(ctx context.Context) error {
+	err := r.BackupDb(ctx)
+	if err != nil {
+		log.Printf("failed to backup db: %v", err)
+		err = r.NotifyBackupDbError(ctx, err)
+		if err != nil {
+			log.Printf("failed to send notification about err: %v", err)
+		}
+	}
+	return nil
+}
+
+func (r *RssService) NotifyBackupDbError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := "rasende2-api failed to backup: " + err.Error()
+	reader := strings.NewReader(msg)
+	resp, err := http.Post("https://ntfy.sh/"+r.context.Config.NtfyTopic, "text/plain", reader)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("got non-200 status code from ntfy: %v", resp.StatusCode)
+	}
+	return nil
+}
+
 func (r *RssService) BackupDb(ctx context.Context) error {
 	err := r.repository.BackupDb(ctx)
 	if err != nil {
@@ -248,6 +276,10 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 	dbBackupFile, err := os.Open(r.context.Config.BackupDbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open backup db file: %v", err)
+	}
+	dbBackupFileStat, err := dbBackupFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat db backup file: %v", err)
 	}
 	r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		return aws.Endpoint{
@@ -265,9 +297,31 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 
 	client := s3.NewFromConfig(cfg)
 
+	bucket := r.context.Config.S3BackupBucket
 	key := "rasende2/db-backup.db"
+
+	objects, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: &bucket,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list r2 objects: %v", err)
+	}
+	if len(objects.Contents) > 0 {
+		existingObject := objects.Contents[0]
+		for _, obj := range objects.Contents {
+			if obj.Key != nil && *obj.Key == key {
+				existingObject = obj
+				break
+			}
+		}
+		// do not attempt to over-write a larger file with a smaller file
+		if existingObject.Size != nil && *existingObject.Size > dbBackupFileStat.Size() {
+			return fmt.Errorf("attemping to over-write large file (%v) in r2, with small local file (%v)", *existingObject.Size, dbBackupFileStat.Size())
+		}
+	}
+
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: &r.context.Config.S3BackupBucket,
+		Bucket: &bucket,
 		Key:    &key,
 		Body:   dbBackupFile,
 	})

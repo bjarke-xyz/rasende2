@@ -273,19 +273,11 @@ func (h *HttpHandlers) BackupDb(key string) gin.HandlerFunc {
 		}
 		fireAndForget := c.Query("fireAndForget") == "true"
 		if fireAndForget {
-			go func() {
-				err := h.service.BackupDb(context.Background())
-				if err != nil {
-					log.Printf("backup failed: %v", err)
-				} else {
-					log.Printf("backup success")
-				}
-			}()
+			go h.service.BackupDbAndLogError(context.Background())
 		} else {
 			ctx := c.Request.Context()
-			err := h.service.BackupDb(ctx)
+			err := h.service.BackupDbAndLogError(ctx)
 			if err != nil {
-				log.Printf("backup failed: %v", err)
 				c.String(http.StatusInternalServerError, "backup failed: %v", err)
 				return
 			}
