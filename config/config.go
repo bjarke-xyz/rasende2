@@ -19,14 +19,13 @@ type Config struct {
 
 	SearchIndexPath string
 
-	RedisConnStr string
-	RedisPrefix  string
-
 	JobKey string
 
 	OpenAIAPIKey string
 
 	AppEnv string
+
+	NtfyTopic string
 }
 
 const (
@@ -36,10 +35,6 @@ const (
 
 func (c *Config) ConnectionString() string {
 	return c.DbConnStr
-}
-
-func (c *Config) RedisConnectionString() string {
-	return c.RedisConnStr
 }
 
 func NewConfig() (*Config, error) {
@@ -60,11 +55,10 @@ func NewConfig() (*Config, error) {
 		S3BackupBucket:          os.Getenv("S3_BACKUP_BUCKET"),
 		S3BackupAccessKeyId:     os.Getenv("S3_BACKUP_ACCESS_KEY_ID"),
 		S3BackupSecretAccessKey: os.Getenv("S3_BACKUP_SECRET_ACCESS_KEY"),
-		RedisConnStr:            os.Getenv("REDIS_CONN_STR"),
-		RedisPrefix:             os.Getenv("REDIS_PREFIX"),
 		JobKey:                  os.Getenv("JOB_KEY"),
 		OpenAIAPIKey:            os.Getenv("OPENAI_API_KEY"),
 		AppEnv:                  os.Getenv("APP_ENV"),
 		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
+		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
 	}, nil
 }
