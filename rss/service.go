@@ -271,15 +271,15 @@ func (r *RssService) NotifyBackupDbError(ctx context.Context, err error) error {
 func (r *RssService) BackupDb(ctx context.Context) error {
 	err := r.repository.BackupDb(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to backup db: %v", err)
+		return fmt.Errorf("failed to backup db: %w", err)
 	}
 	dbBackupFile, err := os.Open(r.context.Config.BackupDbPath)
 	if err != nil {
-		return fmt.Errorf("failed to open backup db file: %v", err)
+		return fmt.Errorf("failed to open backup db file: %w", err)
 	}
 	dbBackupFileStat, err := dbBackupFile.Stat()
 	if err != nil {
-		return fmt.Errorf("failed to stat db backup file: %v", err)
+		return fmt.Errorf("failed to stat db backup file: %w", err)
 	}
 	r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		return aws.Endpoint{
@@ -304,18 +304,20 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 		Bucket: &bucket,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list r2 objects: %v", err)
+		return fmt.Errorf("failed to list r2 objects: %w", err)
 	}
 	if len(objects.Contents) > 0 {
 		existingObject := objects.Contents[0]
+		objFound := false
 		for _, obj := range objects.Contents {
 			if obj.Key != nil && *obj.Key == key {
 				existingObject = obj
+				objFound = true
 				break
 			}
 		}
 		// do not attempt to over-write a larger file with a smaller file
-		if existingObject.Size != nil && *existingObject.Size > dbBackupFileStat.Size() {
+		if objFound && existingObject.Size != nil && *existingObject.Size > dbBackupFileStat.Size() {
 			return fmt.Errorf("attemping to over-write large file (%v) in r2, with small local file (%v)", *existingObject.Size, dbBackupFileStat.Size())
 		}
 	}
@@ -326,17 +328,17 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 		Body:   dbBackupFile,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to upload db backup file: %v", err)
+		return fmt.Errorf("failed to upload db backup file: %w", err)
 	}
 
 	err = dbBackupFile.Close()
 	if err != nil {
-		return fmt.Errorf("failed to close db backup file: %v", err)
+		return fmt.Errorf("failed to close db backup file: %w", err)
 	}
 
 	err = os.Remove(r.context.Config.BackupDbPath)
 	if err != nil {
-		return fmt.Errorf("failed to remove local db backup file: %v", err)
+		return fmt.Errorf("failed to remove local db backup file: %w", err)
 	}
 
 	return nil
