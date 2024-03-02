@@ -268,6 +268,11 @@ func (r *RssService) NotifyBackupDbError(ctx context.Context, err error) error {
 	return nil
 }
 
+var dbSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "rasende2_db_size_bytes",
+	Help: "Size in bytes of rasende2 db (measured at backup time)",
+})
+
 func (r *RssService) BackupDb(ctx context.Context) error {
 	err := r.repository.BackupDb(ctx)
 	if err != nil {
@@ -281,6 +286,7 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to stat db backup file: %w", err)
 	}
+	dbSizeGauge.Set(float64(dbBackupFileStat.Size()))
 	r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		return aws.Endpoint{
 			URL: r.context.Config.S3BackupUrl,
