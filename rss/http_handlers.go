@@ -236,27 +236,11 @@ func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 		lineDatasetLabel = "Antal '" + query + "'"
 		doughnutTitle = "Brug af '" + query + "' i de forskellige medier"
 	}
-	chartsResult := ChartsResult{}
-	rasendeKey := "CHARTS:RASENDE"
-	getFromDb := false
-	if isRasende {
-		okFromCache, _ := h.context.Cache.GetObj(rasendeKey, &chartsResult)
-		if !okFromCache {
-			getFromDb = true
-		}
-	} else {
-		getFromDb = true
-	}
-	if getFromDb {
-		chartsResult = ChartsResult{
-			Charts: []ChartResult{
-				MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
-				MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
-			},
-		}
-		if isRasende {
-			h.context.Cache.InsertObj(rasendeKey, chartsResult, 60)
-		}
+	chartsResult := ChartsResult{
+		Charts: []ChartResult{
+			MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
+			MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
+		},
 	}
 	c.JSON(http.StatusOK, chartsResult)
 }
