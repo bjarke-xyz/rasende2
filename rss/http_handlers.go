@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/samber/lo"
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -73,13 +74,13 @@ func (h *HttpHandlers) HandleMigrate(key string) gin.HandlerFunc {
 			c.AbortWithStatus(401)
 			return
 		}
-		pgDb, err := sqlx.Open("postgres", os.Getenv("POSTGRES_DB_CONN_STR"))
+		sqliteDb, err := sqlx.Open("sqlite3", os.Getenv("DB_CONN_STR"))
 		if err != nil {
 			returnError(c, fmt.Errorf("failed to open: %w", err))
 			return
 		}
 		var pgRssItems []RssItemDto
-		err = pgDb.Select(&pgRssItems, "SELECT item_id, site_name, title, content, link, published FROM rss_items")
+		err = sqliteDb.Select(&pgRssItems, "SELECT item_id, site_name, title, content, link, published FROM rss_items")
 		if err != nil {
 			returnError(c, err)
 			return
