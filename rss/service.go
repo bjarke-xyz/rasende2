@@ -197,7 +197,6 @@ func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query strin
 		} else {
 			countMap[siteId] = 1
 		}
-		log.Println("siteid", siteId)
 	}
 	for k, v := range countMap {
 		siteCount := SiteCount{SiteId: k, Count: v}
