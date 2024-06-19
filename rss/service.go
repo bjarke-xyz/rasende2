@@ -280,6 +280,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	}
 	wg.Wait()
 	go r.AddMissingItemsToSearchIndexAndLogError(context.Background())
+	go r.context.Cache.DeleteExpired()
 	return nil
 }
 

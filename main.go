@@ -35,9 +35,13 @@ func main() {
 		}
 	}
 
+	cacheRepo := pkg.NewCacheRepo(cfg)
+	cacheService := pkg.NewCacheService(cacheRepo)
+
 	ctx := &pkg.AppContext{
 		Config:     cfg,
 		JobManager: *jobs.NewJobManager(),
+		Cache:      cacheService,
 	}
 
 	rssRepository := rss.NewRssRepository(ctx)

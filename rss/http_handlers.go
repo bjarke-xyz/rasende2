@@ -205,6 +205,7 @@ func MakeDoughnutChartFromSiteCount(siteCounts []SiteCount, title string) ChartR
 func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 	ctx := c.Request.Context()
 	query := c.Query("q")
+	isRasende := query == "rasende"
 
 	siteCountPromise := pkg.NewPromise(func() ([]SiteCount, error) {
 		return h.service.GetSiteCountForSearchQuery(ctx, query, false)
@@ -230,17 +231,34 @@ func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 	lineTitle := "Den seneste uges raserier"
 	lineDatasetLabel := "Raseriudbrud"
 	doughnutTitle := "Raseri i de forskellige medier"
-	if query != "rasende" {
+	if !isRasende {
 		lineTitle = "Den seneste uges brug af '" + query + "'"
 		lineDatasetLabel = "Antal '" + query + "'"
 		doughnutTitle = "Brug af '" + query + "' i de forskellige medier"
 	}
-	c.JSON(http.StatusOK, ChartsResult{
-		Charts: []ChartResult{
-			MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
-			MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
-		},
-	})
+	chartsResult := ChartsResult{}
+	rasendeKey := "CHARTS:RASENDE"
+	getFromDb := false
+	if isRasende {
+		okFromCache, _ := h.context.Cache.GetObj(rasendeKey, &chartsResult)
+		if !okFromCache {
+			getFromDb = true
+		}
+	} else {
+		getFromDb = true
+	}
+	if getFromDb {
+		chartsResult = ChartsResult{
+			Charts: []ChartResult{
+				MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
+				MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
+			},
+		}
+		if isRasende {
+			h.context.Cache.InsertObj(rasendeKey, chartsResult, 60)
+		}
+	}
+	c.JSON(http.StatusOK, chartsResult)
 }
 
 func (h *HttpHandlers) RunJob(key string) gin.HandlerFunc {

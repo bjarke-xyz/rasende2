@@ -8,4 +8,5 @@ import (
 type AppContext struct {
 	Config     *config.Config
 	JobManager jobs.JobManager
+	Cache      *CacheService
 }
