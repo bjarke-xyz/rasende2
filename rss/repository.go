@@ -1,18 +1,22 @@
 package rss
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"slices"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/db"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
+	"github.com/samber/lo"
 )
 
 type RssRepository struct {
@@ -132,9 +136,62 @@ func (r *RssRepository) GetItemsByIds(itemIds []string) ([]RssItemDto, error) {
 	return rssItems, nil
 }
 
-func (r *RssRepository) GetItemsByIdsWithOrder(itemIds []string, after *time.Time, orderBy string) ([]RssItemDto, error) {
+func (r *RssRepository) GetSiteCountByItemIds(allItemIds []string) ([]SiteCount, error) {
+	if len(allItemIds) == 0 {
+		return make([]SiteCount, 0), nil
+	}
+	siteCountMap := make(map[int]int, 0)
+	log.Printf("GetSiteCountByItemIds allItemIds=%v", len(allItemIds))
+	itemIdsChunks := lo.Chunk(allItemIds, 4000)
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	db = db.Unsafe()
+	for _, itemIds := range itemIdsChunks {
+		inArgs := []interface{}{itemIds}
+		query, args, err := sqlx.In("select site_id, count(*) as site_count from rss_items where item_id IN (?) group by site_id", inArgs...)
+		if err != nil {
+			return nil, fmt.Errorf("error doing sqlx in for site count: %w", err)
+		}
+		query = db.Rebind(query)
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("error getting items by id with order: %w", err)
+		}
+		for rows.Next() {
+			var siteId int
+			var siteCount int
+			err = rows.Scan(&siteId, &siteCount)
+			if err != nil {
+				return nil, fmt.Errorf("error scanning site count: %w", err)
+			}
+			currentCount, ok := siteCountMap[siteId]
+			if ok {
+				siteCountMap[siteId] = currentCount + siteCount
+			} else {
+				siteCountMap[siteId] = siteCount
+			}
+		}
+	}
+
+	result := make([]SiteCount, len(siteCountMap))
+	siteCountMapIndex := 0
+	for k, v := range siteCountMap {
+		siteCount := SiteCount{SiteId: k, Count: v}
+		result[siteCountMapIndex] = siteCount
+		siteCountMapIndex++
+	}
+	r.EnrichSiteCountWithSiteNames(result)
+	slices.SortFunc(result, func(i, j SiteCount) int {
+		return cmp.Compare(i.SiteName, j.SiteName)
+	})
+	return result, nil
+}
+
+func (r *RssRepository) GetItemsByIdsWithOrder(allItemIds []string, orderBy string) ([]RssItemDto, error) {
 	var rssItems []RssItemDto
-	if len(itemIds) == 0 {
+	if len(allItemIds) == 0 {
 		return rssItems, nil
 	}
 	db, err := db.Open(r.context.Config)
@@ -142,19 +199,14 @@ func (r *RssRepository) GetItemsByIdsWithOrder(itemIds []string, after *time.Tim
 		return nil, err
 	}
 	db = db.Unsafe()
-	inArgs := []interface{}{itemIds}
-	afterStr := ""
-	if after != nil {
-		afterStr = " AND published > ?"
-		inArgs = append(inArgs, after)
-	}
+	inArgs := []interface{}{allItemIds}
 	descAsc := "ASC"
 	if orderBy[0] == '-' {
 		descAsc = "DESC"
 		orderBy = orderBy[1:]
 	}
 	orderByStr := " ORDER BY " + orderBy + " " + descAsc
-	query, args, err := sqlx.In("SELECT item_id, title, content, link, published, inserted_at, site_id FROM rss_items WHERE item_id IN (?)"+afterStr+orderByStr, inArgs...)
+	query, args, err := sqlx.In("SELECT item_id, title, content, link, published, inserted_at, site_id FROM rss_items WHERE item_id IN (?)"+orderByStr, inArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("error doing sqlx in with order: %w", err)
 	}
@@ -167,6 +219,26 @@ func (r *RssRepository) GetItemsByIdsWithOrder(itemIds []string, after *time.Tim
 	}
 	r.EnrichWithSiteNames(rssItems)
 	return rssItems, nil
+}
+
+func (r *RssRepository) EnrichSiteCountWithSiteNames(siteCounts []SiteCount) {
+	if len(siteCounts) == 0 {
+		return
+	}
+	rssUrls, err := r.GetRssUrls()
+	if err == nil && len(rssUrls) > 0 {
+		rssUrlsById := make(map[int]RssUrlDto, 0)
+		for _, rssUrl := range rssUrls {
+			rssUrlsById[rssUrl.Id] = rssUrl
+		}
+		for i, siteCount := range siteCounts {
+			rssUrl, ok := rssUrlsById[siteCount.SiteId]
+			if ok {
+				siteCount.SiteName = rssUrl.Name
+				siteCounts[i] = siteCount
+			}
+		}
+	}
 }
 
 func (r *RssRepository) EnrichWithSiteNames(rssItems []RssItemDto) {
@@ -213,9 +285,9 @@ func (r *RssRepository) GetExistingItemsBySiteAndIds(itemIds []string) (map[stri
 }
 
 func (r *RssRepository) GetItemsByNameAndIds(itemIds []string) ([]RssItemDto, error) {
-	var rssItems []RssItemDto
+	var siteCounts []RssItemDto
 	if len(itemIds) == 0 {
-		return rssItems, nil
+		return siteCounts, nil
 	}
 	db, err := db.Open(r.context.Config)
 	if err != nil {
@@ -227,11 +299,11 @@ func (r *RssRepository) GetItemsByNameAndIds(itemIds []string) ([]RssItemDto, er
 		return nil, fmt.Errorf("error doing sqlx in: %w", err)
 	}
 	query = db.Rebind(query)
-	err = db.Select(&rssItems, query, args...)
+	err = db.Select(&siteCounts, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items by id: %w", err)
 	}
-	return rssItems, nil
+	return siteCounts, nil
 }
 
 func (r *RssRepository) GetItemCount(siteId int) (int, error) {

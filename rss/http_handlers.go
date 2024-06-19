@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -147,33 +146,27 @@ type ChartsResult struct {
 	Charts []ChartResult `json:"charts"`
 }
 
-func MakeLineChart(items []RssItemDto, title string, datasetLabel string) ChartResult {
+func MakeLineChartFromSearchQueryCount(searchQueryCounts []SearchQueryCount, title string, datasetLabel string) ChartResult {
 	dateFormat := "01-02"
-	today := time.Now()
-	sevenDaysAgo := today.Add(-time.Hour * 24 * 6)
-	lastWeekItemsGroupedByDate := make(map[string]int)
-	for _, item := range items {
-		if item.Published.Before(today) && item.Published.After(sevenDaysAgo) {
-			key := item.Published.Format(dateFormat)
-			_, ok := lastWeekItemsGroupedByDate[key]
-			if !ok {
-				lastWeekItemsGroupedByDate[key] = 0
-			}
-			lastWeekItemsGroupedByDate[key] = lastWeekItemsGroupedByDate[key] + 1
-		}
-	}
-	labels := make([]string, 0)
-	data := make([]int, 0)
-	for d := sevenDaysAgo; !d.After(today); d = d.AddDate(0, 0, 1) {
-		labels = append(labels, d.Format(dateFormat))
-		datum, ok := lastWeekItemsGroupedByDate[d.Format(dateFormat)]
-		if ok {
-			data = append(data, datum)
-		} else {
-			data = append(data, 0)
-		}
+	labels := make([]string, 7)
+	data := make([]int, 7)
+	weekItemsGroupedByDate := make(map[int64]int, 0)
+	for _, v := range searchQueryCounts {
+		weekItemsGroupedByDate[v.Timestamp.Unix()] = v.Count
 	}
 
+	today := time.Now()
+	sevenDaysAgo := today.Add(-time.Hour * 24 * 6)
+	i := 0
+	for d := sevenDaysAgo; !d.After(today); d = d.AddDate(0, 0, 1) {
+		dKey := d.Truncate(time.Hour * 24)
+		labels[i] = dKey.Format(dateFormat)
+		datum, ok := weekItemsGroupedByDate[dKey.Unix()]
+		if ok {
+			data[i] = datum
+		}
+		i++
+	}
 	return ChartResult{
 		Type:   "line",
 		Title:  title,
@@ -187,28 +180,13 @@ func MakeLineChart(items []RssItemDto, title string, datasetLabel string) ChartR
 	}
 }
 
-func MakeDoughnutChart(items []RssItemDto, title string) ChartResult {
-	sitesSet := make(map[string][]RssItemDto)
-	for _, item := range items {
-		_, ok := sitesSet[item.SiteName]
-		if !ok {
-			sitesSet[item.SiteName] = make([]RssItemDto, 0)
-		}
-		sitesSet[item.SiteName] = append(sitesSet[item.SiteName], item)
+func MakeDoughnutChartFromSiteCount(siteCounts []SiteCount, title string) ChartResult {
 
-	}
-
-	labels := make([]string, 0)
-	data := make([]int, 0)
-	for siteName := range sitesSet {
-		labels = append(labels, siteName)
-	}
-	sort.Strings(labels)
-	for _, siteName := range labels {
-		siteItems, ok := sitesSet[siteName]
-		if ok {
-			data = append(data, len(siteItems))
-		}
+	labels := make([]string, len(siteCounts))
+	data := make([]int, len(siteCounts))
+	for i, siteCount := range siteCounts {
+		labels[i] = siteCount.SiteName
+		data[i] = siteCount.Count
 	}
 
 	return ChartResult{
@@ -225,11 +203,21 @@ func MakeDoughnutChart(items []RssItemDto, title string) ChartResult {
 }
 
 func (h *HttpHandlers) HandleCharts(c *gin.Context) {
+	ctx := c.Request.Context()
 	query := c.Query("q")
-	sevenDaysAgo := time.Now().Add(-time.Hour * 24 * 6)
-	results, err := h.service.SearchItems(c.Request.Context(), query, false, 0, 100000, &sevenDaysAgo, "published")
+	now := time.Now()
+	sevenDaysAgo := now.Add(-time.Hour * 24 * 6)
+	tomorrow := now.Add(time.Hour * 24)
+	itemCount, err := h.service.GetItemCountForSearchQuery(ctx, query, false, &sevenDaysAgo, &tomorrow, "published")
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	siteCount, err := h.service.GetSiteCountForSearchQuery(ctx, query, false)
+	if err != nil {
+		log.Printf("failed to get site count with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
@@ -243,8 +231,8 @@ func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, ChartsResult{
 		Charts: []ChartResult{
-			MakeLineChart(results, lineTitle, lineDatasetLabel),
-			MakeDoughnutChart(results, doughnutTitle),
+			MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
+			MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
 		},
 	})
 }

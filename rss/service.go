@@ -1,13 +1,16 @@
 package rss
 
 import (
+	"cmp"
 	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +26,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/samber/lo"
 )
+
+type SiteCount struct {
+	SiteId   int    `json:"siteId"`
+	SiteName string `json:"siteName"`
+	Count    int    `json:"count"`
+}
+
+type SearchQueryCount struct {
+	Timestamp time.Time `json:"timestamp"`
+	Count     int       `json:"count"`
+}
 
 type RssService struct {
 	context    *pkg.AppContext
@@ -102,7 +116,7 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	searchResult, err := r.search.Search(ctx, query, limit, offset, after, orderBy, searchContent)
+	searchResult, err := r.search.Search(ctx, query, limit, offset, nil, after, orderBy, searchContent, nil)
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}
@@ -110,8 +124,71 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	for i, doc := range searchResult.Hits {
 		itemIds[i] = doc.ID
 	}
-	items, err = r.repository.GetItemsByIdsWithOrder(itemIds, after, orderBy)
+	items, err = r.repository.GetItemsByIdsWithOrder(itemIds, orderBy)
 	return items, err
+}
+
+func (r *RssService) GetItemCountForSearchQuery(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]SearchQueryCount, error) {
+	searchQueryCounts := make([]SearchQueryCount, 0)
+	if len(query) > 50 || len(query) <= 2 {
+		return searchQueryCounts, nil
+	}
+
+	searchQueryCountMap := make(map[time.Time]int, 0)
+	searchResult, err := r.search.Search(ctx, query, math.MaxInt, 0, start, end, orderBy, searchContent, []string{"published"})
+	if err != nil {
+		return searchQueryCounts, fmt.Errorf("failed to search: %w", err)
+	}
+	for _, doc := range searchResult.Hits {
+		timestampInterface := doc.Fields["published"]
+		timestampStr, ok := timestampInterface.(string)
+		if !ok {
+			continue
+		}
+		timestamp, err := time.Parse(time.RFC3339, timestampStr)
+		if err != nil {
+			log.Printf("error parsing date %v: %v", timestampStr, err)
+			continue
+		}
+		dayTimestamp := timestamp.Truncate(24 * time.Hour)
+		currentCount, ok := searchQueryCountMap[dayTimestamp]
+		if ok {
+			searchQueryCountMap[dayTimestamp] = currentCount + 1
+		} else {
+			searchQueryCountMap[dayTimestamp] = 1
+		}
+	}
+
+	for k, v := range searchQueryCountMap {
+		searchQueryCount := SearchQueryCount{Timestamp: k, Count: v}
+		searchQueryCounts = append(searchQueryCounts, searchQueryCount)
+	}
+	slices.SortFunc(searchQueryCounts, func(a, b SearchQueryCount) int {
+		return cmp.Compare(a.Timestamp.Unix(), b.Timestamp.Unix())
+	})
+
+	return searchQueryCounts, nil
+}
+
+func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query string, searchContent bool) ([]SiteCount, error) {
+
+	var items []SiteCount = []SiteCount{}
+	if len(query) > 50 || len(query) <= 2 {
+		return items, nil
+	}
+	searchResult, err := r.search.Search(ctx, query, math.MaxInt, 0, nil, nil, "_score", searchContent, nil)
+	if err != nil {
+		return items, fmt.Errorf("failed to search: %w", err)
+	}
+	itemIds := make([]string, len(searchResult.Hits))
+	for i, doc := range searchResult.Hits {
+		itemIds[i] = doc.ID
+	}
+	siteCount, err := r.repository.GetSiteCountByItemIds(itemIds)
+	if err != nil {
+		return items, fmt.Errorf("failed to get site count: %w", err)
+	}
+	return siteCount, nil
 }
 
 func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {

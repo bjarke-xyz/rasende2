@@ -139,7 +139,7 @@ func (s *RssSearch) HasItems(ctx context.Context, itemIds []string) (map[string]
 	return result, nil
 }
 
-func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, after *time.Time, orderBy string, searchContent bool) (*bleve.SearchResult, error) {
+func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, start *time.Time, end *time.Time, orderBy string, searchContent bool, returnFields []string) (*bleve.SearchResult, error) {
 	index, err := bleve.Open(s.indexPath)
 	if err != nil {
 		return nil, err
@@ -152,12 +152,30 @@ func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, fr
 	if searchContent {
 		contentQuery := bleve.NewMatchQuery(searchQuery)
 		contentQuery.SetField("content")
-		disjunctuinQuery := query.NewDisjunctionQuery([]query.Query{titleQuery, contentQuery})
-		disjunctuinQuery.Min = 1 // match at least one, either title or content
-		bleveQuery = disjunctuinQuery
+		disjunctionQuery := query.NewDisjunctionQuery([]query.Query{titleQuery, contentQuery})
+		disjunctionQuery.Min = 1 // match at least one, either title or content
+		bleveQuery = disjunctionQuery
+	}
+	if start != nil || end != nil {
+		bleveStart := time.Time{}
+		if start != nil {
+			bleveStart = *start
+		}
+		bleveEnd := time.Time{}
+		if end != nil {
+			bleveEnd = *end
+		}
+		log.Printf("bleve search, start=%v end=%v", bleveStart, bleveEnd)
+		dateRangeQuery := bleve.NewDateRangeQuery(bleveStart, bleveEnd)
+		dateRangeQuery.SetField("published")
+		conjunctionQuery := query.NewConjunctionQuery([]query.Query{bleveQuery, dateRangeQuery})
+		bleveQuery = conjunctionQuery
 	}
 	searchReq := bleve.NewSearchRequestOptions(bleveQuery, size, from, false)
 	searchReq.SortBy([]string{orderBy})
+	if returnFields != nil {
+		searchReq.Fields = returnFields
+	}
 	searchResult, err := index.Search(searchReq)
 	if err != nil {
 		return nil, err
