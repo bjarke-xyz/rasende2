@@ -83,9 +83,17 @@ func (r *RssService) GetSiteNames() ([]string, error) {
 	return siteNames, err
 }
 
-func (r *RssService) GetRecentItems(ctx context.Context, siteName string, offset int, limit int) ([]RssItemDto, error) {
-	items, err := r.repository.GetRecentItems(ctx, siteName, offset, limit)
-	return items, err
+func (r *RssService) GetSiteInfo(siteName string) (*RssUrlDto, error) {
+	siteInfos, err := r.repository.GetRssUrls()
+	if err != nil {
+		return nil, err
+	}
+	for _, rssUrl := range siteInfos {
+		if rssUrl.Name == siteName {
+			return &rssUrl, nil
+		}
+	}
+	return nil, nil
 }
 
 func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, after *time.Time, orderBy string) ([]RssItemDto, error) {
@@ -111,12 +119,13 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 		return fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err)
 	}
 
+	now := time.Now()
 	fromFeedItemIds := make([]string, len(fromFeed))
 	for i, fromFeedItem := range fromFeed {
 		fromFeedItemIds[i] = fromFeedItem.ItemId
 	}
 
-	existing, err := r.repository.GetItemsByNameAndIds(rssUrl.Name, fromFeedItemIds)
+	existing, err := r.repository.GetItemsByNameAndIds(rssUrl.Id, fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
 	}
@@ -128,6 +137,8 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 	for _, item := range fromFeed {
 		_, exists := existingIds[item.ItemId]
 		if !exists {
+			item.InsertedAt = &now
+			item.SiteId = rssUrl.Id
 			toInsert = append(toInsert, item)
 		}
 	}
@@ -141,7 +152,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 	if err != nil {
 		log.Printf("failed to index items: %v", err)
 	}
-	totalCount, err := r.repository.GetItemCount(rssUrl.Name)
+	totalCount, err := r.repository.GetItemCount(rssUrl.Id)
 	if err != nil {
 		log.Printf("failed to get item count: %v", err)
 	} else {
@@ -229,15 +240,15 @@ func (r *RssService) getContents(rssUrl RssUrlDto) ([]string, error) {
 	return contents, nil
 }
 
-func (r *RssService) GetFakeNews(siteName string, title string) (*FakeNewsDto, error) {
-	return r.repository.GetFakeNews(siteName, title)
+func (r *RssService) GetFakeNews(siteId int, title string) (*FakeNewsDto, error) {
+	return r.repository.GetFakeNews(siteId, title)
 }
 
-func (r *RssService) CreateFakeNews(siteName string, title string) error {
-	return r.repository.CreateFakeNews(siteName, title)
+func (r *RssService) CreateFakeNews(siteId int, title string) error {
+	return r.repository.CreateFakeNews(siteId, title)
 }
-func (r *RssService) UpdateFakeNews(siteName string, title string, content string) error {
-	return r.repository.UpdateFakeNews(siteName, title, content)
+func (r *RssService) UpdateFakeNews(siteId int, title string, content string) error {
+	return r.repository.UpdateFakeNews(siteId, title, content)
 }
 
 func (r *RssService) BackupDbAndLogError(ctx context.Context) error {
@@ -347,5 +358,9 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 		return fmt.Errorf("failed to remove local db backup file: %w", err)
 	}
 
+	return nil
+}
+
+func AddMissingItemsToSearchIndex() error {
 	return nil
 }

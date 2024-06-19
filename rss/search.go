@@ -2,6 +2,7 @@ package rss
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -101,6 +102,19 @@ func getTotalSize(statsMap map[string]interface{}) int64 {
 		totalSize += int64(val.(float64))
 	}
 	return totalSize
+}
+
+func (s *RssSearch) HasItem(ctx context.Context, itemId string) (bool, error) {
+	index, err := bleve.Open(s.indexPath)
+	if err != nil {
+		return false, fmt.Errorf("error opening index: %w", err)
+	}
+	defer index.Close()
+	doc, err := index.Document(itemId)
+	if err != nil {
+		return false, fmt.Errorf("error getting document: %w", err)
+	}
+	return doc != nil, nil
 }
 
 func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, after *time.Time, orderBy string, searchContent bool) (*bleve.SearchResult, error) {

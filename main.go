@@ -23,9 +23,15 @@ func main() {
 		log.Printf("failed to load config: %v", err)
 	}
 
-	err = db.Migrate("up", cfg.ConnectionString())
+	dbConn, err := db.Open(cfg)
 	if err != nil {
-		log.Printf("failed to migrate: %v", err)
+		log.Printf("error opening db: %v", err)
+	}
+	if dbConn != nil {
+		err = db.Migrate("up", dbConn.DB)
+		if err != nil {
+			log.Printf("failed to migrate: %v", err)
+		}
 	}
 
 	context := &pkg.AppContext{

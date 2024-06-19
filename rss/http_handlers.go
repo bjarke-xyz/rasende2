@@ -19,7 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/samber/lo"
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -320,20 +319,18 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 	if temperature < 0 {
 		temperature = 0
 	}
-	rssUrls, err := h.service.GetRssUrls()
+	siteInfo, err := h.service.GetSiteInfo(siteName)
 	if err != nil {
-		log.Printf("get rss urls failed: %v", err)
+		log.Printf("get site info failed: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
+		return
 	}
-	rssUrl := RssUrlDto{}
-	for _, r := range rssUrls {
-		if r.Name == siteName {
-			rssUrl = r
-			break
-		}
+	if siteInfo == nil {
+		c.JSON(http.StatusBadRequest, nil)
+		return
 	}
 
-	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteName, offset, limit)
+	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteInfo.Id, offset, limit)
 	if err != nil {
 		log.Printf("get items failed: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -348,7 +345,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, rssUrl.Description, itemTitles, 10, temperature)
+	stream, err := h.openaiClient.GenerateArticleTitles(c.Request.Context(), siteName, siteInfo.Description, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
@@ -376,7 +373,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 				for _, title := range titles {
 					title := strings.TrimSpace(title)
 					if len(title) > 0 {
-						err = h.service.CreateFakeNews(siteName, title)
+						err = h.service.CreateFakeNews(siteInfo.Id, title)
 						if err != nil {
 							log.Printf("create fake news failed for site %v, title %v: %v", siteName, title, err)
 						}
@@ -411,22 +408,16 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		return
 	}
 	articleTitle = strings.TrimSpace(articleTitle)
-	siteNames, err := h.service.GetSiteNames()
+	siteInfo, err := h.service.GetSiteInfo(siteName)
 	if err != nil {
-		log.Printf("error getting site names: %v", err)
+		log.Printf("error getting site info: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
 	}
-	siteFound := false
-	for _, site := range siteNames {
-		if site == siteName {
-			siteFound = true
-			break
-		}
-	}
-	if !siteFound {
+	if siteInfo == nil {
 		c.JSON(http.StatusBadRequest, nil)
 		return
 	}
-	existing, err := h.service.GetFakeNews(siteName, articleTitle)
+	existing, err := h.service.GetFakeNews(siteInfo.Id, articleTitle)
 	if err != nil {
 		log.Printf("error getting existing news: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -457,19 +448,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	}
 
 	var temperature float32 = 1.0
-	rssUrls, err := h.service.GetRssUrls()
-	if err != nil {
-		log.Printf("get rss urls failed: %v", err)
-		c.JSON(http.StatusInternalServerError, nil)
-	}
-	rssUrl := RssUrlDto{}
-	for _, r := range rssUrls {
-		if r.Name == siteName {
-			rssUrl = r
-			break
-		}
-	}
-	stream, err := h.openaiClient.GenerateArticleContent(c.Request.Context(), siteName, rssUrl.Description, articleTitle, temperature)
+	stream, err := h.openaiClient.GenerateArticleContent(c.Request.Context(), siteName, siteInfo.Description, articleTitle, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
@@ -493,7 +472,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 			if errors.Is(err, io.EOF) {
 				log.Println("\nStream finished")
 				articleContent := sb.String()
-				err = h.service.UpdateFakeNews(siteName, articleTitle, articleContent)
+				err = h.service.UpdateFakeNews(siteInfo.Id, articleTitle, articleContent)
 				if err != nil {
 					log.Printf("error saving fake news: %v", err)
 				}
