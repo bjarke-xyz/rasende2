@@ -176,19 +176,38 @@ func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query strin
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	searchResult, err := r.search.Search(ctx, query, math.MaxInt, 0, nil, nil, "_score", searchContent, nil)
+	searchResult, err := r.search.Search(ctx, query, math.MaxInt, 0, nil, nil, "_score", searchContent, []string{"siteId"})
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}
-	itemIds := make([]string, len(searchResult.Hits))
-	for i, doc := range searchResult.Hits {
-		itemIds[i] = doc.ID
+	countMap := make(map[int]int, 0)
+	for _, doc := range searchResult.Hits {
+		siteIdInterface, ok := doc.Fields["siteId"]
+		if !ok {
+			continue
+		}
+		siteIdFloat, ok := siteIdInterface.(float64)
+		if !ok {
+			continue
+		}
+		siteId := int(siteIdFloat)
+		currentCount, ok := countMap[siteId]
+		if ok {
+			countMap[siteId] = currentCount + 1
+		} else {
+			countMap[siteId] = 1
+		}
+		log.Println("siteid", siteId)
 	}
-	siteCount, err := r.repository.GetSiteCountByItemIds(itemIds)
-	if err != nil {
-		return items, fmt.Errorf("failed to get site count: %w", err)
+	for k, v := range countMap {
+		siteCount := SiteCount{SiteId: k, Count: v}
+		items = append(items, siteCount)
 	}
-	return siteCount, nil
+	r.repository.EnrichSiteCountWithSiteNames(items)
+	slices.SortFunc(items, func(a, b SiteCount) int {
+		return cmp.Compare(a.SiteName, b.SiteName)
+	})
+	return items, nil
 }
 
 func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
