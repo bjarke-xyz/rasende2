@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -34,33 +35,36 @@ func main() {
 		}
 	}
 
-	context := &pkg.AppContext{
+	ctx := &pkg.AppContext{
 		Config:     cfg,
 		JobManager: *jobs.NewJobManager(),
 	}
 
-	rssRepository := rss.NewRssRepository(context)
+	rssRepository := rss.NewRssRepository(ctx)
 	rssSearch := rss.NewRssSearch(cfg.SearchIndexPath)
-	rssService := rss.NewRssService(context, rssRepository, rssSearch)
+	rssService := rss.NewRssService(ctx, rssRepository, rssSearch)
 
-	err = rssSearch.CreateIndexIfNotExists()
+	indexCreated, err := rssSearch.CreateIndexIfNotExists()
 	if err != nil {
 		log.Printf("failed to create index: %v", err)
 	}
+	if indexCreated {
+		go rssService.AddMissingItemsToSearchIndexAndLogError(context.Background())
+	}
 	// TODO: if search index was created, re-index data
 
-	openAiClient := ai.NewOpenAIClient(context)
+	openAiClient := ai.NewOpenAIClient(ctx)
 
-	defer context.JobManager.Stop()
-	context.JobManager.Cron("1 * * * *", rss.JobIdentifierIngestion, func() error {
+	defer ctx.JobManager.Stop()
+	ctx.JobManager.Cron("1 * * * *", rss.JobIdentifierIngestion, func() error {
 		job := rss.NewIngestionJob(rssService)
 		return job.ExecuteJob()
 	}, false)
-	go context.JobManager.Start()
+	go ctx.JobManager.Start()
 
 	runMetricsServer()
 
-	rssHttpHandlers := rss.NewHttpHandlers(context, rssService, openAiClient, rssSearch)
+	rssHttpHandlers := rss.NewHttpHandlers(ctx, rssService, openAiClient, rssSearch)
 
 	r := ginRouter(cfg)
 	r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))

@@ -24,22 +24,22 @@ func NewRssSearch(indexPath string) *RssSearch {
 	}
 }
 
-func (s *RssSearch) CreateIndexIfNotExists() error {
+func (s *RssSearch) CreateIndexIfNotExists() (bool, error) {
 	if _, err := os.Stat(s.indexPath); !os.IsNotExist(err) {
 		// index already exists, do nothing
-		return nil
+		return false, nil
 	}
 	indexMapping := bleve.NewIndexMapping()
 	indexMapping.DefaultAnalyzer = da.AnalyzerName
 	index, err := bleve.New(s.indexPath, indexMapping)
 	if err != nil {
-		return err
+		return false, err
 	}
 	err = index.Close()
 	if err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 var indexSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{

@@ -16,6 +16,7 @@ destination = "/data"
 [env]
 PORT = "8080"
 APP_ENV = "production"
+SEARCH_INDEX_PATH = "/data/bleve_v2"
 
 [http_service]
 internal_port = 8080

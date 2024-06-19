@@ -30,11 +30,12 @@ func NewRssRepository(context *pkg.AppContext) *RssRepository {
 }
 
 type RssUrlDto struct {
-	Name        string   `json:"name"`
-	Urls        []string `json:"urls"`
-	Description string   `json:"description"`
-	Id          int      `json:"id"`
-	Disabled    bool     `json:"disabled"`
+	Name              string   `json:"name"`
+	Urls              []string `json:"urls"`
+	Description       string   `json:"description"`
+	Id                int      `json:"id"`
+	Disabled          bool     `json:"disabled"`
+	ArticleHasContent bool     `json:"articleHasContent"`
 }
 
 //go:embed data

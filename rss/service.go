@@ -490,7 +490,7 @@ func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rs
 		}
 		log.Printf("Out of %v db items, %v were not in search index", len(rssItemIds), len(rssItemIdsToIndex))
 		if len(rssItemIdsToIndex) > 0 {
-			err = r.indexItemIds(rssItemIdsToIndex)
+			err = r.indexItemIds(rssItemIdsToIndex, rssUrl)
 			if err != nil {
 				return fmt.Errorf("error indexing item ids: %w", err)
 			}
@@ -499,11 +499,14 @@ func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rs
 	return nil
 }
 
-func (r *RssService) indexItemIds(allItemIds []string) error {
+func (r *RssService) indexItemIds(allItemIds []string, rssUrl RssUrlDto) error {
 	if len(allItemIds) == 0 {
 		return nil
 	}
-	chunkSize := 5000
+	chunkSize := 3000
+	if rssUrl.ArticleHasContent {
+		chunkSize = 100
+	}
 	itemIdChunks := lo.Chunk(allItemIds, chunkSize)
 	for _, itemIds := range itemIdChunks {
 		items, err := r.repository.GetItemsByIds(itemIds)

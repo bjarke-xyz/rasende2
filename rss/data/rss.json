@@ -77,7 +77,8 @@
       "https://feeds.services.tv2.dk/api/feeds/nyheder/rss"
     ],
     "description": "TV 2 er en dansk tv-kanal, der drives af public service-tv-stationen TV 2 Danmark. Den dyster med den DR-ejede DR1 om at være Danmarks mest sete tv-kanal. ",
-    "id": 19
+    "id": 19,
+    "articleHasContent": true
   },
   {
     "name": "Dagens",
@@ -141,7 +142,8 @@
       "https://arbejderen.dk/feed/"
     ],
     "description": "Arbejderen er det kæmpende Danmarks digitale dagblad. Vores læsere er aktive i fagbevægelsen, de sociale modstandsbevægelser, klimakampen, boligbevægelsen og i kampen mod racisme og reaktion, for fred og international solidaritet.  Arbejderen har ingen ambitioner om at være først med det sidste, men ønsker i stedet at skabe overblik og vise sammenhænge i den stadige strøm af løsrevne nyheder.  Arbejderen beskriver virkeligheden, som den er, med det formål at forandre den. Vores målsætning er at levere gedigen rød kvalitetsjournalistik.",
-    "id": 1
+    "id": 1,
+    "articleHasContent": true
   },
   {
     "name": "Version2",
