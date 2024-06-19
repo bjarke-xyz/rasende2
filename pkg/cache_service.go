@@ -49,7 +49,7 @@ func (c *CacheService) GetObj(key string, target any) (bool, error) {
 		return false, nil
 	}
 	valueBytes := []byte(value)
-	err = json.Unmarshal(valueBytes, target)
+	err = json.Unmarshal(valueBytes, &target)
 	if err != nil {
 		return false, err
 	}

@@ -39,7 +39,7 @@ func (c *CacheRepo) Get(key string) (string, error) {
 	}
 	now := time.Now().UTC().Unix()
 	value := []string{}
-	err = db.Select(&value, "SELECT v FROM cache WHERE k = ? AND expires_at <= ? LIMIT 1", key, now)
+	err = db.Select(&value, "SELECT v FROM cache WHERE k = ? AND expires_at > ? LIMIT 1", key, now)
 	if err != nil {
 		return "", fmt.Errorf("error getting from cache, key=%v: %w", key, err)
 	}
@@ -55,7 +55,7 @@ func (c *CacheRepo) DeleteExpired() error {
 		return err
 	}
 	now := time.Now().UTC().Unix()
-	_, err = db.Exec("DELETE FROM cache WHERE expires_at > ?", now)
+	_, err = db.Exec("DELETE FROM cache WHERE expires_at < ?", now)
 	if err != nil {
 		return fmt.Errorf("error deleting from cache")
 	}

@@ -165,7 +165,6 @@ func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, fr
 		if end != nil {
 			bleveEnd = *end
 		}
-		log.Printf("bleve search, start=%v end=%v", bleveStart, bleveEnd)
 		dateRangeQuery := bleve.NewDateRangeQuery(bleveStart, bleveEnd)
 		dateRangeQuery.SetField("published")
 		conjunctionQuery := query.NewConjunctionQuery([]query.Query{bleveQuery, dateRangeQuery})
