@@ -47,6 +47,7 @@ func main() {
 	if err != nil {
 		log.Printf("failed to create index: %v", err)
 	}
+	// TODO: if search index was created, re-index data
 
 	openAiClient := ai.NewOpenAIClient(context)
 

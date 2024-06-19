@@ -205,6 +205,11 @@ func MakeDoughnutChartFromSiteCount(siteCounts []SiteCount, title string) ChartR
 func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 	ctx := c.Request.Context()
 	query := c.Query("q")
+
+	siteCountPromise := pkg.NewPromise(func() ([]SiteCount, error) {
+		return h.service.GetSiteCountForSearchQuery(ctx, query, false)
+	})
+
 	now := time.Now()
 	sevenDaysAgo := now.Add(-time.Hour * 24 * 6)
 	tomorrow := now.Add(time.Hour * 24)
@@ -215,12 +220,13 @@ func (h *HttpHandlers) HandleCharts(c *gin.Context) {
 		return
 	}
 
-	siteCount, err := h.service.GetSiteCountForSearchQuery(ctx, query, false)
+	siteCount, err := siteCountPromise.Get()
 	if err != nil {
 		log.Printf("failed to get site count with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
+
 	lineTitle := "Den seneste uges raserier"
 	lineDatasetLabel := "Raseriudbrud"
 	doughnutTitle := "Raseri i de forskellige medier"
