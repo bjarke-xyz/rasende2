@@ -125,13 +125,9 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 		fromFeedItemIds[i] = fromFeedItem.ItemId
 	}
 
-	existing, err := r.repository.GetItemsByNameAndIds(rssUrl.Id, fromFeedItemIds)
+	existingIds, err := r.repository.GetExistingItemsBySiteAndIds(rssUrl.Id, fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
-	}
-	existingIds := make(map[string]bool)
-	for _, item := range existing {
-		existingIds[item.ItemId] = true
 	}
 	toInsert := make([]RssItemDto, 0)
 	for _, item := range fromFeed {
@@ -172,6 +168,10 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	}
 	var wg sync.WaitGroup
 	for _, rssUrl := range rssUrls {
+		if (len(rssUrl.Urls)) == 0 {
+			log.Printf("not getting items for %v: Urls list is empty", rssUrl.Name)
+			continue
+		}
 		wg.Add(1)
 		rssUrl := rssUrl
 		go func() {

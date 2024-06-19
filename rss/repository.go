@@ -152,6 +152,29 @@ func (r *RssRepository) EnrichWithSiteNames(rssItems []RssItemDto) {
 	}
 }
 
+func (r *RssRepository) GetExistingItemsBySiteAndIds(siteId int, itemIds []string) (map[string]any, error) {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	db = db.Unsafe()
+	query, args, err := sqlx.In("SELECT item_id FROM rss_items WHERE site_id = ? AND item_id IN (?)", siteId, itemIds)
+	if err != nil {
+		return nil, fmt.Errorf("error doing sqlx in for site %v: %w", siteId, err)
+	}
+	query = db.Rebind(query)
+	dbItemIds := make([]string, 0)
+	err = db.Select(&dbItemIds, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error getting items by id for site %v: %w", siteId, err)
+	}
+	result := make(map[string]any, len(dbItemIds))
+	for _, itemId := range dbItemIds {
+		result[itemId] = struct{}{}
+	}
+	return result, nil
+}
+
 func (r *RssRepository) GetItemsByNameAndIds(siteId int, itemIds []string) ([]RssItemDto, error) {
 	var rssItems []RssItemDto
 	if len(itemIds) == 0 {
