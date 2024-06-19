@@ -31,7 +31,7 @@ func (s *RssSearch) CreateIndexIfNotExists() (bool, error) {
 	}
 	indexMapping := bleve.NewIndexMapping()
 	indexMapping.DefaultAnalyzer = da.AnalyzerName
-	index, err := bleve.New(s.indexPath, indexMapping)
+	index, err := bleve.NewUsing(s.indexPath, indexMapping, "scorch", "scorch", nil)
 	if err != nil {
 		return false, err
 	}
