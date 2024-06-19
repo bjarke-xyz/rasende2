@@ -87,15 +87,52 @@ func (r *RssRepository) GetRecentItems(ctx context.Context, siteId int, offset i
 	}
 	db = db.Unsafe()
 	var rssItems []RssItemDto
-	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_id = ? ORDER BY published LIMIT ? OFFSET ?", siteId, limit, offset)
+	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_id = ? ORDER BY inserted_at LIMIT ? OFFSET ?", siteId, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteId, err)
 	}
 	r.EnrichWithSiteNames(rssItems)
 	return rssItems, nil
 }
+func (r *RssRepository) GetRecentItemIds(ctx context.Context, siteId int, offset int, limit int) ([]string, error) {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	db = db.Unsafe()
+	var rssItemIds []string
+	err = db.Select(&rssItemIds, "SELECT item_id FROM rss_items WHERE site_id = ? ORDER BY inserted_at LIMIT ? OFFSET ?", siteId, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("error getting item ids for site %v: %w", siteId, err)
+	}
+	return rssItemIds, nil
+}
 
-func (r *RssRepository) GetItemsByIds(itemIds []string, after *time.Time, orderBy string) ([]RssItemDto, error) {
+func (r *RssRepository) GetItemsByIds(itemIds []string) ([]RssItemDto, error) {
+	var rssItems []RssItemDto
+	if len(itemIds) == 0 {
+		return rssItems, nil
+	}
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	db = db.Unsafe()
+	inArgs := []interface{}{itemIds}
+	query, args, err := sqlx.In("SELECT item_id, title, content, link, published, inserted_at, site_id FROM rss_items WHERE item_id IN (?)", inArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("error doing sqlx in: %w", err)
+	}
+	query = db.Rebind(query)
+	err = db.Select(&rssItems, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error getting items by id: %w", err)
+	}
+	r.EnrichWithSiteNames(rssItems)
+	return rssItems, nil
+}
+
+func (r *RssRepository) GetItemsByIdsWithOrder(itemIds []string, after *time.Time, orderBy string) ([]RssItemDto, error) {
 	var rssItems []RssItemDto
 	if len(itemIds) == 0 {
 		return rssItems, nil
@@ -119,14 +156,14 @@ func (r *RssRepository) GetItemsByIds(itemIds []string, after *time.Time, orderB
 	orderByStr := " ORDER BY " + orderBy + " " + descAsc
 	query, args, err := sqlx.In("SELECT item_id, title, content, link, published, inserted_at, site_id FROM rss_items WHERE item_id IN (?)"+afterStr+orderByStr, inArgs...)
 	if err != nil {
-		return nil, fmt.Errorf("error doing sqlx in: %w", err)
+		return nil, fmt.Errorf("error doing sqlx in with order: %w", err)
 	}
 	// log.Printf("GetItemsByIds-- QUERY:%v", query)
 	// log.Printf("GetItemsByIds-- ARGS:%v", args)
 	query = db.Rebind(query)
 	err = db.Select(&rssItems, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("error getting items by id: %w", err)
+		return nil, fmt.Errorf("error getting items by id with order: %w", err)
 	}
 	r.EnrichWithSiteNames(rssItems)
 	return rssItems, nil
@@ -152,21 +189,21 @@ func (r *RssRepository) EnrichWithSiteNames(rssItems []RssItemDto) {
 	}
 }
 
-func (r *RssRepository) GetExistingItemsBySiteAndIds(siteId int, itemIds []string) (map[string]any, error) {
+func (r *RssRepository) GetExistingItemsBySiteAndIds(itemIds []string) (map[string]any, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
-	query, args, err := sqlx.In("SELECT item_id FROM rss_items WHERE site_id = ? AND item_id IN (?)", siteId, itemIds)
+	query, args, err := sqlx.In("SELECT item_id FROM rss_items WHERE item_id IN (?)", itemIds)
 	if err != nil {
-		return nil, fmt.Errorf("error doing sqlx in for site %v: %w", siteId, err)
+		return nil, fmt.Errorf("error doing sqlx in: %w", err)
 	}
 	query = db.Rebind(query)
 	dbItemIds := make([]string, 0)
 	err = db.Select(&dbItemIds, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("error getting items by id for site %v: %w", siteId, err)
+		return nil, fmt.Errorf("error getting items by id: %w", err)
 	}
 	result := make(map[string]any, len(dbItemIds))
 	for _, itemId := range dbItemIds {
@@ -175,7 +212,7 @@ func (r *RssRepository) GetExistingItemsBySiteAndIds(siteId int, itemIds []strin
 	return result, nil
 }
 
-func (r *RssRepository) GetItemsByNameAndIds(siteId int, itemIds []string) ([]RssItemDto, error) {
+func (r *RssRepository) GetItemsByNameAndIds(itemIds []string) ([]RssItemDto, error) {
 	var rssItems []RssItemDto
 	if len(itemIds) == 0 {
 		return rssItems, nil
@@ -185,14 +222,14 @@ func (r *RssRepository) GetItemsByNameAndIds(siteId int, itemIds []string) ([]Rs
 		return nil, err
 	}
 	db = db.Unsafe()
-	query, args, err := sqlx.In("SELECT * FROM rss_items WHERE site_id = ? AND item_id IN (?)", siteId, itemIds)
+	query, args, err := sqlx.In("SELECT * FROM rss_items WHERE item_id IN (?)", itemIds)
 	if err != nil {
-		return nil, fmt.Errorf("error doing sqlx in for site %v: %w", siteId, err)
+		return nil, fmt.Errorf("error doing sqlx in: %w", err)
 	}
 	query = db.Rebind(query)
 	err = db.Select(&rssItems, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("error getting items by id for site %v: %w", siteId, err)
+		return nil, fmt.Errorf("error getting items by id: %w", err)
 	}
 	return rssItems, nil
 }

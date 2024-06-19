@@ -21,6 +21,7 @@ import (
 	"github.com/mmcdole/gofeed"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/samber/lo"
 )
 
 type RssService struct {
@@ -109,7 +110,7 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	for i, doc := range searchResult.Hits {
 		itemIds[i] = doc.ID
 	}
-	items, err = r.repository.GetItemsByIds(itemIds, after, orderBy)
+	items, err = r.repository.GetItemsByIdsWithOrder(itemIds, after, orderBy)
 	return items, err
 }
 
@@ -125,7 +126,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 		fromFeedItemIds[i] = fromFeedItem.ItemId
 	}
 
-	existingIds, err := r.repository.GetExistingItemsBySiteAndIds(rssUrl.Id, fromFeedItemIds)
+	existingIds, err := r.repository.GetExistingItemsBySiteAndIds(fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
 	}
@@ -183,6 +184,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 		}()
 	}
 	wg.Wait()
+	go r.AddMissingItemsToSearchIndexAndLogError(context.Background())
 	return nil
 }
 
@@ -361,6 +363,80 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 	return nil
 }
 
-func AddMissingItemsToSearchIndex() error {
+func (r *RssService) AddMissingItemsToSearchIndexAndLogError(ctx context.Context) {
+	err := r.AddMissingItemsToSearchIndex(ctx)
+	if err != nil {
+		log.Printf("failed to add missing items to search index: %v", err)
+	}
+}
+
+func (r *RssService) AddMissingItemsToSearchIndex(ctx context.Context) error {
+	rssUrls, err := r.repository.GetRssUrls()
+	if err != nil {
+		return fmt.Errorf("error getting rss urls: %w", err)
+	}
+	for _, rssUrl := range rssUrls {
+		log.Printf("adding missing items to search from site %v", rssUrl.Name)
+		err = r.addMissingItemsToSearchIndexForSite(ctx, rssUrl)
+		if err != nil {
+			return fmt.Errorf("error adding missing items to search index for site %v: %w", rssUrl.Name, err)
+		}
+	}
+	return nil
+}
+
+func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rssUrl RssUrlDto) error {
+	chunkSize := 40000
+	limit := chunkSize
+	offset := 0
+	getMore := true
+	for getMore {
+		rssItemIds, err := r.repository.GetRecentItemIds(ctx, rssUrl.Id, offset, limit)
+		if err != nil {
+			return fmt.Errorf("error getting recent item ids for site %v: %w", rssUrl.Id, err)
+		}
+		if len(rssItemIds) < chunkSize {
+			getMore = false
+		} else {
+			offset = offset + chunkSize
+		}
+		rssItemIdsToIndex := make([]string, 0)
+		itemsInIndex, err := r.search.HasItems(ctx, rssItemIds)
+		if err != nil {
+			return fmt.Errorf("error checking if search index has items, site %v: %w", rssUrl.Id, err)
+		}
+		for _, itemId := range rssItemIds {
+			_, ok := itemsInIndex[itemId]
+			if !ok {
+				rssItemIdsToIndex = append(rssItemIdsToIndex, itemId)
+			}
+		}
+		log.Printf("Out of %v db items, %v were not in search index", len(rssItemIds), len(rssItemIdsToIndex))
+		if len(rssItemIdsToIndex) > 0 {
+			err = r.indexItemIds(rssItemIdsToIndex)
+			if err != nil {
+				return fmt.Errorf("error indexing item ids: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (r *RssService) indexItemIds(allItemIds []string) error {
+	if len(allItemIds) == 0 {
+		return nil
+	}
+	chunkSize := 5000
+	itemIdChunks := lo.Chunk(allItemIds, chunkSize)
+	for _, itemIds := range itemIdChunks {
+		items, err := r.repository.GetItemsByIds(itemIds)
+		if err != nil {
+			return fmt.Errorf("error getting items: %w", err)
+		}
+		err = r.search.Index(items)
+		if err != nil {
+			return fmt.Errorf("error indexing: %w", err)
+		}
+	}
 	return nil
 }

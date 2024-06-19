@@ -117,6 +117,28 @@ func (s *RssSearch) HasItem(ctx context.Context, itemId string) (bool, error) {
 	return doc != nil, nil
 }
 
+func (s *RssSearch) HasItems(ctx context.Context, itemIds []string) (map[string]any, error) {
+	result := make(map[string]any, 0)
+	if len(itemIds) == 0 {
+		return result, nil
+	}
+	index, err := bleve.Open(s.indexPath)
+	if err != nil {
+		return result, fmt.Errorf("error opening index: %w", err)
+	}
+	defer index.Close()
+	for _, itemId := range itemIds {
+		doc, err := index.Document(itemId)
+		if err != nil {
+			return result, fmt.Errorf("error getting document, id=%v: %w", itemId, err)
+		}
+		if doc != nil {
+			result[itemId] = struct{}{}
+		}
+	}
+	return result, nil
+}
+
 func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, after *time.Time, orderBy string, searchContent bool) (*bleve.SearchResult, error) {
 	index, err := bleve.Open(s.indexPath)
 	if err != nil {
