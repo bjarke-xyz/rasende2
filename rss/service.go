@@ -463,7 +463,7 @@ func (r *RssService) AddMissingItemsToSearchIndex(ctx context.Context) error {
 }
 
 func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rssUrl RssUrlDto) error {
-	chunkSize := 40000
+	chunkSize := 10000
 	limit := chunkSize
 	offset := 0
 	getMore := true
