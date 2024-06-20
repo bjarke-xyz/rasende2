@@ -95,6 +95,7 @@ func (r *RssService) RefreshMetrics() error {
 			rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(articleCount))
 		}
 	}
+	r.search.RefreshMetrics()
 	return nil
 }
 

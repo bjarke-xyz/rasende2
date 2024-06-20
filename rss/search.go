@@ -140,12 +140,26 @@ func (s *RssSearch) Index(items []RssItemDto) error {
 	return nil
 }
 
-func getTotalSize(statsMap map[string]interface{}) int64 {
-	totalSize := int64(0)
-	if val, ok := statsMap["CurOnDiskBytes"]; ok {
-		totalSize += int64(val.(float64))
+func getTotalSize(statsMap map[string]interface{}) uint64 {
+	totalSize := uint64(0)
+	indexMap, ok := statsMap["index"].(map[string]interface{})
+	if ok {
+		if val, ok := indexMap["CurOnDiskBytes"]; ok {
+			log.Println("valvalval", val)
+			totalSize += val.(uint64)
+		}
 	}
 	return totalSize
+}
+
+func (s *RssSearch) RefreshMetrics() {
+	if s.index == nil {
+		return
+	}
+	statsMap := s.index.StatsMap()
+	log.Println(statsMap)
+	size := getTotalSize(statsMap)
+	indexSizeGauge.Set(float64(size))
 }
 
 func (s *RssSearch) HasItem(ctx context.Context, itemId string) (bool, error) {
