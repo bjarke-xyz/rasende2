@@ -145,7 +145,6 @@ func getTotalSize(statsMap map[string]interface{}) uint64 {
 	indexMap, ok := statsMap["index"].(map[string]interface{})
 	if ok {
 		if val, ok := indexMap["CurOnDiskBytes"]; ok {
-			log.Println("valvalval", val)
 			totalSize += val.(uint64)
 		}
 	}
@@ -157,7 +156,6 @@ func (s *RssSearch) RefreshMetrics() {
 		return
 	}
 	statsMap := s.index.StatsMap()
-	log.Println(statsMap)
 	size := getTotalSize(statsMap)
 	indexSizeGauge.Set(float64(size))
 }
