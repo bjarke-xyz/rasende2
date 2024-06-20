@@ -419,8 +419,8 @@ func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, 
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to insert site count: %w", err)
 	}
-	var articleCount int
-	err = tx.Select(&articleCount, "SELECT article_count FROM site_count WHERE site_id = ?", rssUrl.Id)
+	var articleCounts []int
+	err = tx.Select(&articleCounts, "SELECT article_count FROM site_count WHERE site_id = ?", rssUrl.Id)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("error getting article count: %w", err)
@@ -428,6 +428,10 @@ func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, 
 	err = tx.Commit()
 	if err != nil {
 		return 0, fmt.Errorf("failed to commit tx: %w", err)
+	}
+	articleCount := 0
+	if len(articleCounts) > 0 {
+		articleCount = articleCounts[0]
 	}
 	return articleCount, nil
 
