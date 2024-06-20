@@ -44,6 +44,11 @@ func buildIndexMapping() *mapping.IndexMappingImpl {
 	// Using text field mapping here as it is "lighter" compared to numeric, and we don't need to do numeric operations on the id (TODO: find GitHub issue comment that said this)
 	siteIdFieldMapping := bleve.NewTextFieldMapping()
 	rssItemMapping.AddFieldMappingsAt("siteId", siteIdFieldMapping)
+
+	linkFieldMapping := bleve.NewTextFieldMapping()
+	linkFieldMapping.Index = false
+	linkFieldMapping.Store = true
+	rssItemMapping.AddFieldMappingsAt("link", linkFieldMapping)
 	return indexMapping
 }
 

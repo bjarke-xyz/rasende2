@@ -242,6 +242,26 @@ func (r *RssRepository) EnrichSiteCountWithSiteNames(siteCounts []SiteCount) {
 	}
 }
 
+func (r *RssRepository) EnrichRssSearchResultWithSiteNames(rssSearchResults []RssSearchResult) {
+	if len(rssSearchResults) == 0 {
+		return
+	}
+	rssUrls, err := r.GetRssUrls()
+	if err == nil && len(rssUrls) > 0 {
+		rssUrlsById := make(map[int]RssUrlDto, 0)
+		for _, rssUrl := range rssUrls {
+			rssUrlsById[rssUrl.Id] = rssUrl
+		}
+		for i, rssItem := range rssSearchResults {
+			rssUrl, ok := rssUrlsById[rssItem.SiteId]
+			if ok {
+				rssItem.SiteName = rssUrl.Name
+				rssSearchResults[i] = rssItem
+			}
+		}
+	}
+}
+
 func (r *RssRepository) EnrichWithSiteNames(rssItems []RssItemDto) {
 	if len(rssItems) == 0 {
 		return

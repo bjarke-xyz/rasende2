@@ -39,8 +39,8 @@ func NewHttpHandlers(context *pkg.AppContext, service *RssService, openaiClient 
 }
 
 type SearchResult struct {
-	HighlightedWords []string     `json:"highlightedWords"`
-	Items            []RssItemDto `json:"items"`
+	HighlightedWords []string          `json:"highlightedWords"`
+	Items            []RssSearchResult `json:"items"`
 }
 
 func intQuery(c *gin.Context, query string, defaultVal int) int {
@@ -115,7 +115,7 @@ func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	if err != nil {
 		searchContent = false
 	}
-	results, err := h.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, nil, orderBy)
+	results, err := h.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.JSON(http.StatusInternalServerError, SearchResult{})

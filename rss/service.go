@@ -38,6 +38,16 @@ type SearchQueryCount struct {
 	Count     int       `json:"count"`
 }
 
+type RssSearchResult struct {
+	ItemId    string    `json:"itemId"`
+	SiteName  string    `json:"siteName"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	Link      string    `json:"link"`
+	Published time.Time `json:"published"`
+	SiteId    int       `json:"siteId"`
+}
+
 type RssService struct {
 	context    *pkg.AppContext
 	repository *RssRepository
@@ -111,20 +121,47 @@ func (r *RssService) GetSiteInfo(siteName string) (*RssUrlDto, error) {
 	return nil, nil
 }
 
-func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, after *time.Time, orderBy string) ([]RssItemDto, error) {
-	var items []RssItemDto = []RssItemDto{}
+func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, orderBy string) ([]RssSearchResult, error) {
+	var items []RssSearchResult = []RssSearchResult{}
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	searchResult, err := r.search.Search(ctx, query, limit, offset, nil, after, orderBy, searchContent, nil)
+	searchResult, err := r.search.Search(ctx, query, limit, offset, nil, nil, orderBy, searchContent, []string{"title", "content", "published", "siteId", "link"})
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}
-	itemIds := make([]string, len(searchResult.Hits))
+	// itemIds := make([]string, len(searchResult.Hits))
+	items = make([]RssSearchResult, searchResult.Total)
 	for i, doc := range searchResult.Hits {
-		itemIds[i] = doc.ID
+		item := RssSearchResult{
+			ItemId: doc.ID,
+		}
+		for k, field := range doc.Fields {
+			switch field := field.(type) {
+			case string:
+				switch k {
+				case "title":
+					item.Title = field
+				case "content":
+					item.Content = field
+				case "link":
+					item.Link = field
+				case "published":
+					_published, err := time.Parse(time.RFC3339, field)
+					if err != nil {
+						return items, fmt.Errorf("error parsing published '%s' to time: %w", field, err)
+					}
+					item.Published = _published
+				default:
+					log.Println("default case for field", k, field)
+				}
+			case float64:
+				item.SiteId = int(field)
+			}
+			items[i] = item
+		}
 	}
-	items, err = r.repository.GetItemsByIdsWithOrder(itemIds, orderBy)
+	r.repository.EnrichRssSearchResultWithSiteNames(items)
 	return items, err
 }
 
