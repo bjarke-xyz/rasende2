@@ -53,7 +53,7 @@ func main() {
 		log.Printf("failed to open/create index: %v", err)
 	}
 	if indexCreated {
-		go rssService.AddMissingItemsToSearchIndexAndLogError(context.Background())
+		go rssService.AddMissingItemsToSearchIndexAndLogError(context.Background(), nil)
 	}
 	defer rssSearch.CloseIndex()
 

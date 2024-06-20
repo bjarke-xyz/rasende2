@@ -294,6 +294,7 @@ func (h *HttpHandlers) HandleSites(c *gin.Context) {
 
 type ContentEvent struct {
 	Content string
+	Cursor  string `json:"cursor"`
 }
 
 func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
@@ -302,7 +303,6 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, nil)
 		return
 	}
-	offset := intQuery(c, "offset", 0)
 	defaultLimit := 300
 	limit := intQuery(c, "limit", defaultLimit)
 	if limit > defaultLimit {
@@ -315,6 +315,12 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 	if temperature < 0 {
 		temperature = 0
 	}
+	cursorQuery := int64(intQuery(c, "cursor", 0))
+	var insertedAtOffset *time.Time
+	if cursorQuery > 0 {
+		_insertedAtOffset := time.Unix(cursorQuery, 0)
+		insertedAtOffset = &_insertedAtOffset
+	}
 	siteInfo, err := h.service.GetSiteInfo(siteName)
 	if err != nil {
 		log.Printf("get site info failed: %v", err)
@@ -326,7 +332,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		return
 	}
 
-	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteInfo.Id, offset, limit)
+	items, err := h.service.repository.GetRecentItems(c.Request.Context(), siteInfo.Id, limit, insertedAtOffset)
 	if err != nil {
 		log.Printf("get items failed: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -336,6 +342,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		c.JSON(http.StatusNotFound, nil)
 		return
 	}
+	cursor := fmt.Sprintf("%v", items[len(items)-1].InsertedAt.Unix())
 	itemTitles := make([]string, len(items))
 	for i, item := range items {
 		itemTitles[i] = item.Title
@@ -384,6 +391,7 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 			sb.WriteString(response.Choices[0].Delta.Content)
 			contentEvent := ContentEvent{
 				Content: response.Choices[0].Delta.Content,
+				Cursor:  cursor,
 			}
 			c.SSEvent("message", contentEvent)
 			c.Writer.Flush()

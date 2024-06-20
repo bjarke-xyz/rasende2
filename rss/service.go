@@ -316,7 +316,9 @@ func (r *RssService) FetchAndSaveNewItems() error {
 		}()
 	}
 	wg.Wait()
-	go r.AddMissingItemsToSearchIndexAndLogError(context.Background())
+	now := time.Now()
+	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
+	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
 	go r.context.Cache.DeleteExpired()
 	return nil
 }
@@ -496,21 +498,21 @@ func (r *RssService) BackupDb(ctx context.Context) error {
 	return nil
 }
 
-func (r *RssService) AddMissingItemsToSearchIndexAndLogError(ctx context.Context) {
-	err := r.AddMissingItemsToSearchIndex(ctx)
+func (r *RssService) AddMissingItemsToSearchIndexAndLogError(ctx context.Context, maxLookBack *time.Time) {
+	err := r.addMissingItemsToSearchIndex(ctx, maxLookBack)
 	if err != nil {
 		log.Printf("failed to add missing items to search index: %v", err)
 	}
 }
 
-func (r *RssService) AddMissingItemsToSearchIndex(ctx context.Context) error {
+func (r *RssService) addMissingItemsToSearchIndex(ctx context.Context, maxLookBack *time.Time) error {
 	rssUrls, err := r.repository.GetRssUrls()
 	if err != nil {
 		return fmt.Errorf("error getting rss urls: %w", err)
 	}
 	for _, rssUrl := range rssUrls {
 		log.Printf("adding missing items to search from site %v", rssUrl.Name)
-		err = r.addMissingItemsToSearchIndexForSite(ctx, rssUrl)
+		err = r.addMissingItemsToSearchIndexForSite(ctx, rssUrl, maxLookBack)
 		if err != nil {
 			return fmt.Errorf("error adding missing items to search index for site %v: %w", rssUrl.Name, err)
 		}
@@ -518,20 +520,20 @@ func (r *RssService) AddMissingItemsToSearchIndex(ctx context.Context) error {
 	return nil
 }
 
-func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rssUrl RssUrlDto) error {
+func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rssUrl RssUrlDto, maxLookBack *time.Time) error {
 	chunkSize := 10000
 	limit := chunkSize
-	offset := 0
+	var insertedAtOffset *time.Time
 	getMore := true
 	for getMore {
-		rssItemIds, err := r.repository.GetRecentItemIds(ctx, rssUrl.Id, offset, limit)
+		rssItemIds, lastInsertedAt, err := r.repository.GetRecentItemIds(ctx, rssUrl.Id, limit, insertedAtOffset, maxLookBack)
 		if err != nil {
 			return fmt.Errorf("error getting recent item ids for site %v: %w", rssUrl.Id, err)
 		}
 		if len(rssItemIds) < chunkSize {
 			getMore = false
 		} else {
-			offset = offset + chunkSize
+			insertedAtOffset = lastInsertedAt
 		}
 		rssItemIdsToIndex := make([]string, 0)
 		itemsInIndex, err := r.search.HasItems(ctx, rssItemIds)

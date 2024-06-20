@@ -85,32 +85,64 @@ func (r *RssRepository) GetSiteNames() ([]string, error) {
 	return siteNames, nil
 }
 
-func (r *RssRepository) GetRecentItems(ctx context.Context, siteId int, offset int, limit int) ([]RssItemDto, error) {
+func (r *RssRepository) GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]RssItemDto, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
 	}
 	db = db.Unsafe()
 	var rssItems []RssItemDto
-	err = db.Select(&rssItems, "SELECT * FROM rss_items WHERE site_id = ? ORDER BY inserted_at LIMIT ? OFFSET ?", siteId, limit, offset)
+	args := []interface{}{siteId, limit}
+	offsetWhere := ""
+	if insertedAtOffset != nil {
+		offsetWhere = " AND inserted_at < ? "
+		args = []interface{}{siteId, insertedAtOffset, limit}
+	}
+	sql := "SELECT * FROM rss_items WHERE site_id = ? " + offsetWhere + " ORDER BY inserted_at DESC LIMIT ?"
+	err = db.Select(&rssItems, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteId, err)
 	}
 	r.EnrichWithSiteNames(rssItems)
 	return rssItems, nil
 }
-func (r *RssRepository) GetRecentItemIds(ctx context.Context, siteId int, offset int, limit int) ([]string, error) {
+func (r *RssRepository) GetRecentItemIds(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time, maxLookBack *time.Time) ([]string, *time.Time, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	db = db.Unsafe()
-	var rssItemIds []string
-	err = db.Select(&rssItemIds, "SELECT item_id FROM rss_items WHERE site_id = ? ORDER BY inserted_at LIMIT ? OFFSET ?", siteId, limit, offset)
+	args := []interface{}{siteId, limit}
+	offsetWhere := ""
+	if insertedAtOffset != nil {
+		offsetWhere = " AND inserted_at < ? "
+		args = []interface{}{siteId, insertedAtOffset, limit}
+	}
+	maxLookBackWhere := ""
+	if maxLookBack != nil {
+		maxLookBackWhere = " AND inserted_at > ? "
+		// TODO: find better way of doing this...
+		if offsetWhere != "" {
+			args = []interface{}{siteId, insertedAtOffset, maxLookBack, limit}
+		} else {
+			args = []interface{}{siteId, maxLookBack, limit}
+		}
+	}
+	var rssItems []RssItemDto
+	sql := "SELECT item_id, inserted_at FROM rss_items WHERE site_id = ? " + offsetWhere + maxLookBackWhere + " ORDER BY inserted_at DESC LIMIT ?"
+	log.Println(sql, args)
+	err = db.Select(&rssItems, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("error getting item ids for site %v: %w", siteId, err)
+		return nil, nil, fmt.Errorf("error getting item ids for site %v: %w", siteId, err)
 	}
-	return rssItemIds, nil
+	itemIds := make([]string, len(rssItems))
+	var lastInsertedAt *time.Time
+	for i, rssItem := range rssItems {
+		itemIds[i] = rssItem.ItemId
+		if i == len(rssItems)-1 {
+			lastInsertedAt = rssItem.InsertedAt
+		}
+	}
+	return itemIds, lastInsertedAt, nil
 }
 
 func (r *RssRepository) GetItemsByIds(itemIds []string) ([]RssItemDto, error) {
