@@ -69,19 +69,21 @@ func (s *RssSearch) CloseIndex() error {
 }
 
 func (s *RssSearch) OpenAndCreateIndexIfNotExists() (bool, error) {
+	indexCreated := false
 	index, err := bleve.Open(s.indexPath)
 	if err != nil {
 		if err == bleve.ErrorIndexPathDoesNotExist {
 			index, err = s.createIndex()
 			if err != nil {
-				return false, err
+				return indexCreated, err
 			}
+			indexCreated = true
 		} else {
-			return false, fmt.Errorf("error opening index at %s: %w", s.indexPath, err)
+			return indexCreated, fmt.Errorf("error opening index at %s: %w", s.indexPath, err)
 		}
 	}
 	s.index = index
-	return false, nil
+	return indexCreated, nil
 }
 
 var indexSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
