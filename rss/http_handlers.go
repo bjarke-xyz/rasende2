@@ -294,7 +294,7 @@ func (h *HttpHandlers) RebuildIndex(key string) gin.HandlerFunc {
 		if maxLookBackStr != "" {
 			_maxLookBack, err := time.Parse(time.RFC3339, maxLookBackStr)
 			if err != nil {
-				log.Printf("error parsing max lookback str %v: %w", maxLookBackStr, err)
+				log.Printf("error parsing max lookback str %v: %v", maxLookBackStr, err)
 				c.AbortWithError(http.StatusBadRequest, err)
 				return
 			}
