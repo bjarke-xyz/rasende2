@@ -314,7 +314,7 @@ func (r *RssRepository) EnrichWithSiteNames(rssItems []RssItemDto) {
 	}
 }
 
-func (r *RssRepository) GetExistingItemsBySiteAndIds(itemIds []string) (map[string]any, error) {
+func (r *RssRepository) GetExistingItemsByIds(itemIds []string) (map[string]any, error) {
 	db, err := db.Open(r.context.Config)
 	if err != nil {
 		return nil, err
@@ -372,30 +372,64 @@ func (r *RssRepository) GetItemCount(siteId int) (int, error) {
 	return count, nil
 }
 
-func (r *RssRepository) InsertItems(items []RssItemDto) error {
+func (r *RssRepository) GetArticleCounts() (map[int]int, error) {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.Queryx("SELECT site_id, article_count FROM site_count")
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int]int, 0)
+	for rows.Next() {
+		var siteId int
+		var articleCount int
+		err = rows.Scan(&siteId, &articleCount)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning: %w", err)
+		}
+		result[siteId] = articleCount
+	}
+	return result, nil
+}
+
+func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, error) {
 	if len(items) == 0 {
-		return nil
+		return 0, nil
 	}
 	db, err := db.Open(r.context.Config)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.Beginx()
 	if err != nil {
-		return fmt.Errorf("failed to begin tx: %w", err)
+		return 0, fmt.Errorf("failed to begin tx: %w", err)
 	}
-	_, err = db.NamedExec("INSERT INTO rss_items (item_id, site_name, title, content, link, published, inserted_at, site_id) "+
+	_, err = tx.NamedExec("INSERT INTO rss_items (item_id, site_name, title, content, link, published, inserted_at, site_id) "+
 		"values (:item_id, '', :title, :content, :link, :published, :inserted_at, :site_id) on conflict do nothing", items)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to insert: %w", err)
+		return 0, fmt.Errorf("failed to insert: %w", err)
+	}
+	now := time.Now().UTC()
+	_, err = tx.Exec("INSERT INTO site_count (site_id, article_count, updated_at) VALUES (?, ?, ?) on conflict do update set article_count = article_count + excluded.article_count, updated_at = excluded.updated_at", rssUrl.Id, len(items), now)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("failed to insert site count: %w", err)
+	}
+	var articleCount int
+	err = tx.Select(&articleCount, "SELECT article_count FROM site_count WHERE site_id = ?", rssUrl.Id)
+	if err != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("error getting article count: %w", err)
 	}
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("failed to commit tx: %w", err)
+		return 0, fmt.Errorf("failed to commit tx: %w", err)
 	}
-	return nil
+	return articleCount, nil
 
 }
 

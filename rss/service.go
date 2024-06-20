@@ -80,6 +80,24 @@ func NewRssService(context *pkg.AppContext, repository *RssRepository, search *R
 	}
 }
 
+func (r *RssService) RefreshMetrics() error {
+	rssUrls, err := r.repository.GetRssUrls()
+	if err != nil {
+		return err
+	}
+	articleCounts, err := r.repository.GetArticleCounts()
+	if err != nil {
+		return err
+	}
+	for _, rssUrl := range rssUrls {
+		articleCount, ok := articleCounts[rssUrl.Id]
+		if ok {
+			rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(articleCount))
+		}
+	}
+	return nil
+}
+
 func getItemId(item *gofeed.Item) string {
 	str := item.Title + ":" + item.Link
 	bytes := []byte(str)
@@ -258,7 +276,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 		fromFeedItemIds[i] = fromFeedItem.ItemId
 	}
 
-	existingIds, err := r.repository.GetExistingItemsBySiteAndIds(fromFeedItemIds)
+	existingIds, err := r.repository.GetExistingItemsByIds(fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
 	}
@@ -273,7 +291,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 	}
 
 	log.Printf("FetchAndSaveNewItems: %v inserted %v new items", rssUrl.Name, len(toInsert))
-	err = r.repository.InsertItems(toInsert)
+	articleCount, err := r.repository.InsertItems(rssUrl, toInsert)
 	if err != nil {
 		return fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err)
 	}
@@ -281,11 +299,8 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 	if err != nil {
 		log.Printf("failed to index items: %v", err)
 	}
-	totalCount, err := r.repository.GetItemCount(rssUrl.Id)
-	if err != nil {
-		log.Printf("failed to get item count: %v", err)
-	} else {
-		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(totalCount))
+	if articleCount > 0 {
+		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(articleCount))
 	}
 	return nil
 }

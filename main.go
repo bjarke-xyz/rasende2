@@ -57,6 +57,13 @@ func main() {
 	}
 	defer rssSearch.CloseIndex()
 
+	go func() {
+		err := rssService.RefreshMetrics()
+		if err != nil {
+			log.Printf("error refreshing metrics: %v", err)
+		}
+	}()
+
 	openAiClient := ai.NewOpenAIClient(ctx)
 
 	defer ctx.JobManager.Stop()
@@ -71,7 +78,7 @@ func main() {
 	rssHttpHandlers := rss.NewHttpHandlers(ctx, rssService, openAiClient, rssSearch)
 
 	r := ginRouter(cfg)
-	r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
+	// r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
 	r.GET("/search", rssHttpHandlers.HandleSearch)
 	r.GET("/charts", rssHttpHandlers.HandleCharts)
 	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)
