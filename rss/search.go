@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/analysis/lang/da"
+	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -16,6 +16,7 @@ import (
 
 type RssSearch struct {
 	indexPath string
+	index     bleve.Index
 }
 
 func NewRssSearch(indexPath string) *RssSearch {
@@ -24,22 +25,63 @@ func NewRssSearch(indexPath string) *RssSearch {
 	}
 }
 
-func (s *RssSearch) CreateIndexIfNotExists() (bool, error) {
-	if _, err := os.Stat(s.indexPath); !os.IsNotExist(err) {
-		// index already exists, do nothing
-		return false, nil
-	}
+func buildIndexMapping() *mapping.IndexMappingImpl {
 	indexMapping := bleve.NewIndexMapping()
 	indexMapping.DefaultAnalyzer = da.AnalyzerName
+	rssItemMapping := bleve.NewDocumentMapping()
+
+	titleFieldMapping := bleve.NewTextFieldMapping()
+	titleFieldMapping.Analyzer = da.AnalyzerName
+	rssItemMapping.AddFieldMappingsAt("title", titleFieldMapping)
+
+	contentFieldMapping := bleve.NewTextFieldMapping()
+	contentFieldMapping.Analyzer = da.AnalyzerName
+	rssItemMapping.AddFieldMappingsAt("content", contentFieldMapping)
+
+	publishedFieldMapping := bleve.NewDateTimeFieldMapping()
+	rssItemMapping.AddFieldMappingsAt("published", publishedFieldMapping)
+
+	// Using text field mapping here as it is "lighter" compared to numeric, and we don't need to do numeric operations on the id (TODO: find GitHub issue comment that said this)
+	siteIdFieldMapping := bleve.NewTextFieldMapping()
+	rssItemMapping.AddFieldMappingsAt("siteId", siteIdFieldMapping)
+	return indexMapping
+}
+
+func (s *RssSearch) createIndex() (bleve.Index, error) {
+	indexMapping := buildIndexMapping()
+
 	index, err := bleve.NewUsing(s.indexPath, indexMapping, "scorch", "scorch", nil)
 	if err != nil {
-		return false, err
+		return nil, fmt.Errorf("error creating index: %w", err)
 	}
-	err = index.Close()
+	return index, nil
+}
+
+func (s *RssSearch) CloseIndex() error {
+	if s.index != nil {
+		err := s.index.Close()
+		if err != nil {
+			log.Printf("error closing index: %v", err)
+			return fmt.Errorf("error closing index: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *RssSearch) OpenAndCreateIndexIfNotExists() (bool, error) {
+	index, err := bleve.Open(s.indexPath)
 	if err != nil {
-		return false, err
+		if err == bleve.ErrorIndexPathDoesNotExist {
+			index, err = s.createIndex()
+			if err != nil {
+				return false, err
+			}
+		} else {
+			return false, fmt.Errorf("error opening index at %s: %w", s.indexPath, err)
+		}
 	}
-	return true, nil
+	s.index = index
+	return false, nil
 }
 
 var indexSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
@@ -48,26 +90,21 @@ var indexSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
 })
 
 func (s *RssSearch) Index(items []RssItemDto) error {
-	index, err := bleve.Open(s.indexPath)
-	if err != nil {
-		return err
-	}
-	defer index.Close()
 	batchSize := 5000
 	batchCount := 0
 	count := 0
 	startTime := time.Now()
 	log.Printf("Indexing...")
-	batch := index.NewBatch()
+	batch := s.index.NewBatch()
 	for _, item := range items {
 		batch.Index(item.ItemId, item)
 		batchCount++
 		if batchCount >= batchSize {
-			err = index.Batch(batch)
+			err := s.index.Batch(batch)
 			if err != nil {
 				return err
 			}
-			batch = index.NewBatch()
+			batch = s.index.NewBatch()
 			batchCount = 0
 		}
 
@@ -81,7 +118,7 @@ func (s *RssSearch) Index(items []RssItemDto) error {
 	}
 	// flush the last batch
 	if batchCount > 0 {
-		err = index.Batch(batch)
+		err := s.index.Batch(batch)
 		if err != nil {
 			return err
 		}
@@ -90,7 +127,7 @@ func (s *RssSearch) Index(items []RssItemDto) error {
 	indexDurationSeconds := float64(indexDuration) / float64(time.Second)
 	timePerDoc := float64(indexDuration) / float64(count)
 	log.Printf("Indexed %d documents, in %.2fs (average %.2fms/doc)", count, indexDurationSeconds, timePerDoc/float64(time.Millisecond))
-	statsMap := index.StatsMap()
+	statsMap := s.index.StatsMap()
 	totalSize := getTotalSize(statsMap)
 	indexSizeGauge.Set(float64(totalSize))
 	return nil
@@ -105,12 +142,7 @@ func getTotalSize(statsMap map[string]interface{}) int64 {
 }
 
 func (s *RssSearch) HasItem(ctx context.Context, itemId string) (bool, error) {
-	index, err := bleve.Open(s.indexPath)
-	if err != nil {
-		return false, fmt.Errorf("error opening index: %w", err)
-	}
-	defer index.Close()
-	doc, err := index.Document(itemId)
+	doc, err := s.index.Document(itemId)
 	if err != nil {
 		return false, fmt.Errorf("error getting document: %w", err)
 	}
@@ -122,13 +154,8 @@ func (s *RssSearch) HasItems(ctx context.Context, itemIds []string) (map[string]
 	if len(itemIds) == 0 {
 		return result, nil
 	}
-	index, err := bleve.Open(s.indexPath)
-	if err != nil {
-		return result, fmt.Errorf("error opening index: %w", err)
-	}
-	defer index.Close()
 	for _, itemId := range itemIds {
-		doc, err := index.Document(itemId)
+		doc, err := s.index.Document(itemId)
 		if err != nil {
 			return result, fmt.Errorf("error getting document, id=%v: %w", itemId, err)
 		}
@@ -140,12 +167,6 @@ func (s *RssSearch) HasItems(ctx context.Context, itemIds []string) (map[string]
 }
 
 func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, start *time.Time, end *time.Time, orderBy string, searchContent bool, returnFields []string) (*bleve.SearchResult, error) {
-	index, err := bleve.Open(s.indexPath)
-	if err != nil {
-		return nil, err
-	}
-	defer index.Close()
-	// bleveQuery := bleve.NewQueryStringQuery(query)
 	titleQuery := bleve.NewMatchQuery(searchQuery)
 	titleQuery.SetField("title")
 	var bleveQuery query.Query = titleQuery
@@ -175,7 +196,7 @@ func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, fr
 	if returnFields != nil {
 		searchReq.Fields = returnFields
 	}
-	searchResult, err := index.Search(searchReq)
+	searchResult, err := s.index.Search(searchReq)
 	if err != nil {
 		return nil, err
 	}

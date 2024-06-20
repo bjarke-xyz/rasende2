@@ -48,14 +48,14 @@ func main() {
 	rssSearch := rss.NewRssSearch(cfg.SearchIndexPath)
 	rssService := rss.NewRssService(ctx, rssRepository, rssSearch)
 
-	indexCreated, err := rssSearch.CreateIndexIfNotExists()
+	indexCreated, err := rssSearch.OpenAndCreateIndexIfNotExists()
 	if err != nil {
-		log.Printf("failed to create index: %v", err)
+		log.Printf("failed to open/create index: %v", err)
 	}
 	if indexCreated {
 		go rssService.AddMissingItemsToSearchIndexAndLogError(context.Background())
 	}
-	// TODO: if search index was created, re-index data
+	defer rssSearch.CloseIndex()
 
 	openAiClient := ai.NewOpenAIClient(ctx)
 
