@@ -79,6 +79,7 @@ func main() {
 	r.GET("/sites", rssHttpHandlers.HandleSites)
 	r.POST("/job", rssHttpHandlers.RunJob(cfg.JobKey))
 	r.POST("/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
+	r.POST("/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
 
 	r.Run()
 

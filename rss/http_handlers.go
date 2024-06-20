@@ -283,6 +283,28 @@ func (h *HttpHandlers) BackupDb(key string) gin.HandlerFunc {
 	}
 }
 
+func (h *HttpHandlers) RebuildIndex(key string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != key {
+			c.AbortWithStatus(401)
+			return
+		}
+		var maxLookBack *time.Time
+		maxLookBackStr := c.Query("maxLookBack")
+		if maxLookBackStr != "" {
+			_maxLookBack, err := time.Parse(time.RFC3339, maxLookBackStr)
+			if err != nil {
+				log.Printf("error parsing max lookback str %v: %w", maxLookBackStr, err)
+				c.AbortWithError(http.StatusBadRequest, err)
+				return
+			}
+			maxLookBack = &_maxLookBack
+		}
+		go h.service.AddMissingItemsToSearchIndexAndLogError(context.Background(), maxLookBack)
+		c.Status(http.StatusOK)
+	}
+}
+
 func (h *HttpHandlers) HandleSites(c *gin.Context) {
 	siteNames, err := h.service.GetSiteNames()
 	if err != nil {
