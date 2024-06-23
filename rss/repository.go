@@ -222,38 +222,6 @@ func (r *RssRepository) GetSiteCountByItemIds(allItemIds []string) ([]SiteCount,
 	return result, nil
 }
 
-func (r *RssRepository) GetItemsByIdsWithOrder(allItemIds []string, orderBy string) ([]RssItemDto, error) {
-	var rssItems []RssItemDto
-	if len(allItemIds) == 0 {
-		return rssItems, nil
-	}
-	db, err := db.Open(r.context.Config)
-	if err != nil {
-		return nil, err
-	}
-	db = db.Unsafe()
-	inArgs := []interface{}{allItemIds}
-	descAsc := "ASC"
-	if orderBy[0] == '-' {
-		descAsc = "DESC"
-		orderBy = orderBy[1:]
-	}
-	orderByStr := " ORDER BY " + orderBy + " " + descAsc
-	query, args, err := sqlx.In("SELECT item_id, title, content, link, published, inserted_at, site_id FROM rss_items WHERE item_id IN (?)"+orderByStr, inArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("error doing sqlx in with order: %w", err)
-	}
-	// log.Printf("GetItemsByIds-- QUERY:%v", query)
-	// log.Printf("GetItemsByIds-- ARGS:%v", args)
-	query = db.Rebind(query)
-	err = db.Select(&rssItems, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("error getting items by id with order: %w", err)
-	}
-	r.EnrichWithSiteNames(rssItems)
-	return rssItems, nil
-}
-
 func (r *RssRepository) EnrichSiteCountWithSiteNames(siteCounts []SiteCount) {
 	if len(siteCounts) == 0 {
 		return
