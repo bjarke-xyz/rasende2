@@ -6,10 +6,10 @@ require (
 	github.com/PuerkitoBio/goquery v1.8.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.16
 	github.com/mattn/go-sqlite3 v1.14.22
-	github.com/pkoukk/tiktoken-go v0.1.6
+	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/pressly/goose/v3 v3.20.0
 	github.com/samber/lo v1.39.0
-	github.com/sashabaranov/go-openai v1.18.3
+	github.com/sashabaranov/go-openai v1.26.3
 	github.com/tursodatabase/libsql-client-go v0.0.0-20240416075003-747366ff79c4
 )
 

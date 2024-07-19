@@ -28,10 +28,10 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		newTitlesCount = 10
 	}
 	previousTitlesStr := ""
-	model := openai.GPT3Dot5Turbo
+	model := "gpt-4o-mini"
 	tkm, err := tiktoken.EncodingForModel(model)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tiktoken encoding")
+		return nil, fmt.Errorf("failed to get tiktoken encoding: %w", err)
 	}
 	var token []int
 	previousTitlesCount := 0
