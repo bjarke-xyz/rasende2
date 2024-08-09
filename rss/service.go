@@ -266,17 +266,19 @@ func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query strin
 }
 
 func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
+	now := time.Now()
 	fromFeed, err := r.parse(rssUrl)
 	if err != nil {
 		return fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err)
 	}
+	log.Printf("FetchAndSaveNewItems: %v took %v to parse", rssUrl.Name, time.Since(now))
 
-	now := time.Now()
 	fromFeedItemIds := make([]string, len(fromFeed))
 	for i, fromFeedItem := range fromFeed {
 		fromFeedItemIds[i] = fromFeedItem.ItemId
 	}
 
+	dbNow := time.Now()
 	existingIds, err := r.repository.GetExistingItemsByIds(fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
@@ -291,7 +293,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl RssUrlDto) error {
 		}
 	}
 
-	log.Printf("FetchAndSaveNewItems: %v inserted %v new items", rssUrl.Name, len(toInsert))
+	log.Printf("FetchAndSaveNewItems: %v inserted %v new items. Took %v", rssUrl.Name, len(toInsert), time.Since(dbNow))
 	articleCount, err := r.repository.InsertItems(rssUrl, toInsert)
 	if err != nil {
 		return fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err)
