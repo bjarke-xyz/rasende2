@@ -34,6 +34,8 @@ type Config struct {
 	AppEnv string
 
 	NtfyTopic string
+
+	AdminPassword string
 }
 
 const (
@@ -76,5 +78,6 @@ func NewConfig() (*Config, error) {
 		AppEnv:                  os.Getenv("APP_ENV"),
 		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
 		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
+		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
 	}, nil
 }

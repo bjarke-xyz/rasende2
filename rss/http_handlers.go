@@ -569,6 +569,40 @@ func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 	c.JSON(200, highlightedFakeNews)
 }
 
+func (h *HttpHandlers) SetHighlightedFakeNews(c *gin.Context) {
+	auth := c.Request.FormValue("password")
+	if auth != h.context.Config.AdminPassword {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+	siteName := c.Request.FormValue("siteName")
+	title := strings.TrimSpace(c.Request.FormValue("title"))
+	siteInfo, err := h.service.GetSiteInfo(siteName)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	if siteInfo == nil {
+		c.JSON(400, "site not found")
+		return
+	}
+	existing, err := h.service.GetFakeNews(siteInfo.Id, title)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	if existing == nil {
+		c.JSON(400, "fake news not found")
+		return
+	}
+	err = h.service.SetFakeNewsHighlighted(siteInfo.Id, title, !existing.Highlighted)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	c.Status(204)
+}
+
 func Chunks(s string, chunkSize int) []string {
 	if len(s) == 0 {
 		return nil

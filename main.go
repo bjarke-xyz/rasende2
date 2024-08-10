@@ -82,6 +82,7 @@ func main() {
 	r.GET("/search", rssHttpHandlers.HandleSearch)
 	r.GET("/charts", rssHttpHandlers.HandleCharts)
 	r.GET("/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
+	r.POST("/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
 	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)
 	r.GET("/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
 	r.GET("/sites", rssHttpHandlers.HandleSites)
