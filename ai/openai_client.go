@@ -34,7 +34,8 @@ func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 	imgReq := openai.ImageRequest{
 		Model: "dall-e-3",
 		// Prompt:         fmt.Sprintf("Et billede der passer til en artikel på nyhedsmediet %s. %s. Artiklens overskrift er '%s'. Billedet skal passe til artiklen. Billedet bør IKKE ligne en artikel eller en avis, eller indeholde aviser. Billedet skal være passende til artiklen. Artiklen vises på en hjemmeside.", siteName, siteDescription, articleTitle),
-		Prompt:         fmt.Sprintf("Create a header image for an article titled '%v'. The article will be published in an online news media called '%v'", articleTitle, siteName),
+		// Prompt:         fmt.Sprintf("Create a header image for an article titled '%v'. The article will be published in an online news media called '%v'", articleTitle, siteName),
+		Prompt:         fmt.Sprintf("Create a header image for an article titled '%v', to be used on %v. %v. **Do not include any text, such as the newspaper name, article title, or any other wording, in the image.**", articleTitle, siteName, siteDescription),
 		N:              1,
 		Size:           "1024x1024",
 		Style:          "vivid",
