@@ -314,10 +314,16 @@ func (h *HttpHandlers) HandleSites(c *gin.Context) {
 	c.JSON(http.StatusOK, siteNames)
 }
 
+const (
+	ImageStatusGenerating = "GENERATING"
+	ImageStatusReady      = "READY"
+)
+
 type ContentEvent struct {
-	Content  string
-	Cursor   string `json:"cursor"`
-	ImageUrl string `json:"imageUrl"`
+	Content     string
+	Cursor      string `json:"cursor"`
+	ImageUrl    string `json:"imageUrl"`
+	ImageStatus string `json:"imageStatus"`
 }
 
 func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
@@ -460,9 +466,9 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Header().Set("Transfer-Encoding", "chunked")
 		if existing.ImageUrl != nil && *existing.ImageUrl != "" {
-			c.SSEvent("message", ContentEvent{ImageUrl: *existing.ImageUrl})
+			c.SSEvent("message", ContentEvent{ImageUrl: *existing.ImageUrl, ImageStatus: ImageStatusReady})
 		} else {
-			c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png"})
+			c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png", ImageStatus: ImageStatusReady})
 		}
 		c.Stream(func(w io.Writer) bool {
 			chunks := Chunks(existing.Content, 10)
@@ -509,7 +515,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")
-	c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png"})
+	c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png", ImageStatus: ImageStatusGenerating})
 	c.Stream(func(w io.Writer) bool {
 		imgUrlSent := false
 		for {
@@ -528,7 +534,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 						log.Printf("error getting openai img: %v", err)
 					}
 					if imgUrl != "" {
-						c.SSEvent("message", ContentEvent{ImageUrl: imgUrl})
+						c.SSEvent("message", ContentEvent{ImageUrl: imgUrl, ImageStatus: ImageStatusReady})
 						imgUrlSent = true
 					}
 				}
@@ -550,7 +556,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 					log.Printf("error getting openai img: %v", err)
 				}
 				if imgUrl != "" {
-					c.SSEvent("message", ContentEvent{ImageUrl: imgUrl})
+					c.SSEvent("message", ContentEvent{ImageUrl: imgUrl, ImageStatus: ImageStatusReady})
 					imgUrlSent = true
 				}
 			}
