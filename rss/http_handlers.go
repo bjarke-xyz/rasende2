@@ -20,6 +20,8 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+const PlaceholderImgUrl = "https://static.bjarke.xyz/placeholder.png"
+
 type HttpHandlers struct {
 	context      *pkg.AppContext
 	service      *RssService
@@ -313,8 +315,9 @@ func (h *HttpHandlers) HandleSites(c *gin.Context) {
 }
 
 type ContentEvent struct {
-	Content string
-	Cursor  string `json:"cursor"`
+	Content  string
+	Cursor   string `json:"cursor"`
+	ImageUrl string `json:"imageUrl"`
 }
 
 func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
@@ -456,6 +459,11 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		c.Writer.Header().Set("Cache-Control", "no-cache")
 		c.Writer.Header().Set("Connection", "keep-alive")
 		c.Writer.Header().Set("Transfer-Encoding", "chunked")
+		if existing.ImageUrl != nil && *existing.ImageUrl != "" {
+			c.SSEvent("message", ContentEvent{ImageUrl: *existing.ImageUrl})
+		} else {
+			c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png"})
+		}
 		c.Stream(func(w io.Writer) bool {
 			chunks := Chunks(existing.Content, 10)
 			for _, chunk := range chunks {
@@ -470,6 +478,17 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		})
 		return
 	}
+
+	articleImgPromise := pkg.NewPromise(func() (string, error) {
+		imgUrl, err := h.openaiClient.GenerateImage(c.Request.Context(), siteName, siteInfo.Description, articleTitle)
+		if err != nil {
+			log.Printf("error making fake news img: %v", err)
+		}
+		if imgUrl != "" {
+			h.service.SetFakeNewsImgUrl(siteInfo.Id, articleTitle, imgUrl)
+		}
+		return imgUrl, err
+	})
 
 	var temperature float32 = 1.0
 	stream, err := h.openaiClient.GenerateArticleContent(c.Request.Context(), siteName, siteInfo.Description, articleTitle, temperature)
@@ -490,7 +509,9 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png"})
 	c.Stream(func(w io.Writer) bool {
+		imgUrlSent := false
 		for {
 			response, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
@@ -500,6 +521,18 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 				if err != nil {
 					log.Printf("error saving fake news: %v", err)
 				}
+
+				if !imgUrlSent {
+					imgUrl, err := articleImgPromise.Get()
+					if err != nil {
+						log.Printf("error getting openai img: %v", err)
+					}
+					if imgUrl != "" {
+						c.SSEvent("message", ContentEvent{ImageUrl: imgUrl})
+						imgUrlSent = true
+					}
+				}
+
 				return false
 			}
 			if err != nil {
@@ -511,6 +544,16 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 				Content: response.Choices[0].Delta.Content,
 			}
 			c.SSEvent("message", contentEvent)
+			imgUrl, err, articleImgOk := articleImgPromise.Poll()
+			if articleImgOk {
+				if err != nil {
+					log.Printf("error getting openai img: %v", err)
+				}
+				if imgUrl != "" {
+					c.SSEvent("message", ContentEvent{ImageUrl: imgUrl})
+					imgUrlSent = true
+				}
+			}
 			c.Writer.Flush()
 		}
 	})

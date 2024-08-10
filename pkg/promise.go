@@ -23,6 +23,19 @@ func NewPromise[T any](f func() (T, error)) *Promise[T] {
 	return promise
 }
 
+func (p *Promise[T]) Poll() (T, error, bool) {
+	select {
+	case err := <-p.err:
+		var zero T // Zero value of T
+		return zero, err, true
+	case result := <-p.result:
+		return result, nil, true
+	default:
+		var zero T // Zero value of T
+		return zero, nil, false
+	}
+}
+
 func (p *Promise[T]) Get() (T, error) {
 	select {
 	case err := <-p.err:

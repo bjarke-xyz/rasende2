@@ -19,6 +19,12 @@ type Config struct {
 	S3BackupAccessKeyId     string
 	S3BackupSecretAccessKey string
 
+	S3ImagePublicBaseUrl   string
+	S3ImageUrl             string
+	S3ImageBucket          string
+	S3ImageAccessKeyId     string
+	S3ImageSecretAccessKey string
+
 	SearchIndexPath string
 
 	JobKey string
@@ -60,6 +66,11 @@ func NewConfig() (*Config, error) {
 		S3BackupBucket:          os.Getenv("S3_BACKUP_BUCKET"),
 		S3BackupAccessKeyId:     os.Getenv("S3_BACKUP_ACCESS_KEY_ID"),
 		S3BackupSecretAccessKey: os.Getenv("S3_BACKUP_SECRET_ACCESS_KEY"),
+		S3ImagePublicBaseUrl:    os.Getenv("S3_IMAGE_PUBLIC_BASE_URL"),
+		S3ImageUrl:              os.Getenv("S3_IMAGE_URL"),
+		S3ImageBucket:           os.Getenv("S3_IMAGE_BUCKET"),
+		S3ImageAccessKeyId:      os.Getenv("S3_IMAGE_ACCESS_KEY_ID"),
+		S3ImageSecretAccessKey:  os.Getenv("S3_IMAGE_SECRET_ACCESS_KEY"),
 		JobKey:                  os.Getenv("JOB_KEY"),
 		OpenAIAPIKey:            os.Getenv("OPENAI_API_KEY"),
 		AppEnv:                  os.Getenv("APP_ENV"),

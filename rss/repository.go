@@ -71,6 +71,7 @@ type FakeNewsDto struct {
 	Content   string    `db:"content" json:"content"`
 	Published time.Time `db:"published" json:"published"`
 	SiteId    int       `db:"site_id" json:"siteId"`
+	ImageUrl  *string   `db:"img_url" json:"imageUrl"`
 }
 
 func (r *RssRepository) GetSiteNames() ([]string, error) {
@@ -441,6 +442,18 @@ func (r *RssRepository) UpdateFakeNews(siteId int, title string, content string)
 	}
 	now := time.Now()
 	_, err = db.Exec("UPDATE fake_news SET content = ?, published = ? WHERE site_id = ? AND title = ?", content, now, siteId, title)
+	if err != nil {
+		return fmt.Errorf("error inserting fake news: %w", err)
+	}
+	return nil
+}
+
+func (r *RssRepository) SetFakeNewsImgUrl(siteId int, title string, imgUrl string) error {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("UPDATE fake_news SET img_url = ? WHERE site_id = ? AND title = ?", imgUrl, siteId, title)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}
