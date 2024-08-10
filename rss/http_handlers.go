@@ -559,6 +559,16 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	})
 }
 
+func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
+	highlightedFakeNews, err := h.service.GetHighlightedFakeNews()
+	if err != nil {
+		log.Printf("error getting highlighted fake news: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	c.JSON(200, highlightedFakeNews)
+}
+
 func Chunks(s string, chunkSize int) []string {
 	if len(s) == 0 {
 		return nil

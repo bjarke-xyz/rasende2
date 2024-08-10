@@ -66,12 +66,13 @@ type RssItemDto struct {
 }
 
 type FakeNewsDto struct {
-	SiteName  string    `db:"site_name" json:"siteName"`
-	Title     string    `db:"title" json:"title"`
-	Content   string    `db:"content" json:"content"`
-	Published time.Time `db:"published" json:"published"`
-	SiteId    int       `db:"site_id" json:"siteId"`
-	ImageUrl  *string   `db:"img_url" json:"imageUrl"`
+	SiteName    string    `db:"site_name" json:"siteName"`
+	Title       string    `db:"title" json:"title"`
+	Content     string    `db:"content" json:"content"`
+	Published   time.Time `db:"published" json:"published"`
+	SiteId      int       `db:"site_id" json:"siteId"`
+	ImageUrl    *string   `db:"img_url" json:"imageUrl"`
+	Highlighted bool      `db:"highlighted" json:"highlighted"`
 }
 
 func (r *RssRepository) GetSiteNames() ([]string, error) {
@@ -221,6 +222,26 @@ func (r *RssRepository) GetSiteCountByItemIds(allItemIds []string) ([]SiteCount,
 		return cmp.Compare(i.SiteName, j.SiteName)
 	})
 	return result, nil
+}
+
+func (r *RssRepository) EnrichFakeNewsWithSiteNames(fakeNews []FakeNewsDto) {
+	if len(fakeNews) == 0 {
+		return
+	}
+	rssUrls, err := r.GetRssUrls()
+	if err == nil && len(rssUrls) > 0 {
+		rssUrlsById := make(map[int]RssUrlDto, 0)
+		for _, rssUrl := range rssUrls {
+			rssUrlsById[rssUrl.Id] = rssUrl
+		}
+		for i, fn := range fakeNews {
+			rssUrl, ok := rssUrlsById[fn.SiteId]
+			if ok {
+				fn.SiteName = rssUrl.Name
+				fakeNews[i] = fn
+			}
+		}
+	}
 }
 
 func (r *RssRepository) EnrichSiteCountWithSiteNames(siteCounts []SiteCount) {
@@ -404,6 +425,23 @@ func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, 
 	}
 	return articleCount, nil
 
+}
+
+func (r *RssRepository) GetHighlightedFakeNews() ([]FakeNewsDto, error) {
+	db, err := db.Open(r.context.Config)
+	var fakeNewsDtos []FakeNewsDto
+	if err != nil {
+		return fakeNewsDtos, err
+	}
+	err = db.Select(&fakeNewsDtos, "SELECT * FROM fake_news WHERE highlighted = 1")
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fakeNewsDtos, nil
+		}
+		return fakeNewsDtos, err
+	}
+	r.EnrichFakeNewsWithSiteNames(fakeNewsDtos)
+	return fakeNewsDtos, nil
 }
 
 func (r *RssRepository) GetFakeNews(siteId int, title string) (*FakeNewsDto, error) {

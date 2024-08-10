@@ -81,6 +81,7 @@ func main() {
 	// r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
 	r.GET("/search", rssHttpHandlers.HandleSearch)
 	r.GET("/charts", rssHttpHandlers.HandleCharts)
+	r.GET("/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
 	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)
 	r.GET("/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
 	r.GET("/sites", rssHttpHandlers.HandleSites)

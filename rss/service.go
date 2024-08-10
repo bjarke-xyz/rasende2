@@ -395,6 +395,9 @@ func (r *RssService) getContents(rssUrl RssUrlDto) ([]string, error) {
 	return contents, nil
 }
 
+func (r *RssService) GetHighlightedFakeNews() ([]FakeNewsDto, error) {
+	return r.repository.GetHighlightedFakeNews()
+}
 func (r *RssService) GetFakeNews(siteId int, title string) (*FakeNewsDto, error) {
 	return r.repository.GetFakeNews(siteId, title)
 }
