@@ -5,8 +5,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,6 +24,8 @@ type OpenAIClient struct {
 	appContext *pkg.AppContext
 	client     *openai.Client
 }
+
+const chatModel = "gpt-4o-mini"
 
 func NewOpenAIClient(appContext *pkg.AppContext) *OpenAIClient {
 	client := openai.NewClient(appContext.Config.OpenAIAPIKey)
@@ -95,13 +100,37 @@ func (o *OpenAIClient) uploadImage(ctx context.Context, imgBase64Json string, ar
 	return url, nil
 }
 
-func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
-	if newTitlesCount > 10 {
-		newTitlesCount = 10
+func (o *OpenAIClient) GenerateArticleTitlesList(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
+	streamResp, err := o.GenerateArticleTitles(ctx, siteName, siteDescription, previousTitles, newTitlesCount, temperature)
+	if err != nil {
+		return nil, err
 	}
+	var sb strings.Builder
+	titlesArr := []string{}
+	for {
+		response, err := streamResp.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				titlesStr := sb.String()
+				titles := strings.Split(titlesStr, "\n")
+				for _, title := range titles {
+					title := strings.TrimSpace(title)
+					if len(title) > 0 {
+						titlesArr = append(titlesArr, title)
+					}
+				}
+				return titlesArr, nil
+			} else {
+				return titlesArr, err
+			}
+		}
+		sb.WriteString(response.Choices[0].Delta.Content)
+	}
+}
+
+func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
 	previousTitlesStr := ""
-	model := "gpt-4o-mini"
-	tkm, err := tiktoken.EncodingForModel(model)
+	tkm, err := tiktoken.EncodingForModel(chatModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tiktoken encoding: %w", err)
 	}
@@ -118,7 +147,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	}
 	log.Printf("GenerateArticleTitles - site: %v, tokens: %v, previousTitles: %v", siteName, len(token), previousTitlesCount)
 	req := openai.ChatCompletionRequest{
-		Model:       model,
+		Model:       chatModel,
 		Temperature: temperature,
 		Messages: []openai.ChatCompletionMessage{
 			{
@@ -139,11 +168,66 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	return stream, err
 }
 
+func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
+	log.Printf("SelectBestArticleTitle - site: %v", siteName)
+	req := openai.ChatCompletionRequest{
+		Model:       chatModel,
+		Temperature: 1,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", siteName, siteDescription, len(articleTitles)),
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: strings.Join(articleTitles, "\n"),
+			},
+		},
+		Stream: true,
+	}
+	stream, err := o.client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("OpenAI API error: %w", err)
+	}
+	var sb strings.Builder
+	for {
+		response, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				selectedTitle := sb.String()
+				return selectedTitle, nil
+			} else {
+				return "", err
+			}
+		}
+		sb.WriteString(response.Choices[0].Delta.Content)
+	}
+}
+
+func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (string, error) {
+	streamResp, err := o.GenerateArticleContent(ctx, siteName, siteDescription, articleTitle, temperature)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	for {
+		response, err := streamResp.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				articleContent := sb.String()
+				return articleContent, nil
+			} else {
+				return "", err
+			}
+		}
+		sb.WriteString(response.Choices[0].Delta.Content)
+	}
+}
+
 func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (*openai.ChatCompletionStream, error) {
 	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", siteName, articleTitle, temperature)
-	model := openai.GPT3Dot5Turbo
 	req := openai.ChatCompletionRequest{
-		Model:       model,
+		Model:       chatModel,
 		Temperature: temperature,
 		Messages: []openai.ChatCompletionMessage{
 			{

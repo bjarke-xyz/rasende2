@@ -89,6 +89,7 @@ func main() {
 	r.POST("/job", rssHttpHandlers.RunJob(cfg.JobKey))
 	r.POST("/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
 	r.POST("/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
+	r.POST("/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
 
 	r.Run()
 

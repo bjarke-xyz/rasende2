@@ -311,6 +311,118 @@ func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 			c.AbortWithStatus(401)
 			return
 		}
+		ctx := context.Background()
+		allSites, err := h.service.GetSiteInfos()
+		if err != nil {
+			log.Printf("error site infos: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		latestFakeNews, err := h.service.GetHighlightedFakeNews(3, nil)
+		if err != nil {
+			log.Printf("error getting recent fake news: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		latestFakeNewsSites := make(map[int]any, len(latestFakeNews))
+		for _, fn := range latestFakeNews {
+			latestFakeNewsSites[fn.SiteId] = struct{}{}
+		}
+		sites := make([]RssUrlDto, 0)
+		for _, site := range allSites {
+			if site.Disabled {
+				continue
+			}
+			_, isInLatest := latestFakeNewsSites[site.Id]
+			if isInLatest {
+				continue
+			}
+			sites = append(sites, site)
+		}
+		if len(sites) == 0 {
+			c.JSON(500, "sites list was empty")
+			return
+		}
+		site := lo.Sample(sites)
+		recentArticleTitles, err := h.service.GetRecentTitles(ctx, site, 10, true)
+		if err != nil {
+			log.Printf("error getting recent article titles: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		var temperature float32 = 1
+		var generatedTitleCount = 10
+		generatedArticleTitles, err := h.openaiClient.GenerateArticleTitlesList(ctx, site.Name, site.Description, recentArticleTitles, generatedTitleCount, temperature)
+		if err != nil {
+			log.Printf("error getting generated article titles: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		log.Printf("generated titles: %v", strings.Join(generatedArticleTitles, ", "))
+		selectedTitle, err := h.openaiClient.SelectBestArticleTitle(ctx, site.Name, site.Description, generatedArticleTitles)
+		if err != nil {
+			log.Printf("error selecting best article title: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		log.Printf("selected title: %v", selectedTitle)
+
+		err = h.service.CreateFakeNews(site.Id, selectedTitle)
+		if err != nil {
+			log.Printf("error creating fake news: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+
+		articleImgPromise := pkg.NewPromise(func() (string, error) {
+			imgUrl, err := h.openaiClient.GenerateImage(ctx, site.Name, site.Description, selectedTitle)
+			if err != nil {
+				log.Printf("error making fake news img: %v", err)
+			}
+			if imgUrl != "" {
+				h.service.SetFakeNewsImgUrl(site.Id, selectedTitle, imgUrl)
+			}
+			return imgUrl, err
+		})
+
+		articleContent, err := h.openaiClient.GenerateArticleContentStr(ctx, site.Name, site.Description, selectedTitle, temperature)
+		if err != nil {
+			log.Printf("error generating article content: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+
+		err = h.service.UpdateFakeNews(site.Id, selectedTitle, articleContent)
+		if err != nil {
+			log.Printf("error updating fake news: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+
+		log.Printf("waiting for img...")
+		articleImgPromise.Get()
+		log.Printf("img done!")
+
+		err = h.service.SetFakeNewsHighlighted(site.Id, selectedTitle, true)
+		if err != nil {
+			log.Printf("error setting highlighted: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+
+		createdFakeNews, err := h.service.GetFakeNews(site.Id, selectedTitle)
+		if err != nil {
+			log.Printf("error getting fake news: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		if createdFakeNews == nil {
+			log.Printf("fake news was nil")
+			c.JSON(500, "fake new was nil")
+			return
+		}
+
+		c.JSON(200, *createdFakeNews)
 	}
 }
 

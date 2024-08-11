@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"slices"
@@ -125,6 +126,10 @@ func (r *RssService) convertToDto(feedItem *gofeed.Item, rssUrl RssUrlDto) RssIt
 func (r *RssService) GetSiteNames() ([]string, error) {
 	siteNames, err := r.repository.GetSiteNames()
 	return siteNames, err
+}
+
+func (r *RssService) GetSiteInfos() ([]RssUrlDto, error) {
+	return r.repository.GetRssUrls()
 }
 
 func (r *RssService) GetSiteInfo(siteName string) (*RssUrlDto, error) {
@@ -393,6 +398,25 @@ func (r *RssService) getContents(rssUrl RssUrlDto) ([]string, error) {
 		contents = append(contents, bodyStr)
 	}
 	return contents, nil
+}
+
+func (r *RssService) GetRecentTitles(ctx context.Context, siteInfo RssUrlDto, limit int, shuffle bool) ([]string, error) {
+	items, err := r.repository.GetRecentItems(ctx, siteInfo.Id, limit, nil)
+	if err != nil {
+		log.Printf("get items failed: %v", err)
+		return []string{}, err
+	}
+	if len(items) == 0 {
+		return []string{}, nil
+	}
+	itemTitles := make([]string, len(items))
+	for i, item := range items {
+		itemTitles[i] = item.Title
+	}
+	if shuffle {
+		rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
+	}
+	return itemTitles, nil
 }
 
 func (r *RssService) GetHighlightedFakeNews(limit int, publishedAfter *time.Time) ([]FakeNewsDto, error) {
