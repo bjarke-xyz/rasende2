@@ -580,11 +580,16 @@ type HighlightedFakeNewsResponse struct {
 }
 
 func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
-	cursorQuery := int64(intQuery(c, "cursor", 0))
+	cursorQuery := c.Query("cursor")
 	var publishedOffset *time.Time
-	if cursorQuery > 0 {
-		_publishedOffset := time.Unix(cursorQuery, 0)
-		publishedOffset = &_publishedOffset
+	if cursorQuery != "" {
+		_publishedOffset, err := time.Parse(time.RFC3339Nano, cursorQuery)
+		if err != nil {
+			log.Printf("error parsing cursor: %v", err)
+		}
+		if err == nil {
+			publishedOffset = &_publishedOffset
+		}
 	}
 	limit := intQuery(c, "limit", 10)
 	if limit > 10 {
@@ -603,7 +608,7 @@ func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 		})
 		return
 	}
-	cursor := fmt.Sprintf("%v", highlightedFakeNews[len(highlightedFakeNews)-1].Published.Unix())
+	cursor := fmt.Sprintf("%v", highlightedFakeNews[len(highlightedFakeNews)-1].Published.Format(time.RFC3339Nano))
 	response := HighlightedFakeNewsResponse{
 		FakeNews: highlightedFakeNews,
 		Cursor:   cursor,
