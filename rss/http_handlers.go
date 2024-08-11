@@ -305,6 +305,15 @@ func (h *HttpHandlers) RebuildIndex(key string) gin.HandlerFunc {
 	}
 }
 
+func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != key {
+			c.AbortWithStatus(401)
+			return
+		}
+	}
+}
+
 func (h *HttpHandlers) HandleSites(c *gin.Context) {
 	siteNames, err := h.service.GetSiteNames()
 	if err != nil {
@@ -565,14 +574,41 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	})
 }
 
+type HighlightedFakeNewsResponse struct {
+	FakeNews []FakeNewsDto `json:"fakeNews"`
+	Cursor   string        `json:"cursor"`
+}
+
 func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
-	highlightedFakeNews, err := h.service.GetHighlightedFakeNews()
+	cursorQuery := int64(intQuery(c, "cursor", 0))
+	var publishedOffset *time.Time
+	if cursorQuery > 0 {
+		_publishedOffset := time.Unix(cursorQuery, 0)
+		publishedOffset = &_publishedOffset
+	}
+	limit := intQuery(c, "limit", 10)
+	if limit > 10 {
+		limit = 10
+	}
+	highlightedFakeNews, err := h.service.GetHighlightedFakeNews(limit, publishedOffset)
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	c.JSON(200, highlightedFakeNews)
+	if len(highlightedFakeNews) == 0 {
+		c.JSON(200, HighlightedFakeNewsResponse{
+			FakeNews: []FakeNewsDto{},
+			Cursor:   "",
+		})
+		return
+	}
+	cursor := fmt.Sprintf("%v", highlightedFakeNews[len(highlightedFakeNews)-1].Published.Unix())
+	response := HighlightedFakeNewsResponse{
+		FakeNews: highlightedFakeNews,
+		Cursor:   cursor,
+	}
+	c.JSON(200, response)
 }
 
 func (h *HttpHandlers) SetHighlightedFakeNews(c *gin.Context) {

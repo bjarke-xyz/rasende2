@@ -427,13 +427,17 @@ func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, 
 
 }
 
-func (r *RssRepository) GetHighlightedFakeNews() ([]FakeNewsDto, error) {
+func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.Time) ([]FakeNewsDto, error) {
 	db, err := db.Open(r.context.Config)
 	var fakeNewsDtos []FakeNewsDto
 	if err != nil {
 		return fakeNewsDtos, err
 	}
-	err = db.Select(&fakeNewsDtos, "SELECT * FROM fake_news WHERE highlighted = 1")
+	if publishedAfter != nil {
+		err = db.Select(&fakeNewsDtos, "SELECT * FROM fake_news WHERE highlighted = 1 AND published < ? ORDER BY published DESC LIMIT ?", publishedAfter, limit)
+	} else {
+		err = db.Select(&fakeNewsDtos, "SELECT * FROM fake_news WHERE highlighted = 1 ORDER BY published DESC LIMIT ?", limit)
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fakeNewsDtos, nil
