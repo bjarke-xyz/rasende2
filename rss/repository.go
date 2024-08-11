@@ -475,7 +475,7 @@ func (r *RssRepository) CreateFakeNews(siteId int, title string) error {
 	if err != nil {
 		return err
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published, site_id) VALUES (?, ?, ?, ?, ?) on conflict do nothing", "", title, "", now, siteId)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
@@ -488,7 +488,7 @@ func (r *RssRepository) UpdateFakeNews(siteId int, title string, content string)
 	if err != nil {
 		return err
 	}
-	now := time.Now()
+	now := time.Now().UTC()
 	_, err = db.Exec("UPDATE fake_news SET content = ?, published = ? WHERE site_id = ? AND title = ?", content, now, siteId, title)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
