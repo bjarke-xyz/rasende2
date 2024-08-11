@@ -433,11 +433,17 @@ func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.T
 	if err != nil {
 		return fakeNewsDtos, err
 	}
+	sqlQuery := ""
+	var args []any
 	if publishedAfter != nil {
-		err = db.Select(&fakeNewsDtos, "SELECT * FROM fake_news WHERE highlighted = 1 AND published < ? ORDER BY published DESC LIMIT ?", publishedAfter, limit)
+		sqlQuery = "SELECT * FROM fake_news WHERE highlighted = 1 AND published < ? ORDER BY published DESC LIMIT ?"
+		args = []any{*publishedAfter, limit}
 	} else {
-		err = db.Select(&fakeNewsDtos, "SELECT * FROM fake_news WHERE highlighted = 1 ORDER BY published DESC LIMIT ?", limit)
+		sqlQuery = "SELECT * FROM fake_news WHERE highlighted = 1 ORDER BY published DESC LIMIT ?"
+		args = []any{limit}
 	}
+	log.Printf("GetHighlightedFakeNews: SQL=%v, args=%v", sqlQuery, args)
+	err = db.Select(&fakeNewsDtos, sqlQuery, args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fakeNewsDtos, nil
