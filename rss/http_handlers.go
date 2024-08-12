@@ -305,6 +305,8 @@ func (h *HttpHandlers) RebuildIndex(key string) gin.HandlerFunc {
 	}
 }
 
+var noAutoGenerateSites map[int]any = map[int]any{8: struct{}{} /* DR */, 19: struct{}{} /* TV2 */}
+
 func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetHeader("Authorization") != key {
@@ -335,6 +337,10 @@ func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 			}
 			_, isInLatest := latestFakeNewsSites[site.Id]
 			if isInLatest {
+				continue
+			}
+			_, isNoAutoGenerateSite := noAutoGenerateSites[site.Id]
+			if isNoAutoGenerateSite {
 				continue
 			}
 			sites = append(sites, site)
