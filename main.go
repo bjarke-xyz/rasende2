@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 
@@ -11,10 +13,17 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/jobs"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/bjarke-xyz/rasende2-api/rss"
+	"github.com/bjarke-xyz/rasende2-api/web/handlers"
+	"github.com/bjarke-xyz/rasende2-api/web/renderer"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+//go:embed web/static/*
+var static embed.FS
+
+//go:generate npx tailwindcss build -i web/static/css/style.css -o web/static/css/tailwind.css -m
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -76,21 +85,31 @@ func main() {
 	runMetricsServer()
 
 	rssHttpHandlers := rss.NewHttpHandlers(ctx, rssService, openAiClient, rssSearch)
+	webHandlers := handlers.NewWebHandlers(ctx, rssService, openAiClient, rssSearch)
 
 	r := ginRouter(cfg)
 	// r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
-	r.GET("/search", rssHttpHandlers.HandleSearch)
-	r.GET("/charts", rssHttpHandlers.HandleCharts)
-	r.GET("/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
-	r.POST("/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
-	r.GET("/generate-titles", rssHttpHandlers.HandleGenerateTitles)
-	r.GET("/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
-	r.GET("/sites", rssHttpHandlers.HandleSites)
-	r.POST("/job", rssHttpHandlers.RunJob(cfg.JobKey))
-	r.POST("/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
-	r.POST("/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
-	r.POST("/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
+	r.GET("/api/search", rssHttpHandlers.HandleSearch)
+	r.GET("/api/charts", rssHttpHandlers.HandleCharts)
+	r.GET("/api/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
+	r.POST("/api/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
+	r.GET("/api/generate-titles", rssHttpHandlers.HandleGenerateTitles)
+	r.GET("/api/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
+	r.GET("/api/sites", rssHttpHandlers.HandleSites)
+	r.POST("/api/job", rssHttpHandlers.RunJob(cfg.JobKey))
+	r.POST("/api/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
+	r.POST("/api/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
+	r.POST("/api/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
 
+	r.GET("/", webHandlers.IndexHandler)
+
+	staticWeb, err := fs.Sub(static, "web/static")
+	if err != nil {
+		log.Printf("failed to get fs sub for static: %v", err)
+	}
+	r.StaticFS("/static", http.FS(staticWeb))
+
+	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()
 
 }
@@ -101,10 +120,12 @@ func ginRouter(cfg *config.Config) *gin.Engine {
 	}
 	r := gin.Default()
 	r.Use(cors.Default())
+	r.SetTrustedProxies(nil)
 	if cfg.AppEnv == config.AppEnvProduction {
 		r.TrustedPlatform = gin.PlatformCloudflare
-		r.SetTrustedProxies(nil)
 	}
+	ginHtmlRenderer := r.HTMLRender
+	r.HTMLRender = &renderer.HTMLTemplRenderer{FallbackHtmlRenderer: ginHtmlRenderer}
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",

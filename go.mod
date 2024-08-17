@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
+	github.com/a-h/templ v0.2.747
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.16
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pkoukk/tiktoken-go v0.1.7
@@ -11,6 +12,7 @@ require (
 	github.com/samber/lo v1.39.0
 	github.com/sashabaranov/go-openai v1.26.3
 	github.com/tursodatabase/libsql-client-go v0.0.0-20240416075003-747366ff79c4
+	github.com/xeonx/timeago v1.0.0-rc5
 )
 
 require (
@@ -55,7 +57,6 @@ require (
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.6 // indirect
 	github.com/libsql/sqlite-antlr4-parser v0.0.0-20240327125255-dbf53b6cbf06 // indirect
@@ -87,8 +88,8 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/crypto v0.22.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )
 
@@ -114,6 +115,6 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )

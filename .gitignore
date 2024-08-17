@@ -5,3 +5,8 @@ pgdata
 !.env.example
 data
 data/*
+*templ.go
+*templ.txt
+web/static/css/tailwind.css
+node_modules
+rasende2

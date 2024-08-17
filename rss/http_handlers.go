@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
+	"github.com/bjarke-xyz/rasende2-api/ginutils"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -41,24 +42,6 @@ func NewHttpHandlers(context *pkg.AppContext, service *RssService, openaiClient 
 type SearchResult struct {
 	HighlightedWords []string          `json:"highlightedWords"`
 	Items            []RssSearchResult `json:"items"`
-}
-
-func intQuery(c *gin.Context, query string, defaultVal int) int {
-	valStr := c.DefaultQuery(query, fmt.Sprintf("%v", defaultVal))
-	val, err := strconv.Atoi(valStr)
-	if err != nil {
-		val = defaultVal
-	}
-	return val
-}
-
-func float32Query(c *gin.Context, query string, defaultVal float32) float32 {
-	valStr := c.DefaultQuery(query, fmt.Sprintf("%v", defaultVal))
-	val, err := strconv.ParseFloat(valStr, 32)
-	if err != nil {
-		val = float64(defaultVal)
-	}
-	return float32(val)
 }
 
 // func returnError(c *gin.Context, err error) {
@@ -101,8 +84,8 @@ var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
 func (h *HttpHandlers) HandleSearch(c *gin.Context) {
 	query := c.Query("q")
-	offset := intQuery(c, "offset", 0)
-	limit := intQuery(c, "limit", 10)
+	offset := ginutils.IntQuery(c, "offset", 0)
+	limit := ginutils.IntQuery(c, "limit", 10)
 	if limit > 100 {
 		limit = 10
 	}
@@ -460,18 +443,18 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 		return
 	}
 	defaultLimit := 300
-	limit := intQuery(c, "limit", defaultLimit)
+	limit := ginutils.IntQuery(c, "limit", defaultLimit)
 	if limit > defaultLimit {
 		limit = defaultLimit
 	}
-	temperature := float32Query(c, "temperature", 0.5)
+	temperature := ginutils.Float32Query(c, "temperature", 0.5)
 	if temperature > 1 {
 		temperature = 1
 	}
 	if temperature < 0 {
 		temperature = 0
 	}
-	cursorQuery := int64(intQuery(c, "cursor", 0))
+	cursorQuery := int64(ginutils.IntQuery(c, "cursor", 0))
 	var insertedAtOffset *time.Time
 	if cursorQuery > 0 {
 		_insertedAtOffset := time.Unix(cursorQuery, 0)
@@ -709,7 +692,7 @@ func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 			publishedOffset = &_publishedOffset
 		}
 	}
-	limit := intQuery(c, "limit", 10)
+	limit := ginutils.IntQuery(c, "limit", 10)
 	if limit > 10 {
 		limit = 10
 	}
