@@ -60,3 +60,10 @@ func (w *WebHandlers) IndexHandler(c *gin.Context) {
 	}
 	c.HTML(http.StatusOK, "", components.Index(indexModel))
 }
+
+func (w *WebHandlers) SearchHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "", components.Search(getBaseModel(c)))
+}
+func (w *WebHandlers) FakeNewsHandler(c *gin.Context) {
+	c.HTML(http.StatusOK, "", components.FakeNews(getBaseModel(c)))
+}

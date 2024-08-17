@@ -101,13 +101,15 @@ func main() {
 	r.POST("/api/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
 	r.POST("/api/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
 
-	r.GET("/", webHandlers.IndexHandler)
-
 	staticWeb, err := fs.Sub(static, "web/static")
 	if err != nil {
 		log.Printf("failed to get fs sub for static: %v", err)
 	}
 	r.StaticFS("/static", http.FS(staticWeb))
+
+	r.GET("/", webHandlers.IndexHandler)
+	r.GET("/search", webHandlers.SearchHandler)
+	r.GET("/fake-news", webHandlers.FakeNewsHandler)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()

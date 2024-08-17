@@ -31,17 +31,25 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 	</html>
 }
 
+templ headerLink(currentPath string, linkPath string, text string) {
+	if currentPath == linkPath {
+		<a class="font-bold" href={ templ.URL(linkPath) }>{ text }</a>
+	} else {
+		<a href={ templ.URL(linkPath) }>{ text }</a>
+	}
+}
+
 templ header(path string) {
 	<div class="flex flex-col items-center py-2">
 		<div class="flex flex-row space-x-4">
 			<div>
-				<a href="/">Rasende</a>
+				@headerLink(path, "/", "Rasende")
 			</div>
 			<div>
-				<a href="/search">Søg</a>
+				@headerLink(path, "/search", "Søg")
 			</div>
 			<div>
-				<a href="/fake-news">Fake News</a>
+				@headerLink(path, "/fake-news", "Fake News")
 			</div>
 		</div>
 	</div>
