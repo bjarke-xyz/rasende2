@@ -3,6 +3,9 @@
 # https://hub.docker.com/_/golang
 FROM golang:1.23-bookworm as builder
 
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    npm nodejs
+
 # Create and change to the app directory.
 WORKDIR /app
 
@@ -15,8 +18,11 @@ RUN go mod download
 # Copy local code to the container image.
 COPY . ./
 
+# Install templ binary
+RUN go install github.com/a-h/templ/cmd/templ@latest 
+
 # Build the binary.
-RUN go build -v -o server
+RUN make build
 
 # Use the official Debian slim image for a lean production container.
 # https://hub.docker.com/_/debian
@@ -27,7 +33,7 @@ RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -
     rm -rf /var/lib/apt/lists/*
 
 # Copy the binary to the production image from the builder stage.
-COPY --from=builder /app/server /app/server
+COPY --from=builder /app/rasende2 /app/rasende2
 
 # Run the web service on container startup.
-CMD ["/app/server"]
+CMD ["/app/rasende2"]

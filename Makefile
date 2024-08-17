@@ -7,6 +7,7 @@ build:
 	go mod tidy && \
    	templ generate && \
 	go generate && \
+	cp node_modules/htmx.org/dist/htmx.min.js web/static/js && \
 	go build -ldflags="-w -s" -o ${BINARY_NAME}
 
 # dev runs the development server where it builds the tailwind css sheet,
