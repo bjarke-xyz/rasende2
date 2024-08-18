@@ -20,6 +20,6 @@ jobs:
         id: deploy
         run: flyctl deploy --remote-only --env "BUILD_TIME=$CURRENT_DATE"
         env:
-          CURRENT_DATE: {{ steps.date.outputs.date }}
+          CURRENT_DATE: ${{ steps.date.outputs.date }}
 
    
