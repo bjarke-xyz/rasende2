@@ -4,10 +4,10 @@ BINARY_NAME=rasende2
 
 # build builds the tailwind css sheet, and compiles the binary into a usable thing.
 build:
-	go mod tidy && \
 	npm ci && \
 	cp node_modules/htmx.org/dist/htmx.min.js web/static/js && \
    	templ generate && \
+	go mod tidy && \
 	go generate && \
 	go build -ldflags="-w -s" -o ${BINARY_NAME}
 

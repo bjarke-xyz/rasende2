@@ -1,0 +1,14 @@
+package components
+
+type ErrorModel struct {
+	Base BaseViewModel
+	Err  error
+}
+
+templ errorTempl(err error) {
+	<p>Error: { err.Error() }</p>
+}
+
+templ Error(model ErrorModel) {
+	@Layout(model.Base, errorTempl(model.Err))
+}
