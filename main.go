@@ -101,12 +101,7 @@ func main() {
 	r.POST("/api/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
 	r.POST("/api/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
 
-	staticWeb, err := fs.Sub(static, "web/static")
-	if err != nil {
-		log.Printf("failed to get fs sub for static: %v", err)
-	}
-	r.StaticFS("/static", http.FS(staticWeb))
-
+	staticFiles(r, static)
 	r.GET("/", webHandlers.IndexHandler)
 	r.GET("/search", webHandlers.SearchHandler)
 	r.GET("/fake-news", webHandlers.FakeNewsHandler)
@@ -142,4 +137,19 @@ func runMetricsServer() {
 		mux.Handle("/metrics", promhttp.Handler())
 		http.ListenAndServe(":9091", mux)
 	}()
+}
+
+func staticFiles(r *gin.Engine, staticFs fs.FS) {
+	staticWeb, err := fs.Sub(staticFs, "web/static")
+	if err != nil {
+		log.Printf("failed to get fs sub for static: %v", err)
+	}
+	httpFsStaticWeb := http.FS(staticWeb)
+	r.StaticFS("/static", httpFsStaticWeb)
+	r.StaticFileFS("/favicon.ico", "./favicon.ico", httpFsStaticWeb)
+	r.StaticFileFS("/favicon-16x16.png", "./favicon-16x16.png", httpFsStaticWeb)
+	r.StaticFileFS("/favicon-32x32.png", "./favicon-32x32.png", httpFsStaticWeb)
+	r.StaticFileFS("/apple-touch-icon.png", "./apple-touch-icon.png", httpFsStaticWeb)
+	r.StaticFileFS("/site.webmanifest", "./site.webmanifest", httpFsStaticWeb)
+
 }
