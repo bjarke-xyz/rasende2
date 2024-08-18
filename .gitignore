@@ -5,6 +5,7 @@ pgdata
 !.env.example
 data
 data/*
+!rss/data
 
 # *templ.go
 *templ.txt
