@@ -12,7 +12,7 @@ npm-build-dev: npm-build-prod
 
 # build builds the tailwind css sheet, and compiles the binary into a usable thing.
 build: npm-build-prod
-   	templ generate && \
+	templ generate && \
 	go mod tidy && \
 	go generate && \
 	go build -ldflags="-w -s" -o ${BINARY_NAME}
