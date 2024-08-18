@@ -147,9 +147,7 @@ func staticFiles(r *gin.Engine, staticFs fs.FS) {
 	}
 	httpFsStaticWeb := http.FS(staticWeb)
 	r.Use(staticCacheMiddleware())
-	r.StaticFS("/static", httpFsStaticWeb).Use(func(ctx *gin.Context) {
-		log.Println(ctx.Request.URL.Path)
-	})
+	r.StaticFS("/static", httpFsStaticWeb)
 	r.StaticFileFS("/favicon.ico", "./favicon.ico", httpFsStaticWeb)
 	r.StaticFileFS("/favicon-16x16.png", "./favicon-16x16.png", httpFsStaticWeb)
 	r.StaticFileFS("/favicon-32x32.png", "./favicon-32x32.png", httpFsStaticWeb)
