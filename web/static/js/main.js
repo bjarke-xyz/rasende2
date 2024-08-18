@@ -1,6 +1,6 @@
 function handleCharts() {
-    const chartsPlaceholder = document.getElementById('charts-placeholder')
-    if (!chartsPlaceholder) {
+    const chartPlaceholders = [...document.getElementsByClassName('chart-placeholder')]
+    if (chartPlaceholders.length === 0) {
         return;
     }
     const plugin = {
@@ -51,8 +51,8 @@ function handleCharts() {
         "#5574A6",
         "#3B3EAC",
     ];
-    const chartProps = JSON.parse(chartsPlaceholder.getAttribute('data-charts-json'))
-    chartProps.charts.forEach((chart) => {
+    for (const chartPlaceholder of chartPlaceholders) {
+        const chart = JSON.parse(chartPlaceholder.getAttribute('data-chart-json'))
         if (chart.type === "doughnut" || chart.type === "pie") {
             chart.datasets[0].borderColor = [];
             chart.datasets[0].backgroundColor = [];
@@ -80,18 +80,16 @@ function handleCharts() {
             ...makeOptions(chart.title),
         }
         chart.plugins = [plugin]
-    });
-    chartsPlaceholder.innerHTML = '';
-    for (const chartData of chartProps.charts) {
+        chartPlaceholder.innerHTML = '';
         const canvasContainer = document.createElement('div');
         canvasContainer.style.position = 'relative';
         canvasContainer.style.height = '400px';
         canvasContainer.style.width = '400px';
         const canvas = document.createElement('canvas');
         canvasContainer.appendChild(canvas);
-        chartsPlaceholder.appendChild(canvasContainer);
+        chartPlaceholder.appendChild(canvasContainer);
 
-        new Chart(canvas, chartData)
+        new Chart(canvas, chart)
     }
 }
 

@@ -1,7 +1,14 @@
 package components
 
-import "github.com/bjarke-xyz/rasende2-api/rss"
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2-api/rss"
+)
 
 templ RasendeChart(model rss.ChartsResult) {
-	<div id="charts-placeholder" class="flex flex-row flex-wrap" data-charts-json={ templ.JSONString(model) }>Loading charts...</div>
+	<div class="flex flex-row flex-wrap">
+		for i, chart := range model.Charts {
+			<div id={ fmt.Sprintf("chart-placeholder-%v", i) } class="chart-placeholder m-4" data-chart-json={ templ.JSONString(chart) }></div>
+		}
+	</div>
 }

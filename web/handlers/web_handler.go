@@ -33,6 +33,8 @@ func (w *WebHandlers) getBaseModel(c *gin.Context) components.BaseViewModel {
 	var unixBuildTime int64 = 0
 	if w.context.Config.BuildTime != nil {
 		unixBuildTime = w.context.Config.BuildTime.Unix()
+	} else {
+		unixBuildTime = time.Now().Unix()
 	}
 	return components.BaseViewModel{
 		Path:          c.Request.URL.Path,
