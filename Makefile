@@ -17,5 +17,6 @@ dev:
 	templ generate --watch --cmd="go generate" &\
 	templ generate --watch --cmd="go run ."
 
+
 clean:
 	go clean
