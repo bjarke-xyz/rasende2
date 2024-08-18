@@ -1,0 +1,13 @@
+cache/*
+!cache/.gitkeep
+pgdata
+.env
+!.env.example
+data
+data/*
+*templ.go
+*templ.txt
+web/static/css/tailwind.css
+web/static/js/htmx.min.js
+node_modules
+rasende2

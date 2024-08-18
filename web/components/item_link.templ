@@ -1,0 +1,12 @@
+package components
+
+import "github.com/bjarke-xyz/rasende2-api/rss"
+
+templ ItemLink(item rss.RssSearchResult) {
+	<a href={ templ.URL(item.Link) } target="_blank" rel="noreferrer" class="hover:underline">
+		<span>
+			@Badge(item.SiteName)
+		</span>
+		<span>{ item.Title }</span>
+	</a>
+}
