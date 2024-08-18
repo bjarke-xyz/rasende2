@@ -38,7 +38,7 @@ func getBaseModel(c *gin.Context) components.BaseViewModel {
 var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
 func (w *WebHandlers) IndexHandler(c *gin.Context) {
-	indexModel := components.IndexModel{
+	indexModel := &components.IndexModel{
 		Base: getBaseModel(c),
 	}
 
@@ -48,6 +48,12 @@ func (w *WebHandlers) IndexHandler(c *gin.Context) {
 	limit := 10
 	searchContent := false
 	orderBy := allowedOrderBys[0]
+
+	chartsPromise := pkg.NewPromise(func() (rss.ChartsResult, error) {
+		chartData, err := w.GetChartdata(ctx, query)
+		return chartData, err
+	})
+
 	results, err := w.service.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
@@ -61,14 +67,14 @@ func (w *WebHandlers) IndexHandler(c *gin.Context) {
 		HighlightedWords: []string{query},
 		Items:            results,
 	}
-	chartsData, err := w.GetChartdata(ctx, query)
+	chartsData, err := chartsPromise.Get()
 	if err != nil {
 		log.Printf("failed to get charts data: %v", err)
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: indexModel.Base, Err: err}))
 		return
 	}
 	indexModel.ChartsResult = chartsData
-	c.HTML(http.StatusOK, "", components.Index(indexModel))
+	c.HTML(http.StatusOK, "", components.Index(*indexModel))
 }
 
 func (w *WebHandlers) GetChartdata(ctx context.Context, query string) (rss.ChartsResult, error) {
