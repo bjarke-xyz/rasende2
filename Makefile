@@ -26,5 +26,6 @@ dev: npm-build-dev
 
 clean:
 	go clean
+	rm ${BINARY_NAME}
 	rm web/static/js/vendor/*.js
 	rm web/static/js/vendor/*.js.map
