@@ -29,9 +29,14 @@ func NewWebHandlers(context *pkg.AppContext, service *rss.RssService, openaiClie
 	}
 }
 
-func getBaseModel(c *gin.Context) components.BaseViewModel {
+func (w *WebHandlers) getBaseModel(c *gin.Context) components.BaseViewModel {
+	var unixBuildTime int64 = 0
+	if w.context.Config.BuildTime != nil {
+		unixBuildTime = w.context.Config.BuildTime.Unix()
+	}
 	return components.BaseViewModel{
-		Path: c.Request.URL.Path,
+		Path:          c.Request.URL.Path,
+		UnixBuildTime: unixBuildTime,
 	}
 }
 
@@ -39,7 +44,7 @@ var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
 func (w *WebHandlers) IndexHandler(c *gin.Context) {
 	indexModel := components.IndexModel{
-		Base: getBaseModel(c),
+		Base: w.getBaseModel(c),
 	}
 
 	ctx := c.Request.Context()
@@ -117,8 +122,8 @@ func (w *WebHandlers) GetChartdata(ctx context.Context, query string) (rss.Chart
 }
 
 func (w *WebHandlers) SearchHandler(c *gin.Context) {
-	c.HTML(http.StatusOK, "", components.Search(getBaseModel(c)))
+	c.HTML(http.StatusOK, "", components.Search(w.getBaseModel(c)))
 }
 func (w *WebHandlers) FakeNewsHandler(c *gin.Context) {
-	c.HTML(http.StatusOK, "", components.FakeNews(getBaseModel(c)))
+	c.HTML(http.StatusOK, "", components.FakeNews(w.getBaseModel(c)))
 }

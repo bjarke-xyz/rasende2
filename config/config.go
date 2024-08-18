@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -36,6 +38,8 @@ type Config struct {
 	NtfyTopic string
 
 	AdminPassword string
+
+	BuildTime *time.Time
 }
 
 const (
@@ -58,6 +62,15 @@ func NewConfig() (*Config, error) {
 			return nil, fmt.Errorf("failed to validate APP_ENV: invalid value %q", appEnv)
 		}
 	}
+	buildTimeStr := os.Getenv("BUILD_TIME")
+	var buildTime *time.Time
+	if buildTimeStr != "" {
+		_buildTime, err := time.Parse("2006-01-02", buildTimeStr)
+		if err != nil {
+			log.Printf("error parsing BUILD_TIME env: %v", err)
+		}
+		buildTime = &_buildTime
+	}
 	return &Config{
 		Port:                    os.Getenv("PORT"),
 		DbConnStr:               os.Getenv("DB_CONN_STR"),
@@ -79,5 +92,6 @@ func NewConfig() (*Config, error) {
 		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
 		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
 		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
+		BuildTime:               buildTime,
 	}, nil
 }

@@ -10,11 +10,16 @@ jobs:
     name: Deploy app
     runs-on: ubuntu-latest
     steps:
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
       - name: Checkout
         uses: actions/checkout@v3
       - uses: superfly/flyctl-actions/setup-flyctl@master
       - name: deploy
         id: deploy
-        run: flyctl deploy --remote-only
+        run: flyctl deploy --remote-only --env "BUILD_TIME=$CURRENT_DATE"
+        env:
+          CURRENT_DATE: {{ steps.date.outputs.date }}
 
    

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/config"
@@ -145,11 +146,24 @@ func staticFiles(r *gin.Engine, staticFs fs.FS) {
 		log.Printf("failed to get fs sub for static: %v", err)
 	}
 	httpFsStaticWeb := http.FS(staticWeb)
-	r.StaticFS("/static", httpFsStaticWeb)
+	r.Use(staticCacheMiddleware())
+	r.StaticFS("/static", httpFsStaticWeb).Use(func(ctx *gin.Context) {
+		log.Println(ctx.Request.URL.Path)
+	})
 	r.StaticFileFS("/favicon.ico", "./favicon.ico", httpFsStaticWeb)
 	r.StaticFileFS("/favicon-16x16.png", "./favicon-16x16.png", httpFsStaticWeb)
 	r.StaticFileFS("/favicon-32x32.png", "./favicon-32x32.png", httpFsStaticWeb)
 	r.StaticFileFS("/apple-touch-icon.png", "./apple-touch-icon.png", httpFsStaticWeb)
 	r.StaticFileFS("/site.webmanifest", "./site.webmanifest", httpFsStaticWeb)
 
+}
+
+func staticCacheMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/static/js") || strings.HasPrefix(path, "/static/css") {
+			c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		c.Next()
+	}
 }
