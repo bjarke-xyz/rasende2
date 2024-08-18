@@ -5,9 +5,15 @@ pgdata
 !.env.example
 data
 data/*
+
 # *templ.go
 *templ.txt
+
 web/static/css/tailwind.css
-web/static/js/htmx.min.js
+web/static/js/vendor/*
+!web/static/js/vendor/gitkeep
+
 node_modules
+
+# binary file
 rasende2
