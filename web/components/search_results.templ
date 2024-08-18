@@ -1,0 +1,43 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2-api/rss"
+)
+
+type SearchResultsViewModel struct {
+	SearchResults rss.SearchResult
+	ChartsResult  rss.ChartsResult
+	NextOffset    int
+	Search        string
+}
+
+templ SearchResults(model SearchResultsViewModel) {
+	<div id="search-result-items">
+		for _, item := range model.SearchResults.Items {
+			<div>
+				@ItemLink(item)
+			</div>
+		}
+		<div id="replaceMe">
+			<form>
+				<input type="hidden" name="offset" value={ fmt.Sprint(model.NextOffset) }/>
+				<input type="hidden" name="search" value={ model.Search }/>
+				<button
+					class="bg-blue-100 hover:bg-blue-200 mt-5 p-2 rounded-md text-slate-900"
+					hx-post="/search"
+					hx-target="#replaceMe"
+					hx-swap="outerHTML"
+				>
+					Hent flere
+				</button>
+			</form>
+		</div>
+	</div>
+	// <div>
+	// 	<div class="flex flex-col justify-center mt-16"></div>
+	// 	// <div class="mt-8">
+	// 	// 	@RasendeChart(model.ChartsResult)
+	// 	// </div>
+	// </div>
+}

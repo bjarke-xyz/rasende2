@@ -5,6 +5,7 @@ import "fmt"
 type BaseViewModel struct {
 	Path          string
 	UnixBuildTime int64
+	Title         string
 }
 
 templ Layout(viewModel BaseViewModel, children ...templ.Component) {
@@ -13,7 +14,7 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>Raseri i de danske medier</title>
+			<title>{ viewModel.Title }</title>
 			<!--
                 This line is literally why we created the layout component.
                 Actually having a standard html thing is why, but yeah it's what it's!

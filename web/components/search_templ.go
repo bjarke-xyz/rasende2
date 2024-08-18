@@ -8,6 +8,10 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+type SearchViewModel struct {
+	Base BaseViewModel
+}
+
 func search() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -26,7 +30,7 @@ func search() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<p>search</p>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"m-4\"><div class=\"flex justify-center\"><div class=\"flex flex-row align-middle space-x-2\"><form class=\"flex flex-row gap-4\"><input value=\"rasende\" type=\"search\" name=\"search\" hx-post=\"/search\" hx-trigger=\"change from:[name=&#39;content&#39;], load, input changed delay:300ms, search\" hx-target=\"#search-results\" hx-indicator=\".htmx-indicator\" hx-include=\"[name=&#39;content&#39;]\" class=\"p-1 block border border-solid border-gray-300 rounded-md dark: text-slate-900\"><div><input name=\"content\" type=\"checkbox\" class=\"cursor-pointer mr-1\" id=\"checkbox\"> <label class=\"inline-block\" for=\"checkbox\">Søg i artikel indhold</label></div></form></div></div><div class=\"flex flex-col justify-center mt-16\"><div id=\"search-results\"></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -34,7 +38,7 @@ func search() templ.Component {
 	})
 }
 
-func Search(model BaseViewModel) templ.Component {
+func Search(model SearchViewModel) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -52,7 +56,7 @@ func Search(model BaseViewModel) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = Layout(model, search()).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout(model.Base, search()).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

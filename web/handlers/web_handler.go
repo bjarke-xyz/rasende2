@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
+	"github.com/bjarke-xyz/rasende2-api/ginutils"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/bjarke-xyz/rasende2-api/rss"
 	"github.com/bjarke-xyz/rasende2-api/web/components"
@@ -29,7 +30,7 @@ func NewWebHandlers(context *pkg.AppContext, service *rss.RssService, openaiClie
 	}
 }
 
-func (w *WebHandlers) getBaseModel(c *gin.Context) components.BaseViewModel {
+func (w *WebHandlers) getBaseModel(c *gin.Context, title string) components.BaseViewModel {
 	var unixBuildTime int64 = 0
 	if w.context.Config.BuildTime != nil {
 		unixBuildTime = w.context.Config.BuildTime.Unix()
@@ -39,14 +40,15 @@ func (w *WebHandlers) getBaseModel(c *gin.Context) components.BaseViewModel {
 	return components.BaseViewModel{
 		Path:          c.Request.URL.Path,
 		UnixBuildTime: unixBuildTime,
+		Title:         title,
 	}
 }
 
 var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
-func (w *WebHandlers) IndexHandler(c *gin.Context) {
+func (w *WebHandlers) HandleGetIndex(c *gin.Context) {
 	indexModel := components.IndexModel{
-		Base: w.getBaseModel(c),
+		Base: w.getBaseModel(c, "Raseri i de danske medier"),
 	}
 
 	ctx := c.Request.Context()
@@ -123,9 +125,45 @@ func (w *WebHandlers) GetChartdata(ctx context.Context, query string) (rss.Chart
 	return chartsResult, nil
 }
 
-func (w *WebHandlers) SearchHandler(c *gin.Context) {
-	c.HTML(http.StatusOK, "", components.Search(w.getBaseModel(c)))
+func (w *WebHandlers) HandleGetSearch(c *gin.Context) {
+	searchViewModel := components.SearchViewModel{
+		Base: w.getBaseModel(c, "Søg | Rasende"),
+	}
+	c.HTML(http.StatusOK, "", components.Search(searchViewModel))
 }
-func (w *WebHandlers) FakeNewsHandler(c *gin.Context) {
-	c.HTML(http.StatusOK, "", components.FakeNews(w.getBaseModel(c)))
+
+func (w *WebHandlers) HandlePostSearch(c *gin.Context) {
+	// query := c.Query("q")
+	query := c.Request.FormValue("search")
+	offset := ginutils.IntForm(c, "offset", 0)
+	limit := ginutils.IntForm(c, "limit", 10)
+	if limit > 100 {
+		limit = 10
+	}
+	searchContentStr := ginutils.StringForm(c, "content", "false")
+	searchContent := searchContentStr == "on"
+	orderBy := allowedOrderBys[0]
+	results, err := w.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, orderBy)
+	if err != nil {
+		log.Printf("failed to get items with query %v: %v", query, err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if len(results) > limit {
+		results = results[0:limit]
+	}
+	searchResultsModel := components.SearchResultsViewModel{
+		SearchResults: rss.SearchResult{
+			HighlightedWords: []string{query},
+			Items:            results,
+		},
+		NextOffset: offset + limit,
+		Search:     query,
+	}
+	c.HTML(http.StatusOK, "", components.SearchResults(searchResultsModel))
+
+}
+
+func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
+	c.HTML(http.StatusOK, "", components.FakeNews(w.getBaseModel(c, "Fake News | Rasende")))
 }

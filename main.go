@@ -103,9 +103,10 @@ func main() {
 	r.POST("/api/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
 
 	staticFiles(r, static)
-	r.GET("/", webHandlers.IndexHandler)
-	r.GET("/search", webHandlers.SearchHandler)
-	r.GET("/fake-news", webHandlers.FakeNewsHandler)
+	r.GET("/", webHandlers.HandleGetIndex)
+	r.GET("/search", webHandlers.HandleGetSearch)
+	r.POST("/search", webHandlers.HandlePostSearch)
+	r.GET("/fake-news", webHandlers.HandleGetFakeNews)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()

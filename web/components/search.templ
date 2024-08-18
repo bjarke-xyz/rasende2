@@ -1,9 +1,38 @@
 package components
 
-templ search() {
-	<p>search</p>
+type SearchViewModel struct {
+	Base BaseViewModel
 }
 
-templ Search(model BaseViewModel) {
-	@Layout(model, search())
+templ search() {
+	<div class="m-4">
+		<div class="flex justify-center">
+			<div class="flex flex-row align-middle space-x-2">
+				<form class="flex flex-row gap-4">
+					<input
+						value="rasende"
+						type="search"
+						name="search"
+						hx-post="/search"
+						hx-trigger="change from:[name='content'], load, input changed delay:300ms, search"
+						hx-target="#search-results"
+						hx-indicator=".htmx-indicator"
+						hx-include="[name='content']"
+						class="p-1 block border border-solid border-gray-300 rounded-md dark: text-slate-900"
+					/>
+					<div>
+						<input name="content" type="checkbox" class="cursor-pointer mr-1" id="checkbox"/>
+						<label class="inline-block" for="checkbox">Søg i artikel indhold</label>
+					</div>
+				</form>
+			</div>
+		</div>
+		<div class="flex flex-col justify-center mt-16">
+			<div id="search-results"></div>
+		</div>
+	</div>
+}
+
+templ Search(model SearchViewModel) {
+	@Layout(model.Base, search())
 }

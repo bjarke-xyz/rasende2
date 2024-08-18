@@ -1,8 +1,9 @@
 package components
 
 type ErrorModel struct {
-	Base BaseViewModel
-	Err  error
+	Base               BaseViewModel
+	Err                error
+	DoNotIncludeLayout bool
 }
 
 templ errorTempl(err error) {
@@ -10,5 +11,9 @@ templ errorTempl(err error) {
 }
 
 templ Error(model ErrorModel) {
-	@Layout(model.Base, errorTempl(model.Err))
+	if model.DoNotIncludeLayout {
+		@errorTempl(model.Err)
+	} else {
+		@Layout(model.Base, errorTempl(model.Err))
+	}
 }

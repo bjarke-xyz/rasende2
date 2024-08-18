@@ -2,8 +2,10 @@
 
 BINARY_NAME=rasende2
 
+npm-ci:
+	npm ci
+
 npm-build-prod:
-	npm ci && \
 	cp node_modules/htmx.org/dist/htmx.min.js web/static/js/vendor && \
 	cp node_modules/chart.js/dist/chart.umd.js web/static/js/vendor
 
@@ -11,7 +13,7 @@ npm-build-dev: npm-build-prod
 	cp node_modules/chart.js/dist/chart.umd.js.map web/static/js/vendor
 
 # build builds the tailwind css sheet, and compiles the binary into a usable thing.
-build: npm-build-prod
+build: npm-ci npm-build-prod
 	templ generate && \
 	go mod tidy && \
 	go generate && \
