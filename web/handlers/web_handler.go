@@ -38,7 +38,7 @@ func getBaseModel(c *gin.Context) components.BaseViewModel {
 var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
 func (w *WebHandlers) IndexHandler(c *gin.Context) {
-	indexModel := &components.IndexModel{
+	indexModel := components.IndexModel{
 		Base: getBaseModel(c),
 	}
 
@@ -74,7 +74,7 @@ func (w *WebHandlers) IndexHandler(c *gin.Context) {
 		return
 	}
 	indexModel.ChartsResult = chartsData
-	c.HTML(http.StatusOK, "", components.Index(*indexModel))
+	c.HTML(http.StatusOK, "", components.Index(indexModel))
 }
 
 func (w *WebHandlers) GetChartdata(ctx context.Context, query string) (rss.ChartsResult, error) {
