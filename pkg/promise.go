@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"log"
 	"sync"
 )
 
@@ -21,12 +20,9 @@ func NewPromise[T any](f func() (T, error)) *Promise[T] {
 	promise.wg.Add(1)
 	go func() {
 		result, err := f()
-		log.Printf("Promise f %T: result=%+v, err=%v", f, result, err)
 		if err != nil {
-			log.Printf("Promise f %T sending %v to err", f, err)
 			promise.err = err
 		} else {
-			log.Printf("Promise f %T sending %v to result", f, result)
 			promise.result = result
 		}
 		promise.done = true
