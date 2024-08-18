@@ -30,7 +30,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Raseri i de danske medier</title><!--\n                This line is literally why we created the layout component.\n                Actually having a standard html thing is why, but yeah it's what it's!\n            --><link href=\"/static/css/tailwind.css\" rel=\"stylesheet\"></head><body class=\"bg-white text-slate-900 dark:bg-slate-800 dark:text-white\"><div class=\"h-screen flex flex-col\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Raseri i de danske medier</title><!--\n                This line is literally why we created the layout component.\n                Actually having a standard html thing is why, but yeah it's what it's!\n            --><link href=\"/static/css/tailwind.css\" rel=\"stylesheet\"><script src=\"/static/js/vendor/chart.umd.js\" defer></script><script src=\"/static/js/vendor/htmx.min.js\" defer></script><script src=\"/static/js/main.js\" defer></script></head><body class=\"bg-white text-slate-900 dark:bg-slate-800 dark:text-white\"><div class=\"h-screen flex flex-col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -99,7 +99,7 @@ func headerLink(currentPath string, linkPath string, text string) templ.Componen
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 36, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 39, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -126,7 +126,7 @@ func headerLink(currentPath string, linkPath string, text string) templ.Componen
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 38, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 41, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -209,7 +209,7 @@ func footer() templ.Component {
 			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<footer class=\"p-2\"><div class=\"flex flex-row justify-around text-sm\"><div>Inspireret af  <a className=\"underline\" href=\"https://web.archive.org/web/20200628061846/https://rasende.dk/\">https://rasende.dk/</a></div></div></footer>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<footer class=\"p-2\"><div class=\"flex flex-row justify-around text-sm\"><div>Inspireret af  <a class=\"underline\" href=\"https://web.archive.org/web/20200628061846/https://rasende.dk/\">https://rasende.dk/</a></div></div></footer>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

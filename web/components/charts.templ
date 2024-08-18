@@ -1,0 +1,7 @@
+package components
+
+import "github.com/bjarke-xyz/rasende2-api/rss"
+
+templ RasendeChart(model rss.ChartsResult) {
+	<div id="charts-placeholder" class="flex flex-row flex-wrap" data-charts-json={ templ.JSONString(model) }>Loading charts...</div>
+}

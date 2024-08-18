@@ -6,6 +6,8 @@ BINARY_NAME=rasende2
 build:
 	npm ci && \
 	cp node_modules/htmx.org/dist/htmx.min.js web/static/js/vendor && \
+	cp node_modules/chart.js/dist/chart.umd.js web/static/js/vendor && \
+	cp node_modules/chart.js/dist/chart.umd.js.map web/static/js/vendor && \
    	templ generate && \
 	go mod tidy && \
 	go generate && \

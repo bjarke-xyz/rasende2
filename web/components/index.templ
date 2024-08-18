@@ -6,15 +6,10 @@ import (
 	"time"
 )
 
-// also added this freakish not JavaScript JavaScript function as a demonstration to functions and events
-
-script doTheThing() {
-    window.alert("yoho")
-}
-
 type IndexModel struct {
 	Base          BaseViewModel
 	SearchResults rss.SearchResult
+	ChartsResult  rss.ChartsResult
 }
 
 templ latestRage() {
@@ -37,6 +32,10 @@ templ latestRageTime(item rss.RssSearchResult) {
 	</div>
 }
 
+script loadCharts() {
+	console.log('hej')
+}
+
 templ main(model IndexModel) {
 	<div class="m-4">
 		<div>
@@ -48,8 +47,13 @@ templ main(model IndexModel) {
 			<div class="flex flex-col m-4 mt-8">
 				<p class="text-lg font-bold">Tidligere raserier:</p>
 				for _, item := range model.SearchResults.Items[1:] {
-					@ItemLink(item)
+					<div>
+						@ItemLink(item)
+					</div>
 				}
+			</div>
+			<div class="mt-8">
+				@RasendeChart(model.ChartsResult)
 			</div>
 		</div>
 	</div>

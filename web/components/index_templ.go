@@ -14,20 +14,10 @@ import (
 	"time"
 )
 
-// also added this freakish not JavaScript JavaScript function as a demonstration to functions and events
-func doTheThing() templ.ComponentScript {
-	return templ.ComponentScript{
-		Name: `__templ_doTheThing_2d8c`,
-		Function: `function __templ_doTheThing_2d8c(){window.alert("yoho")
-}`,
-		Call:       templ.SafeScript(`__templ_doTheThing_2d8c`),
-		CallInline: templ.SafeScriptInline(`__templ_doTheThing_2d8c`),
-	}
-}
-
 type IndexModel struct {
 	Base          BaseViewModel
 	SearchResults rss.SearchResult
+	ChartsResult  rss.ChartsResult
 }
 
 func latestRage() templ.Component {
@@ -122,7 +112,7 @@ func latestRageTime(item rss.RssSearchResult) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(item.Published.Format(time.RFC3339))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/index.templ`, Line: 35, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/index.templ`, Line: 30, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -135,7 +125,7 @@ func latestRageTime(item rss.RssSearchResult) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(config.DanishTimeagoConfig.FormatRelativeDuration(time.Now().Sub(item.Published)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/index.templ`, Line: 36, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/index.templ`, Line: 31, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -147,6 +137,16 @@ func latestRageTime(item rss.RssSearchResult) templ.Component {
 		}
 		return templ_7745c5c3_Err
 	})
+}
+
+func loadCharts() templ.ComponentScript {
+	return templ.ComponentScript{
+		Name: `__templ_loadCharts_78a2`,
+		Function: `function __templ_loadCharts_78a2(){console.log('hej')
+}`,
+		Call:       templ.SafeScript(`__templ_loadCharts_78a2`),
+		CallInline: templ.SafeScriptInline(`__templ_loadCharts_78a2`),
+	}
 }
 
 func main(model IndexModel) templ.Component {
@@ -190,10 +190,26 @@ func main(model IndexModel) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, item := range model.SearchResults.Items[1:] {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = ItemLink(item).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div class=\"mt-8\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = RasendeChart(model.ChartsResult).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></div>")
 		if templ_7745c5c3_Err != nil {
