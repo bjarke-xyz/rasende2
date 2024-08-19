@@ -262,7 +262,7 @@ func (w *WebHandlers) HandleGetFakeNewsArticle(c *gin.Context) {
 		Base:     w.getBaseModel(c, fmt.Sprintf("%s | %v | Fake News", fakeNewsDto.Title, fakeNewsDto.SiteName)),
 		FakeNews: *fakeNewsDto,
 	}
-	url := fmt.Sprintf("http://localhost:%v/%v", w.context.Config.Port, c.Request.URL.Path)
+	url := fmt.Sprintf("https://%v%v", c.Request.Host, c.Request.URL.Path)
 	fakeNewsArticleViewModel.Base.OpenGraph = &components.BaseOpenGraphModel{
 		Title:       fmt.Sprintf("%v | %v", fakeNewsDto.Title, fakeNewsDto.SiteName),
 		Image:       *fakeNewsDto.ImageUrl,
