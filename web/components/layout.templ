@@ -2,10 +2,19 @@ package components
 
 import "fmt"
 
+type BaseOpenGraphModel struct {
+	Title string
+	// Type  string
+	Image       string
+	Url         string
+	Description string
+}
+
 type BaseViewModel struct {
 	Path          string
 	UnixBuildTime int64
 	Title         string
+	OpenGraph     *BaseOpenGraphModel
 }
 
 templ Layout(viewModel BaseViewModel, children ...templ.Component) {
@@ -20,6 +29,9 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 			<script src={ fmt.Sprintf("/static/js/vendor/chart.umd.js?v=%v", viewModel.UnixBuildTime) } defer></script>
 			<script src={ fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime) } defer></script>
 			<script src={ fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+			if viewModel.OpenGraph != nil {
+				@openGraph(*viewModel.OpenGraph)
+			}
 		</head>
 		<body class="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">
 			<div class="h-screen flex flex-col">
@@ -73,4 +85,12 @@ templ footer() {
 			</div>
 		</div>
 	</footer>
+}
+
+templ openGraph(model BaseOpenGraphModel) {
+	<meta property="og:title" content={ model.Title }/>
+	<meta property="og:type" content="website"/>
+	<meta property="og:image" content={ model.Image }/>
+	<meta property="og:url" content={ model.Url }/>
+	<meta property="og:description" content={ model.Description }/>
 }

@@ -224,6 +224,23 @@ func (r *RssRepository) GetSiteCountByItemIds(allItemIds []string) ([]SiteCount,
 	return result, nil
 }
 
+func (r *RssRepository) EnrichOneFakeNewsWithSiteNames(fn *FakeNewsDto) {
+	if fn == nil {
+		return
+	}
+	rssUrls, err := r.GetRssUrls()
+	if err == nil && len(rssUrls) > 0 {
+		rssUrlsById := make(map[int]RssUrlDto, 0)
+		for _, rssUrl := range rssUrls {
+			rssUrlsById[rssUrl.Id] = rssUrl
+		}
+		rssUrl, ok := rssUrlsById[fn.SiteId]
+		if ok {
+			fn.SiteName = rssUrl.Name
+		}
+	}
+}
+
 func (r *RssRepository) EnrichFakeNewsWithSiteNames(fakeNews []FakeNewsDto) {
 	if len(fakeNews) == 0 {
 		return
@@ -467,6 +484,7 @@ func (r *RssRepository) GetFakeNews(siteId int, title string) (*FakeNewsDto, err
 		}
 		return nil, err
 	}
+	r.EnrichOneFakeNewsWithSiteNames(&fakeNewsDto)
 	return &fakeNewsDto, nil
 }
 

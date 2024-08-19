@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
@@ -186,5 +189,140 @@ func (w *WebHandlers) HandlePostSearch(c *gin.Context) {
 }
 
 func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
-	c.HTML(http.StatusOK, "", components.FakeNews(w.getBaseModel(c, "Fake News | Rasende")))
+	title := "Fake News | Rasende"
+	cursorQuery := c.Query("cursor")
+	var publishedOffset *time.Time
+	if cursorQuery != "" {
+		_publishedOffset, err := time.Parse(time.RFC3339Nano, cursorQuery)
+		if err != nil {
+			log.Printf("error parsing cursor: %v", err)
+		}
+		if err == nil {
+			publishedOffset = &_publishedOffset
+		}
+	}
+	limit := ginutils.IntQuery(c, "limit", 10)
+	if limit > 10 {
+		limit = 10
+	}
+	highlightedFakeNews, err := w.service.GetHighlightedFakeNews(limit, publishedOffset)
+	if err != nil {
+		log.Printf("error getting highlighted fake news: %v", err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	if len(highlightedFakeNews) == 0 {
+		model := components.FakeNewsViewModel{
+			Base:     w.getBaseModel(c, title),
+			FakeNews: []rss.FakeNewsDto{},
+		}
+		c.HTML(http.StatusOK, "", components.FakeNews(model))
+		return
+	}
+	cursor := fmt.Sprintf("%v", highlightedFakeNews[len(highlightedFakeNews)-1].Published.Format(time.RFC3339Nano))
+	model := components.FakeNewsViewModel{
+		Base:     w.getBaseModel(c, title),
+		FakeNews: highlightedFakeNews,
+		Cursor:   cursor,
+		Funcs: components.ArticleFuncsModel{
+			TimeDifference: getTimeDifference,
+			TruncateText:   truncateText,
+		},
+	}
+	c.HTML(http.StatusOK, "", components.FakeNews(model))
+}
+
+func (w *WebHandlers) HandleGetFakeNewsArticle(c *gin.Context) {
+	slug := c.Param("slug")
+	siteId, date, title, err := parseArticleSlug(slug)
+	if err != nil {
+		log.Printf("error parsing slug '%v': %v", slug, err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	fakeNewsDto, err := w.service.GetFakeNews(siteId, title)
+	if err != nil {
+		log.Printf("error getting fake news: %v", err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	if fakeNewsDto == nil {
+		err = fmt.Errorf("fake news not found")
+		log.Printf("error getting fake news: %v", err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	if fakeNewsDto.Published.Format(time.DateOnly) != date.Format(time.DateOnly) {
+		err = fmt.Errorf("invalid date. Got=%v, expected=%v", date, fakeNewsDto.Published)
+		log.Printf("returned error because of dates: %v", err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	fakeNewsArticleViewModel := components.FakeNewsArticleViewModel{
+		Base:     w.getBaseModel(c, fmt.Sprintf("%s | %v | Fake News", fakeNewsDto.Title, fakeNewsDto.SiteName)),
+		FakeNews: *fakeNewsDto,
+	}
+	url := fmt.Sprintf("http://localhost:%v/%v", w.context.Config.Port, c.Request.URL.Path)
+	fakeNewsArticleViewModel.Base.OpenGraph = &components.BaseOpenGraphModel{
+		Title:       fmt.Sprintf("%v | %v", fakeNewsDto.Title, fakeNewsDto.SiteName),
+		Image:       *fakeNewsDto.ImageUrl,
+		Url:         url,
+		Description: truncateText(fakeNewsDto.Content, 100),
+	}
+	c.HTML(http.StatusOK, "", components.FakeNewsArticle(fakeNewsArticleViewModel))
+}
+
+func parseArticleSlug(slug string) (int, time.Time, string, error) {
+	// slug = {site-id:123}-{date:2024-08-19}-{title:article title qwerty}
+	var err error
+	siteId := 0
+	date := time.Time{}
+	title := ""
+	parts := strings.Split(slug, "-")
+	log.Println(len(parts), parts)
+	if len(parts) < 4 {
+		return siteId, date, title, fmt.Errorf("invalid slug")
+	}
+	siteId, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return siteId, date, title, fmt.Errorf("error parsing site id: %w", err)
+	}
+
+	year := parts[1]
+	month := parts[2]
+	day := parts[3]
+	date, err = time.Parse("2006-01-02", fmt.Sprintf("%v-%v-%v", year, month, day))
+	if err != nil {
+		return siteId, date, title, fmt.Errorf("error parsing date: %w", err)
+	}
+
+	title = strings.Join(parts[4:], "-")
+	return siteId, date, title, nil
+}
+
+func getTimeDifference(date time.Time) string {
+	now := time.Now()
+	diff := now.Sub(date)
+
+	switch {
+	case diff < time.Minute:
+		return fmt.Sprintf("%ds", int(diff.Seconds()))
+	case diff < time.Hour:
+		return fmt.Sprintf("%dm", int(diff.Minutes()))
+	case diff < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(diff.Hours()))
+	default:
+		yearFormat := ""
+		if date.Year() != now.Year() {
+			yearFormat = " 2006"
+		}
+		return date.Format("Jan 2" + yearFormat)
+	}
+}
+
+func truncateText(text string, maxLength int) string {
+	if len(text) <= maxLength {
+		return text
+	}
+	return text[:maxLength] + "..."
 }

@@ -1,0 +1,38 @@
+package components
+
+import (
+	"github.com/bjarke-xyz/rasende2-api/rss"
+	"strings"
+)
+
+type FakeNewsArticleViewModel struct {
+	Base     BaseViewModel
+	FakeNews rss.FakeNewsDto
+}
+
+templ fakeNewsArticle(model FakeNewsArticleViewModel) {
+	<div class="m-4">
+		<div class="flex flex-col justify-center max-w-3xl">
+			<div class="flex flex-row">
+				<h1 class="text-3xl">
+					@Badge(model.FakeNews.SiteName)
+				</h1>
+			</div>
+			<h1 class="text-xl font-bold mt-4">{ model.FakeNews.Title }</h1>
+			<div>
+				if model.FakeNews.ImageUrl != nil {
+					<img src={ *model.FakeNews.ImageUrl } width="512" height="512" alt={ model.FakeNews.Title }/>
+				}
+			</div>
+			<div>
+				for _, paragraph := range strings.Split(model.FakeNews.Content, "\n") {
+					<p class="my-3">{ paragraph }</p>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ FakeNewsArticle(model FakeNewsArticleViewModel) {
+	@Layout(model.Base, fakeNewsArticle(model))
+}

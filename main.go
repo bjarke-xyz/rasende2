@@ -107,6 +107,7 @@ func main() {
 	r.GET("/search", webHandlers.HandleGetSearch)
 	r.POST("/search", webHandlers.HandlePostSearch)
 	r.GET("/fake-news", webHandlers.HandleGetFakeNews)
+	r.GET("/fake-news/:slug", webHandlers.HandleGetFakeNewsArticle)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()
