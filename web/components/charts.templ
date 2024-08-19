@@ -11,4 +11,9 @@ templ RasendeChart(model rss.ChartsResult) {
 			<div id={ fmt.Sprintf("chart-placeholder-%v", i) } class="chart-placeholder m-4" data-chart-json={ templ.JSONString(chart) }></div>
 		}
 	</div>
+	<script>
+	ready(() => {
+		handleCharts();
+	})
+	</script>
 }

@@ -15,11 +15,8 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ viewModel.Title }</title>
-			<!--
-                This line is literally why we created the layout component.
-                Actually having a standard html thing is why, but yeah it's what it's!
-            -->
 			<link href={ fmt.Sprintf("/static/css/tailwind.css?v=%v", viewModel.UnixBuildTime) } rel="stylesheet"/>
+			<script src={ fmt.Sprintf("/static/js/ready.js?v=%v", viewModel.UnixBuildTime) }></script>
 			<script src={ fmt.Sprintf("/static/js/vendor/chart.umd.js?v=%v", viewModel.UnixBuildTime) } defer></script>
 			<script src={ fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime) } defer></script>
 			<script src={ fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime) } defer></script>

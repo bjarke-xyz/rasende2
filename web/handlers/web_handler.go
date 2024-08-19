@@ -134,16 +134,29 @@ func (w *WebHandlers) HandleGetSearch(c *gin.Context) {
 
 func (w *WebHandlers) HandlePostSearch(c *gin.Context) {
 	// query := c.Query("q")
+	ctx := c.Request.Context()
 	query := c.Request.FormValue("search")
 	offset := ginutils.IntForm(c, "offset", 0)
 	limit := ginutils.IntForm(c, "limit", 10)
 	if limit > 100 {
 		limit = 10
 	}
+
+	includeCharts := ginutils.StringForm(c, "include-charts", "") == "on"
+
+	chartsPromise := pkg.NewPromise(func() (rss.ChartsResult, error) {
+		if includeCharts {
+			chartData, err := w.GetChartdata(ctx, query)
+			return chartData, err
+		} else {
+			return rss.ChartsResult{}, nil
+		}
+	})
+
 	searchContentStr := ginutils.StringForm(c, "content", "false")
 	searchContent := searchContentStr == "on"
 	orderBy := allowedOrderBys[0]
-	results, err := w.service.SearchItems(c.Request.Context(), query, searchContent, offset, limit, orderBy)
+	results, err := w.service.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
@@ -152,13 +165,21 @@ func (w *WebHandlers) HandlePostSearch(c *gin.Context) {
 	if len(results) > limit {
 		results = results[0:limit]
 	}
+	chartsResult, err := chartsPromise.Get()
+	if err != nil {
+		log.Printf("failed to get charts with query %v: %v", query, err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
 	searchResultsModel := components.SearchResultsViewModel{
 		SearchResults: rss.SearchResult{
 			HighlightedWords: []string{query},
 			Items:            results,
 		},
-		NextOffset: offset + limit,
-		Search:     query,
+		ChartsResult:  chartsResult,
+		NextOffset:    offset + limit,
+		Search:        query,
+		IncludeCharts: includeCharts,
 	}
 	c.HTML(http.StatusOK, "", components.SearchResults(searchResultsModel))
 

@@ -10,6 +10,7 @@ type SearchResultsViewModel struct {
 	ChartsResult  rss.ChartsResult
 	NextOffset    int
 	Search        string
+	IncludeCharts bool
 }
 
 templ SearchResults(model SearchResultsViewModel) {
@@ -34,10 +35,11 @@ templ SearchResults(model SearchResultsViewModel) {
 			</form>
 		</div>
 	</div>
-	// <div>
-	// 	<div class="flex flex-col justify-center mt-16"></div>
-	// 	// <div class="mt-8">
-	// 	// 	@RasendeChart(model.ChartsResult)
-	// 	// </div>
-	// </div>
+	if model.IncludeCharts {
+		<div>
+			<div class="mt-8">
+				@RasendeChart(model.ChartsResult)
+			</div>
+		</div>
+	}
 }
