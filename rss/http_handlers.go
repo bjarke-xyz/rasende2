@@ -340,7 +340,7 @@ func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 			return
 		}
 		var temperature float32 = 1
-		var generatedTitleCount = 10
+		var generatedTitleCount = 30
 		generatedArticleTitles, err := h.openaiClient.GenerateArticleTitlesList(ctx, site.Name, site.DescriptionEn, recentArticleTitles, generatedTitleCount, temperature)
 		if err != nil {
 			log.Printf("error getting generated article titles: %v", err)
@@ -364,7 +364,7 @@ func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 		}
 
 		articleImgPromise := pkg.NewPromise(func() (string, error) {
-			imgUrl, err := h.openaiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle)
+			imgUrl, err := h.openaiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle, true)
 			if err != nil {
 				log.Printf("error making fake news img: %v", err)
 			}
@@ -596,7 +596,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	}
 
 	articleImgPromise := pkg.NewPromise(func() (string, error) {
-		imgUrl, err := h.openaiClient.GenerateImage(c.Request.Context(), siteName, siteInfo.DescriptionEn, articleTitle)
+		imgUrl, err := h.openaiClient.GenerateImage(c.Request.Context(), siteName, siteInfo.DescriptionEn, articleTitle, true)
 		if err != nil {
 			log.Printf("error making fake news img: %v", err)
 		}

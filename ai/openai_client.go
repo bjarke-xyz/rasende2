@@ -35,7 +35,35 @@ func NewOpenAIClient(appContext *pkg.AppContext) *OpenAIClient {
 	}
 }
 
-func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string) (string, error) {
+func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
+	if translateTitle {
+		req := openai.ChatCompletionRequest{
+			Model:       chatModel,
+			Temperature: 1,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleSystem,
+					Content: "Translate the following danish text to english",
+				},
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: articleTitle,
+				},
+			},
+			Stream: false,
+		}
+		translateResp, err := o.client.CreateChatCompletion(ctx, req)
+		if err != nil {
+			log.Printf("translate failed: %v", err)
+		} else {
+			if len(translateResp.Choices) > 0 {
+				translatedTitle := translateResp.Choices[0].Message.Content
+				if translatedTitle != "" {
+					articleTitle = translatedTitle
+				}
+			}
+		}
+	}
 	imgReq := openai.ImageRequest{
 		Model: "dall-e-3",
 		// Prompt:         fmt.Sprintf("Et billede der passer til en artikel på nyhedsmediet %s. %s. Artiklens overskrift er '%s'. Billedet skal passe til artiklen. Billedet bør IKKE ligne en artikel eller en avis, eller indeholde aviser. Billedet skal være passende til artiklen. Artiklen vises på en hjemmeside.", siteName, siteDescription, articleTitle),
@@ -47,6 +75,7 @@ func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 		ResponseFormat: "b64_json",
 	}
 	log.Printf("GenerateImage - site: %v, articleTitle: %v", siteName, articleTitle)
+	log.Printf("GenerateImage - Prompt=%v", imgReq.Prompt)
 	imgResp, err := o.client.CreateImage(ctx, imgReq)
 	if err != nil {
 		return "", fmt.Errorf("error generating openai image: %w", err)
@@ -145,6 +174,8 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		}
 		previousTitlesStr = tmpStr
 	}
+	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. De nye overskrifter må gerne være sjove eller humoristiske, eller være satiriske i forhold til nyhedsmediet, men de skal stadig være realistiske nok, til at man kunne tro, at de er ægte. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, siteDescription, newTitlesCount, newTitlesCount)
+	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. You will be provided a description of the news media '%v', and a list of previous article titles from that news media. Start each title on a new line. Start each line with a space (' '). Return only titles, nothing else. Make at most %v titles.", siteName, siteName, newTitlesCount)
 	log.Printf("GenerateArticleTitles - site: %v, tokens: %v, previousTitles: %v", siteName, len(token), previousTitlesCount)
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
@@ -152,7 +183,11 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. De nye overskrifter må gerne være sjove eller humoristiske, eller være satiriske i forhold til nyhedsmediet, men de skal stadig være realistiske nok, til at man kunne tro, at de er ægte. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, siteDescription, newTitlesCount, newTitlesCount),
+				Content: sysPrompt,
+			},
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: fmt.Sprintf("Description of '%v': '%v'", siteName, siteDescription),
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -161,6 +196,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		},
 		Stream: true,
 	}
+	log.Printf("GenerateArticleTitles - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
@@ -170,13 +206,15 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 
 func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
 	log.Printf("SelectBestArticleTitle - site: %v", siteName)
+	// sysPrompt := fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", siteName, siteDescription, len(articleTitles))
+	sysPrompt := fmt.Sprintf("You are the editor of a satirical news media like the Onion or Rokoko Posten. You are given %v news articles titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", len(articleTitles))
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
 		Temperature: 1,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", siteName, siteDescription, len(articleTitles)),
+				Content: sysPrompt,
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -185,6 +223,7 @@ func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName stri
 		},
 		Stream: true,
 	}
+	log.Printf("SelectBestArticleTitle - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("OpenAI API error: %w", err)
@@ -226,13 +265,19 @@ func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName s
 
 func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (*openai.ChatCompletionStream, error) {
 	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", siteName, articleTitle, temperature)
+	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få en overskrift, og du skal skrive en artikel der passer til den overskrift. Artiklen må IKKE starte med overskriften!", siteName, siteDescription)
+	sysPrompt := "You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given a article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!!"
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
 		Temperature: temperature,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få en overskrift, og du skal skrive en artikel der passer til den overskrift. Artiklen må IKKE starte med overskriften!", siteName, siteDescription),
+				Content: sysPrompt,
+			},
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: fmt.Sprintf("Description of news media '%v': '%v'", siteName, siteDescription),
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -241,6 +286,7 @@ func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 		},
 		Stream: true,
 	}
+	log.Printf("GenerateArticleContent - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
