@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
 	"github.com/bjarke-xyz/rasende2-api/ginutils"
@@ -321,8 +322,17 @@ func getTimeDifference(date time.Time) string {
 }
 
 func truncateText(text string, maxLength int) string {
-	if len(text) <= maxLength {
-		return text
+	lastSpaceIx := maxLength
+	len := 0
+	for i, r := range text {
+		if unicode.IsSpace(r) {
+			lastSpaceIx = i
+		}
+		len++
+		if len > maxLength {
+			return text[:lastSpaceIx] + "..."
+		}
 	}
-	return text[:maxLength] + "..."
+	// If here, string is shorter or equal to maxLen
+	return text
 }
