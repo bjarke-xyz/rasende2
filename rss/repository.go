@@ -33,6 +33,7 @@ type RssUrlDto struct {
 	Name              string   `json:"name"`
 	Urls              []string `json:"urls"`
 	Description       string   `json:"description"`
+	DescriptionEn     string   `json:"descriptionEn"`
 	Id                int      `json:"id"`
 	Disabled          bool     `json:"disabled"`
 	ArticleHasContent bool     `json:"articleHasContent"`
