@@ -438,6 +438,9 @@ func (r *RssService) SetFakeNewsImgUrl(siteId int, title string, imgUrl string) 
 func (r *RssService) SetFakeNewsHighlighted(siteId int, title string, highlighted bool) error {
 	return r.repository.SetFakeNewsHighlighted(siteId, title, highlighted)
 }
+func (r *RssService) ResetFakeNewsContent(siteId int, title string) error {
+	return r.repository.ResetFakeNewsContent(siteId, title)
+}
 
 func (r *RssService) BackupDbAndLogError(ctx context.Context) error {
 	err := r.BackupDb(ctx)

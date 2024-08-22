@@ -539,6 +539,18 @@ func (r *RssRepository) SetFakeNewsHighlighted(siteId int, title string, highlig
 	return nil
 }
 
+func (r *RssRepository) ResetFakeNewsContent(siteId int, title string) error {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("UPDATE fake_news SET content = '' WHERE site_id = ? AND title = ?", siteId, title)
+	if err != nil {
+		return fmt.Errorf("error updating fake news highlighted: %w", err)
+	}
+	return nil
+}
+
 func (r *RssRepository) BackupDb(ctx context.Context) error {
 	// https://rbn.im/backing-up-a-SQLite-database-with-Go/backing-up-a-SQLite-database-with-Go.html
 	destDb, err := sql.Open("sqlite3", r.context.Config.BackupDbPath)
