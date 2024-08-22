@@ -303,7 +303,7 @@ func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 			c.JSON(500, err.Error())
 			return
 		}
-		latestFakeNews, err := h.service.GetHighlightedFakeNews(3, nil)
+		latestFakeNews, err := h.service.GetHighlightedFakeNews(3, nil, 0)
 		if err != nil {
 			log.Printf("error getting recent fake news: %v", err)
 			c.JSON(500, err.Error())
@@ -683,20 +683,28 @@ type HighlightedFakeNewsResponse struct {
 func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 	cursorQuery := c.Query("cursor")
 	var publishedOffset *time.Time
+	var votesOffset int
 	if cursorQuery != "" {
-		_publishedOffset, err := time.Parse(time.RFC3339Nano, cursorQuery)
+		cusorQueryParts := strings.Split(cursorQuery, "¤")
+		_publishedOffset, err := time.Parse(time.RFC3339Nano, cusorQueryParts[0])
 		if err != nil {
 			log.Printf("error parsing cursor: %v", err)
 		}
 		if err == nil {
 			publishedOffset = &_publishedOffset
 		}
+		if len(cusorQueryParts) >= 2 {
+			votesOffset, err = strconv.Atoi(cusorQueryParts[1])
+			if err != nil {
+				log.Printf("error parsing cursor int: %v", err)
+			}
+		}
 	}
 	limit := ginutils.IntQuery(c, "limit", 10)
 	if limit > 10 {
 		limit = 10
 	}
-	highlightedFakeNews, err := h.service.GetHighlightedFakeNews(limit, publishedOffset)
+	highlightedFakeNews, err := h.service.GetHighlightedFakeNews(limit, publishedOffset, votesOffset)
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
@@ -709,7 +717,14 @@ func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 		})
 		return
 	}
-	cursor := fmt.Sprintf("%v", highlightedFakeNews[len(highlightedFakeNews)-1].Published.Format(time.RFC3339Nano))
+	// maxVote := 0
+	// for _, fn := range highlightedFakeNews {
+	// 	if fn.Votes > maxVote {
+	// 		maxVote = fn.Votes
+	// 	}
+	// }
+	lastFakeNews := highlightedFakeNews[len(highlightedFakeNews)-1]
+	cursor := fmt.Sprintf("%v¤%v", lastFakeNews.Published.Format(time.RFC3339Nano), lastFakeNews.Votes)
 	response := HighlightedFakeNewsResponse{
 		FakeNews: highlightedFakeNews,
 		Cursor:   cursor,
@@ -783,6 +798,41 @@ func (h *HttpHandlers) ResetFakeNewsContent(c *gin.Context) {
 		return
 	}
 	c.Status(204)
+}
+
+func (h *HttpHandlers) HandleArticleVote(c *gin.Context) {
+	siteName := c.Request.FormValue("siteName")
+	title := strings.TrimSpace(c.Request.FormValue("title"))
+	up := c.Request.FormValue("direction") == "up"
+	vote := -1
+	if up {
+		vote = 1
+	}
+	siteInfo, err := h.service.GetSiteInfo(siteName)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	if siteInfo == nil {
+		c.JSON(400, "site not found")
+		return
+	}
+	existing, err := h.service.GetFakeNews(siteInfo.Id, title)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	if existing == nil {
+		c.JSON(400, "fake news not found")
+		return
+	}
+	updatedVotes, err := h.service.VoteFakeNews(siteInfo.Id, title, vote)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	existing.Votes = updatedVotes
+	c.JSON(200, existing)
 }
 
 func Chunks(s string, chunkSize int) []string {

@@ -95,6 +95,7 @@ func main() {
 	r.GET("/api/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
 	r.POST("/api/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
 	r.POST("/api/reset-content", rssHttpHandlers.ResetFakeNewsContent)
+	r.POST("/api/vote-fake-news", rssHttpHandlers.HandleArticleVote)
 	r.GET("/api/generate-titles", rssHttpHandlers.HandleGenerateTitles)
 	r.GET("/api/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
 	r.GET("/api/sites", rssHttpHandlers.HandleSites)

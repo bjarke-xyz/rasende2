@@ -419,8 +419,8 @@ func (r *RssService) GetRecentTitles(ctx context.Context, siteInfo RssUrlDto, li
 	return itemTitles, nil
 }
 
-func (r *RssService) GetHighlightedFakeNews(limit int, publishedAfter *time.Time) ([]FakeNewsDto, error) {
-	return r.repository.GetHighlightedFakeNews(limit, publishedAfter)
+func (r *RssService) GetHighlightedFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
+	return r.repository.GetHighlightedFakeNews(limit, publishedAfter, votes)
 }
 func (r *RssService) GetFakeNews(siteId int, title string) (*FakeNewsDto, error) {
 	return r.repository.GetFakeNews(siteId, title)
@@ -440,6 +440,9 @@ func (r *RssService) SetFakeNewsHighlighted(siteId int, title string, highlighte
 }
 func (r *RssService) ResetFakeNewsContent(siteId int, title string) error {
 	return r.repository.ResetFakeNewsContent(siteId, title)
+}
+func (r *RssService) VoteFakeNews(siteId int, title string, votes int) (int, error) {
+	return r.repository.VoteFakeNews(siteId, title, votes)
 }
 
 func (r *RssService) BackupDbAndLogError(ctx context.Context) error {

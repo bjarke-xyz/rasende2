@@ -449,7 +449,7 @@ func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, 
 
 }
 
-func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.Time) ([]FakeNewsDto, error) {
+func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
 	db, err := db.Open(r.context.Config)
 	var fakeNewsDtos []FakeNewsDto
 	if err != nil {
@@ -457,11 +457,12 @@ func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.T
 	}
 	sqlQuery := ""
 	var args []any
+	orderBySql := "ORDER BY VOTES desc, published DESC"
 	if publishedAfter != nil {
-		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 AND published < ? ORDER BY published DESC LIMIT ?", getDBTags(FakeNewsDto{}))
-		args = []any{*publishedAfter, limit}
+		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 AND votes <= ? AND (votes < ? OR published < ?) %v LIMIT ?", getDBTags(FakeNewsDto{}), orderBySql)
+		args = []any{votes, votes, *publishedAfter, limit}
 	} else {
-		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 ORDER BY published DESC LIMIT ?", getDBTags(FakeNewsDto{}))
+		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 %v LIMIT ?", getDBTags(FakeNewsDto{}), orderBySql)
 		args = []any{limit}
 	}
 	log.Printf("GetHighlightedFakeNews: SQL=%v, args=%v", sqlQuery, args)
@@ -566,15 +567,32 @@ func (r *RssRepository) VoteFakeNews(siteId int, title string, votes int) (int, 
 		sign = "-"
 	}
 	absVotes := IntAbs(votes)
-	query := fmt.Sprintf("UPDATE fake_news SET votes = votes %v ? WHERE site_id = ? AND title = ?", sign)
-	_, err = db.Exec(query, absVotes, siteId, title)
+	tx, err := db.Beginx()
 	if err != nil {
+		return 0, fmt.Errorf("error starting vote tx: %w", err)
+	}
+	query := fmt.Sprintf("UPDATE fake_news SET votes = votes %v ? WHERE site_id = ? AND title = ?", sign)
+	_, err = tx.Exec(query, absVotes, siteId, title)
+	if err != nil {
+		tx.Rollback()
 		return 0, fmt.Errorf("error updating fake news votes: %w", err)
 	}
 	var updatedVotes int
-	err = db.Select(&updatedVotes, "SELECT votes FROM fake_news WHERE site_id = ? AND title = ?", siteId, title)
+	err = tx.Get(&updatedVotes, "SELECT votes FROM fake_news WHERE site_id = ? AND title = ?", siteId, title)
 	if err != nil {
+		tx.Rollback()
 		return 0, fmt.Errorf("error getting updated votes: %w", err)
+	}
+	if updatedVotes < 0 {
+		_, err = tx.Exec("UPDATE fake_news SET votes = 0 WHERE site_id = ? and title = ?", siteId, title)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("error updating votes to 0 after they were negative: %w", err)
+		}
+	}
+	err = tx.Commit()
+	if err != nil {
+		return 0, fmt.Errorf("error commiting votes tx: %w", err)
 	}
 	return updatedVotes, nil
 }
