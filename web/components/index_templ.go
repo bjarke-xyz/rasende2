@@ -139,16 +139,6 @@ func latestRageTime(item rss.RssSearchResult) templ.Component {
 	})
 }
 
-func loadCharts() templ.ComponentScript {
-	return templ.ComponentScript{
-		Name: `__templ_loadCharts_78a2`,
-		Function: `function __templ_loadCharts_78a2(){console.log('hej')
-}`,
-		Call:       templ.SafeScript(`__templ_loadCharts_78a2`),
-		CallInline: templ.SafeScriptInline(`__templ_loadCharts_78a2`),
-	}
-}
-
 func main(model IndexModel) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -167,7 +157,7 @@ func main(model IndexModel) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"m-4\"><div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"m-4\" id=\"index_page\"><form><input type=\"hidden\" hx-get=\"/\" hx-trigger=\"rasende-focus from:body throttle:1s\" hx-target=\"#index_page\" hx-swap=\"outerHTML\"></form><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

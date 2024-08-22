@@ -41,10 +41,13 @@ func (w *WebHandlers) getBaseModel(c *gin.Context, title string) components.Base
 	} else {
 		unixBuildTime = time.Now().Unix()
 	}
+	hxRequest := c.Request.Header.Get("HX-Request")
+	log.Println("hxRequest", hxRequest)
 	return components.BaseViewModel{
 		Path:          c.Request.URL.Path,
 		UnixBuildTime: unixBuildTime,
 		Title:         title,
+		IncludeLayout: hxRequest == "" || hxRequest == "false",
 	}
 }
 

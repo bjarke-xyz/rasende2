@@ -15,36 +15,43 @@ type BaseViewModel struct {
 	UnixBuildTime int64
 	Title         string
 	OpenGraph     *BaseOpenGraphModel
+	IncludeLayout bool
 }
 
 templ Layout(viewModel BaseViewModel, children ...templ.Component) {
-	<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="UTF-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ viewModel.Title }</title>
-			<link href={ fmt.Sprintf("/static/css/tailwind.css?v=%v", viewModel.UnixBuildTime) } rel="stylesheet"/>
-			<script src={ fmt.Sprintf("/static/js/ready.js?v=%v", viewModel.UnixBuildTime) }></script>
-			<script src={ fmt.Sprintf("/static/js/vendor/chart.umd.js?v=%v", viewModel.UnixBuildTime) } defer></script>
-			<script src={ fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime) } defer></script>
-			<script src={ fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime) } defer></script>
-			if viewModel.OpenGraph != nil {
-				@openGraph(*viewModel.OpenGraph)
-			}
-		</head>
-		<body class="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">
-			<div class="h-screen flex flex-col">
-				@header(viewModel.Path)
-				<div class="mb-auto mt-10">
-					for _, child := range children {
-						@child
-					}
+	if (viewModel.IncludeLayout) {
+		<!DOCTYPE html>
+		<html lang="en">
+			<head>
+				<meta charset="UTF-8"/>
+				<meta name="viewport" content="width=device-width, initial-scale=1"/>
+				<title>{ viewModel.Title }</title>
+				<link href={ fmt.Sprintf("/static/css/tailwind.css?v=%v", viewModel.UnixBuildTime) } rel="stylesheet"/>
+				<script src={ fmt.Sprintf("/static/js/ready.js?v=%v", viewModel.UnixBuildTime) }></script>
+				<script src={ fmt.Sprintf("/static/js/vendor/chart.umd.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script src={ fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script src={ fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				if viewModel.OpenGraph != nil {
+					@openGraph(*viewModel.OpenGraph)
+				}
+			</head>
+			<body class="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">
+				<div class="h-screen flex flex-col">
+					@header(viewModel.Path)
+					<div class="mb-auto mt-10">
+						for _, child := range children {
+							@child
+						}
+					</div>
+					@footer()
 				</div>
-				@footer()
-			</div>
-		</body>
-	</html>
+			</body>
+		</html>
+	} else {
+		for _, child := range children {
+			@child
+		}
+	}
 }
 
 templ headerLink(currentPath string, linkPath string, text string) {

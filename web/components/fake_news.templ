@@ -28,7 +28,10 @@ type FakeNewsViewModel struct {
 }
 
 templ fakeNews(model FakeNewsViewModel) {
-	<div class="m-4">
+	<div class="m-4" id="fake_news_page">
+		<form>
+			<input type="hidden" hx-get="/fake-news" hx-trigger="rasende-focus from:body throttle:1s" hx-target="#fake_news_page" hx-swap="outerHTML"/>
+		</form>
 		<div>
 			<h2 class="text-xl font-bold">Fremhævede falske artikler</h2>
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">

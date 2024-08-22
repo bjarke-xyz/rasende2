@@ -93,10 +93,20 @@ function handleCharts() {
     }
 }
 
+function visibilityChangeListener() {
+    const eventTypes = ['visibilitychange', 'focus']
+    for (const eventType of eventTypes) {
+        document.addEventListener(eventType, (event) => {
+            if (!document.hidden) {
+                document.body.dispatchEvent(new Event('rasende-focus'))
+            }
+        })
+    }
+}
+
 async function main() {
     ready(() => {
-        console.log('ready')
-        // handleCharts();
+        visibilityChangeListener();
     })
 }
 
