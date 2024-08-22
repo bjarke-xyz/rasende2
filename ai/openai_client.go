@@ -175,7 +175,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 		previousTitlesStr = tmpStr
 	}
 	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. De nye overskrifter må gerne være sjove eller humoristiske, eller være satiriske i forhold til nyhedsmediet, men de skal stadig være realistiske nok, til at man kunne tro, at de er ægte. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, siteDescription, newTitlesCount, newTitlesCount)
-	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. You will be provided a description of the news media '%v', and a list of previous article titles from that news media. Start each title on a new line. Start each line with a space (' '). Return only titles, nothing else. Make at most %v titles.", siteName, siteName, newTitlesCount)
+	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. You will be provided a description of the news media '%v', and a list of previous article titles from that news media. Start each title on a new line. Start each line with a space (' '). Return only titles, nothing else. Make at most %v titles. The titles MUST be danish!", siteName, siteName, newTitlesCount)
 	log.Printf("GenerateArticleTitles - site: %v, tokens: %v, previousTitles: %v", siteName, len(token), previousTitlesCount)
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
@@ -266,7 +266,8 @@ func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName s
 func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (*openai.ChatCompletionStream, error) {
 	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", siteName, articleTitle, temperature)
 	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få en overskrift, og du skal skrive en artikel der passer til den overskrift. Artiklen må IKKE starte med overskriften!", siteName, siteDescription)
-	sysPrompt := "You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given a article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!!"
+	// sysPrompt := "You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given a article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!!"
+	sysPrompt := "Du er en journalist på et satirisk nyhedsmedie, som f.eks. The Onion eller Rokoko Posten. Du vil få en overskrift, og navn og beskrivelse af et nyhedsmedia. Du skal skrive en artikel der passer til titlen, og nyhedsmediet. HUSK at artiklen skal publiceres i et satirisk nyhedsmedie som Rokoko Posten eller The Onion. Hold det kort, 2-3 afsnit. Artiklen MÅ IKKE starte med overskriften!!"
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
 		Temperature: temperature,
@@ -277,7 +278,7 @@ func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 			},
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Description of news media '%v': '%v'", siteName, siteDescription),
+				Content: fmt.Sprintf("Beskrivelse af nyhedsmediet '%v': '%v'", siteName, siteDescription),
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,

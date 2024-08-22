@@ -607,7 +607,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	})
 
 	var temperature float32 = 1.0
-	stream, err := h.openaiClient.GenerateArticleContent(c.Request.Context(), siteName, siteInfo.DescriptionEn, articleTitle, temperature)
+	stream, err := h.openaiClient.GenerateArticleContent(c.Request.Context(), siteName, siteInfo.Description, articleTitle, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
