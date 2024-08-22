@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/db"
@@ -74,6 +76,7 @@ type FakeNewsDto struct {
 	SiteId      int       `db:"site_id" json:"siteId"`
 	ImageUrl    *string   `db:"img_url" json:"imageUrl"`
 	Highlighted bool      `db:"highlighted" json:"highlighted"`
+	Votes       int       `db:"votes" json:"votes"`
 }
 
 func (r *RssRepository) GetSiteNames() ([]string, error) {
@@ -101,7 +104,7 @@ func (r *RssRepository) GetRecentItems(ctx context.Context, siteId int, limit in
 		offsetWhere = " AND inserted_at < ? "
 		args = []interface{}{siteId, insertedAtOffset, limit}
 	}
-	sql := "SELECT * FROM rss_items WHERE site_id = ? " + offsetWhere + " ORDER BY inserted_at DESC LIMIT ?"
+	sql := fmt.Sprintf("SELECT %v FROM rss_items WHERE site_id = ? "+offsetWhere+" ORDER BY inserted_at DESC LIMIT ?", getDBTags(RssItemDto{}))
 	err = db.Select(&rssItems, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteId, err)
@@ -355,7 +358,8 @@ func (r *RssRepository) GetItemsByNameAndIds(itemIds []string) ([]RssItemDto, er
 		return nil, err
 	}
 	db = db.Unsafe()
-	query, args, err := sqlx.In("SELECT * FROM rss_items WHERE item_id IN (?)", itemIds)
+	sqlQuery := fmt.Sprintf("SELECT %v FROM rss_items WHERE item_id IN (?)", getDBTags(RssItemDto{}))
+	query, args, err := sqlx.In(sqlQuery, itemIds)
 	if err != nil {
 		return nil, fmt.Errorf("error doing sqlx in: %w", err)
 	}
@@ -454,10 +458,10 @@ func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.T
 	sqlQuery := ""
 	var args []any
 	if publishedAfter != nil {
-		sqlQuery = "SELECT * FROM fake_news WHERE highlighted = 1 AND published < ? ORDER BY published DESC LIMIT ?"
+		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 AND published < ? ORDER BY published DESC LIMIT ?", getDBTags(FakeNewsDto{}))
 		args = []any{*publishedAfter, limit}
 	} else {
-		sqlQuery = "SELECT * FROM fake_news WHERE highlighted = 1 ORDER BY published DESC LIMIT ?"
+		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 ORDER BY published DESC LIMIT ?", getDBTags(FakeNewsDto{}))
 		args = []any{limit}
 	}
 	log.Printf("GetHighlightedFakeNews: SQL=%v, args=%v", sqlQuery, args)
@@ -478,7 +482,8 @@ func (r *RssRepository) GetFakeNews(siteId int, title string) (*FakeNewsDto, err
 		return nil, err
 	}
 	var fakeNewsDto FakeNewsDto
-	err = db.Get(&fakeNewsDto, "SELECT * FROM fake_news WHERE site_id = ? and title = ?", siteId, title)
+	sqlQuery := fmt.Sprintf("SELECT %v FROM fake_news WHERE site_id = ? and title = ?", getDBTags(FakeNewsDto{}))
+	err = db.Get(&fakeNewsDto, sqlQuery, siteId, title)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -546,9 +551,32 @@ func (r *RssRepository) ResetFakeNewsContent(siteId int, title string) error {
 	}
 	_, err = db.Exec("UPDATE fake_news SET content = '' WHERE site_id = ? AND title = ?", siteId, title)
 	if err != nil {
-		return fmt.Errorf("error updating fake news highlighted: %w", err)
+		return fmt.Errorf("error resetting fake news content: %w", err)
 	}
 	return nil
+}
+
+func (r *RssRepository) VoteFakeNews(siteId int, title string, votes int) (int, error) {
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return 0, err
+	}
+	sign := "+"
+	if votes < 0 {
+		sign = "-"
+	}
+	absVotes := IntAbs(votes)
+	query := fmt.Sprintf("UPDATE fake_news SET votes = votes %v ? WHERE site_id = ? AND title = ?", sign)
+	_, err = db.Exec(query, absVotes, siteId, title)
+	if err != nil {
+		return 0, fmt.Errorf("error updating fake news votes: %w", err)
+	}
+	var updatedVotes int
+	err = db.Select(&updatedVotes, "SELECT votes FROM fake_news WHERE site_id = ? AND title = ?", siteId, title)
+	if err != nil {
+		return 0, fmt.Errorf("error getting updated votes: %w", err)
+	}
+	return updatedVotes, nil
 }
 
 func (r *RssRepository) BackupDb(ctx context.Context) error {
@@ -605,4 +633,29 @@ func (r *RssRepository) BackupDb(ctx context.Context) error {
 		})
 	})
 
+}
+
+func IntAbs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// Function to get comma-separated "db" tags
+func getDBTags(v interface{}) string {
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem() // Get the element type if it's a pointer
+	}
+
+	var tags []string
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		dbTag := field.Tag.Get("db")
+		if dbTag != "" {
+			tags = append(tags, dbTag)
+		}
+	}
+	return strings.Join(tags, ", ")
 }
