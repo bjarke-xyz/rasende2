@@ -581,15 +581,11 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 			c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png", ImageStatus: ImageStatusReady})
 		}
 		c.Stream(func(w io.Writer) bool {
-			chunks := Chunks(existing.Content, 10)
-			for _, chunk := range chunks {
-				contentEvent := ContentEvent{
-					Content: chunk,
-				}
-				c.SSEvent("message", contentEvent)
-				c.Writer.Flush()
-				time.Sleep(25 * time.Millisecond)
+			contentEvent := ContentEvent{
+				Content: existing.Content,
 			}
+			c.SSEvent("message", contentEvent)
+			c.Writer.Flush()
 			return false
 		})
 		return
