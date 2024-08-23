@@ -93,6 +93,7 @@ func main() {
 	r.GET("/api/search", rssHttpHandlers.HandleSearch)
 	r.GET("/api/charts", rssHttpHandlers.HandleCharts)
 	r.GET("/api/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
+	r.GET("api/fake-news-article", rssHttpHandlers.GetFakeNewsArticle)
 	r.POST("/api/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
 	r.POST("/api/reset-content", rssHttpHandlers.ResetFakeNewsContent)
 	r.POST("/api/vote-fake-news", rssHttpHandlers.HandleArticleVote)

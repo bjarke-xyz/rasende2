@@ -856,3 +856,18 @@ func Chunks(s string, chunkSize int) []string {
 	chunks = append(chunks, s[currentStart:])
 	return chunks
 }
+
+func (h *HttpHandlers) GetFakeNewsArticle(c *gin.Context) {
+	siteId := ginutils.IntQuery(c, "siteId", 0)
+	title := ginutils.StringQuery(c, "title", "")
+	fakeNews, err := h.service.GetFakeNews(siteId, title)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	if fakeNews == nil {
+		c.JSON(400, "fake news not found")
+		return
+	}
+	c.JSON(200, fakeNews)
+}
