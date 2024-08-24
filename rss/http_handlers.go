@@ -266,6 +266,28 @@ func (h *HttpHandlers) BackupDb(key string) gin.HandlerFunc {
 	}
 }
 
+func (h *HttpHandlers) CleanUpFakeNews(key string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("Authorization") != key {
+			c.AbortWithStatus(401)
+			return
+		}
+		fireAndForget := c.Query("fireAndForget") == "true"
+		if fireAndForget {
+			go h.service.CleanUpFakeNewsAndLogError(context.Background())
+		} else {
+			ctx := c.Request.Context()
+			err := h.service.CleanUpFakeNews(ctx)
+			if err != nil {
+				c.String(http.StatusInternalServerError, "fake news clean up failed: %v", err)
+				return
+			}
+			log.Printf("fake news clean up success")
+		}
+		c.Status(http.StatusOK)
+	}
+}
+
 func (h *HttpHandlers) RebuildIndex(key string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetHeader("Authorization") != key {

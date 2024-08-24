@@ -104,6 +104,7 @@ func main() {
 	r.POST("/api/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
 	r.POST("/api/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
 	r.POST("/api/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
+	r.POST("/api/admin/clean-fake-news", rssHttpHandlers.CleanUpFakeNews(cfg.JobKey))
 
 	staticFiles(r, static)
 	r.GET("/", webHandlers.HandleGetIndex)

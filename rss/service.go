@@ -20,7 +20,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/bjarke-xyz/rasende2-api/db"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
+	"github.com/bjarke-xyz/rasende2-api/s3utils"
+	"github.com/jmoiron/sqlx"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
 	"github.com/prometheus/client_golang/prometheus"
@@ -634,6 +637,126 @@ func (r *RssService) indexItemIds(allItemIds []string, rssUrl RssUrlDto) error {
 		err = r.search.Index(items)
 		if err != nil {
 			return fmt.Errorf("error indexing: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *RssService) CleanUpFakeNewsAndLogError(ctx context.Context) {
+	err := r.CleanUpFakeNews(ctx)
+	if err != nil {
+		log.Printf("error in CleanUpFakeNews: %v", err)
+	}
+}
+
+func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
+	const batchSize = 100
+	client, err := s3utils.NewImageClientFromConfig(ctx, r.context.Config)
+	if err != nil {
+		return err
+	}
+	db, err := db.Open(r.context.Config)
+	if err != nil {
+		return err
+	}
+	bucket := r.context.Config.S3ImageBucket
+	var continuationToken *string = nil
+
+	_, err = db.ExecContext(ctx, "DELETE FROM fake_news WHERE highlighted = 0")
+	if err != nil {
+		return fmt.Errorf("failed to delete non-highlighted from fake_news: %w", err)
+	}
+
+	for {
+		// List objects in S3 bucket with pagination
+		listParams := &s3.ListObjectsV2Input{
+			Bucket:            aws.String(bucket),
+			Prefix:            aws.String("rasende2/articleimgs"),
+			ContinuationToken: continuationToken,
+		}
+
+		resp, err := client.ListObjectsV2(ctx, listParams)
+		if err != nil {
+			return fmt.Errorf("failed to list object: %w", err)
+		}
+
+		var batch []string
+
+		for _, item := range resp.Contents {
+			imgUrl := "https://static.bjarke.xyz/" + *item.Key
+			batch = append(batch, imgUrl)
+
+			// If batch size is reached, process the batch
+			if len(batch) >= batchSize {
+				err = processBatch(ctx, client, db, bucket, batch)
+				if err != nil {
+					return fmt.Errorf("failed to process batch: %w", err)
+				}
+				batch = batch[:0] // Clear the batch
+			}
+		}
+
+		// Process any remaining items in the last batch
+		if len(batch) > 0 {
+			err = processBatch(ctx, client, db, bucket, batch)
+			if err != nil {
+				return fmt.Errorf("failed to process batch: %w", err)
+			}
+		}
+
+		// Break if there are no more objects to process
+		if !*resp.IsTruncated {
+			break
+		}
+
+		// Update continuation token for the next batch
+		continuationToken = resp.NextContinuationToken
+	}
+	return nil
+}
+
+func processBatch(ctx context.Context, client *s3.Client, db *sqlx.DB, bucket string, batch []string) error {
+	// Prepare the SQL query
+	placeholders := strings.Repeat("?,", len(batch))
+	placeholders = placeholders[:len(placeholders)-1] // Remove the trailing comma
+
+	query := fmt.Sprintf("SELECT img_url FROM fake_news WHERE img_url IN (%s)", placeholders)
+
+	// Convert batch to a slice of interfaces{} for the query
+	args := make([]interface{}, len(batch))
+	for i, v := range batch {
+		args[i] = v
+	}
+
+	// Execute the query
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to get img urls from db: %w", err)
+	}
+	defer rows.Close()
+
+	// Collect existing URLs
+	existingURLs := make(map[string]any)
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return fmt.Errorf("failed to scan url: %w", err)
+		}
+		existingURLs[url] = struct{}{}
+	}
+
+	// Identify and delete orphaned S3 objects
+	for _, key := range batch {
+		if _, ok := existingURLs[key]; !ok {
+			_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+				Bucket: aws.String(bucket),
+				Key:    aws.String(key),
+			})
+			if err != nil {
+				log.Println("Failed to delete", key, ":", err)
+			} else {
+				log.Println("Deleted", key)
+			}
 		}
 	}
 	return nil

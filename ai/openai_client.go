@@ -11,11 +11,9 @@ import (
 	"log"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
+	"github.com/bjarke-xyz/rasende2-api/s3utils"
 	"github.com/pkoukk/tiktoken-go"
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -124,21 +122,10 @@ func (o *OpenAIClient) uploadImage(ctx context.Context, imgBase64Json string, ar
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64json: %w", err)
 	}
-	r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-		return aws.Endpoint{
-			URL: o.appContext.Config.S3ImageUrl,
-		}, nil
-	})
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithEndpointResolverWithOptions(r2Resolver),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(o.appContext.Config.S3ImageAccessKeyId, o.appContext.Config.S3ImageSecretAccessKey, "")),
-		config.WithRegion("auto"),
-	)
+	client, err := s3utils.NewImageClientFromConfig(ctx, o.appContext.Config)
 	if err != nil {
-		return "", fmt.Errorf("failed to load r2 config: %w", err)
+		return "", err
 	}
-
-	client := s3.NewFromConfig(cfg)
 	bucket := o.appContext.Config.S3ImageBucket
 
 	hash := sha256.New()
