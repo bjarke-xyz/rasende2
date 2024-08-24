@@ -303,7 +303,7 @@ func (h *HttpHandlers) AutoGenerateFakeNews(key string) gin.HandlerFunc {
 			c.JSON(500, err.Error())
 			return
 		}
-		latestFakeNews, err := h.service.GetHighlightedFakeNews(3, nil, 0)
+		latestFakeNews, err := h.service.GetRecentFakeNews(3, nil)
 		if err != nil {
 			log.Printf("error getting recent fake news: %v", err)
 			c.JSON(500, err.Error())
@@ -700,29 +700,30 @@ func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 	if limit > 10 {
 		limit = 10
 	}
-	highlightedFakeNews, err := h.service.GetHighlightedFakeNews(limit, publishedOffset, votesOffset)
+	sorting := ginutils.StringQuery(c, "sorting", "popular")
+	var fakeNews []FakeNewsDto = []FakeNewsDto{}
+	var err error
+	if sorting == "popular" {
+		fakeNews, err = h.service.GetPopularFakeNews(limit, publishedOffset, votesOffset)
+	} else {
+		fakeNews, err = h.service.GetRecentFakeNews(limit, publishedOffset)
+	}
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	if len(highlightedFakeNews) == 0 {
+	if len(fakeNews) == 0 {
 		c.JSON(200, HighlightedFakeNewsResponse{
 			FakeNews: []FakeNewsDto{},
 			Cursor:   "",
 		})
 		return
 	}
-	// maxVote := 0
-	// for _, fn := range highlightedFakeNews {
-	// 	if fn.Votes > maxVote {
-	// 		maxVote = fn.Votes
-	// 	}
-	// }
-	lastFakeNews := highlightedFakeNews[len(highlightedFakeNews)-1]
+	lastFakeNews := fakeNews[len(fakeNews)-1]
 	cursor := fmt.Sprintf("%v¤%v", lastFakeNews.Published.Format(time.RFC3339Nano), lastFakeNews.Votes)
 	response := HighlightedFakeNewsResponse{
-		FakeNews: highlightedFakeNews,
+		FakeNews: fakeNews,
 		Cursor:   cursor,
 	}
 	c.JSON(200, response)

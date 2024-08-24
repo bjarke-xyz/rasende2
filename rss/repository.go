@@ -449,7 +449,35 @@ func (r *RssRepository) InsertItems(rssUrl RssUrlDto, items []RssItemDto) (int, 
 
 }
 
-func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
+func (r *RssRepository) GetRecentFakeNews(limit int, publishedAfter *time.Time) ([]FakeNewsDto, error) {
+	db, err := db.Open(r.context.Config)
+	var fakeNewsDtos []FakeNewsDto
+	if err != nil {
+		return fakeNewsDtos, err
+	}
+	sqlQuery := ""
+	var args []any
+	orderBySql := "ORDER BY published DESC"
+	if publishedAfter != nil {
+		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 AND published < ? %v LIMIT ?", getDBTags(FakeNewsDto{}), orderBySql)
+		args = []any{*publishedAfter, limit}
+	} else {
+		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 %v LIMIT ?", getDBTags(FakeNewsDto{}), orderBySql)
+		args = []any{limit}
+	}
+	log.Printf("GetRecentFakeNews: SQL=%v, args=%v", sqlQuery, args)
+	err = db.Select(&fakeNewsDtos, sqlQuery, args...)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fakeNewsDtos, nil
+		}
+		return fakeNewsDtos, err
+	}
+	r.EnrichFakeNewsWithSiteNames(fakeNewsDtos)
+	return fakeNewsDtos, nil
+}
+
+func (r *RssRepository) GetPopularFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
 	db, err := db.Open(r.context.Config)
 	var fakeNewsDtos []FakeNewsDto
 	if err != nil {
@@ -465,7 +493,7 @@ func (r *RssRepository) GetHighlightedFakeNews(limit int, publishedAfter *time.T
 		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 %v LIMIT ?", getDBTags(FakeNewsDto{}), orderBySql)
 		args = []any{limit}
 	}
-	log.Printf("GetHighlightedFakeNews: SQL=%v, args=%v", sqlQuery, args)
+	log.Printf("GetPopularFakeNews: SQL=%v, args=%v", sqlQuery, args)
 	err = db.Select(&fakeNewsDtos, sqlQuery, args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

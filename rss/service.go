@@ -419,8 +419,11 @@ func (r *RssService) GetRecentTitles(ctx context.Context, siteInfo RssUrlDto, li
 	return itemTitles, nil
 }
 
-func (r *RssService) GetHighlightedFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
-	return r.repository.GetHighlightedFakeNews(limit, publishedAfter, votes)
+func (r *RssService) GetPopularFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
+	return r.repository.GetPopularFakeNews(limit, publishedAfter, votes)
+}
+func (r *RssService) GetRecentFakeNews(limit int, publishedAfter *time.Time) ([]FakeNewsDto, error) {
+	return r.repository.GetRecentFakeNews(limit, publishedAfter)
 }
 func (r *RssService) GetFakeNews(siteId int, title string) (*FakeNewsDto, error) {
 	return r.repository.GetFakeNews(siteId, title)

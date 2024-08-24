@@ -210,7 +210,7 @@ func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
 		limit = 10
 	}
 	// TODO: vote pagination
-	highlightedFakeNews, err := w.service.GetHighlightedFakeNews(limit, publishedOffset, 99999999)
+	highlightedFakeNews, err := w.service.GetPopularFakeNews(limit, publishedOffset, 99999999)
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
