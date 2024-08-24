@@ -731,9 +731,9 @@ func (h *HttpHandlers) GetHighlightedFakeNews(c *gin.Context) {
 
 func (h *HttpHandlers) SetHighlightedFakeNews(c *gin.Context) {
 	auth := c.Request.FormValue("password")
-	if auth != h.context.Config.AdminPassword {
-		c.Status(http.StatusUnauthorized)
-		return
+	isAdmin := false
+	if auth == h.context.Config.AdminPassword {
+		isAdmin = true
 	}
 	siteName := c.Request.FormValue("siteName")
 	title := strings.TrimSpace(c.Request.FormValue("title"))
@@ -755,12 +755,20 @@ func (h *HttpHandlers) SetHighlightedFakeNews(c *gin.Context) {
 		c.JSON(400, "fake news not found")
 		return
 	}
-	err = h.service.SetFakeNewsHighlighted(siteInfo.Id, title, !existing.Highlighted)
+	// only admin can set a fake news highlighted = false
+	var newHighlighted bool
+	if existing.Highlighted && isAdmin {
+		newHighlighted = false
+	} else {
+		newHighlighted = !existing.Highlighted
+	}
+	err = h.service.SetFakeNewsHighlighted(siteInfo.Id, title, newHighlighted)
 	if err != nil {
 		c.JSON(500, err.Error())
 		return
 	}
-	c.Status(204)
+	existing.Highlighted = newHighlighted
+	c.JSON(200, existing)
 }
 
 func (h *HttpHandlers) ResetFakeNewsContent(c *gin.Context) {
