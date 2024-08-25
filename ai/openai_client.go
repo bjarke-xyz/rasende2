@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/bjarke-xyz/rasende2-api/metrics"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/bjarke-xyz/rasende2-api/s3utils"
 	"github.com/pkoukk/tiktoken-go"
@@ -51,6 +52,7 @@ func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 			Stream: false,
 		}
 		translateResp, err := o.client.CreateChatCompletion(ctx, req)
+		metrics.AiCounterTranslateInc()
 		if err != nil {
 			log.Printf("translate failed: %v", err)
 		} else {
@@ -80,6 +82,7 @@ func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 	}
 	prompt := fmt.Sprintf("Create a header image for an article titled '%v', to be used on %v. %v. **Do not include any text, such as the newspaper name, article title, or any other wording, in the image.**", articleTitle, siteName, siteDescription)
 	promptResp, err := o.client.CreateChatCompletion(ctx, promptReq)
+	metrics.AiCounterImagePromptInc()
 	if err != nil {
 		log.Printf("prompt request failed: %v", err)
 	} else {
@@ -104,6 +107,7 @@ func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 	log.Printf("GenerateImage - site: %v, articleTitle: %v", siteName, articleTitle)
 	log.Printf("GenerateImage - Prompt=%v", imgReq.Prompt)
 	imgResp, err := o.client.CreateImage(ctx, imgReq)
+	metrics.AiCounterImageInc()
 	if err != nil {
 		return "", fmt.Errorf("error generating openai image: %w", err)
 	}
@@ -214,6 +218,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	}
 	log.Printf("GenerateArticleTitles - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
+	metrics.AiCounterTitlesInc()
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
@@ -241,6 +246,7 @@ func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName stri
 	}
 	log.Printf("SelectBestArticleTitle - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
+	metrics.AiCounterSelectTitleInc()
 	if err != nil {
 		return "", fmt.Errorf("OpenAI API error: %w", err)
 	}
@@ -305,6 +311,7 @@ func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 	}
 	log.Printf("GenerateArticleContent - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
+	metrics.AiCounterArticleContentInc()
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
