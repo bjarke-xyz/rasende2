@@ -144,9 +144,9 @@ func (w *WebHandlers) HandlePostSearch(c *gin.Context) {
 	ctx := c.Request.Context()
 	query := c.Request.FormValue("search")
 	offset := ginutils.IntForm(c, "offset", 0)
-	limit := ginutils.IntForm(c, "limit", 10)
+	limit := ginutils.IntForm(c, "limit", 100)
 	if limit > 100 {
-		limit = 10
+		limit = 100
 	}
 
 	includeCharts := ginutils.StringForm(c, "include-charts", "") == "on"
@@ -194,41 +194,64 @@ func (w *WebHandlers) HandlePostSearch(c *gin.Context) {
 
 func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
 	title := "Fake News | Rasende"
+	onlyGrid := ginutils.StringForm(c, "only-grid", "false") == "true"
 	cursorQuery := c.Query("cursor")
 	var publishedOffset *time.Time
+	var votesOffset int
 	if cursorQuery != "" {
-		_publishedOffset, err := time.Parse(time.RFC3339Nano, cursorQuery)
+		cursorQueryParts := strings.Split(cursorQuery, "¤")
+		_publishedOffset, err := time.Parse(time.RFC3339Nano, cursorQueryParts[0])
 		if err != nil {
 			log.Printf("error parsing cursor: %v", err)
 		}
 		if err == nil {
 			publishedOffset = &_publishedOffset
 		}
+		if len(cursorQueryParts) >= 2 {
+			votesOffset, err = strconv.Atoi(cursorQueryParts[1])
+			if err != nil {
+				log.Printf("error parsing cursor int: %v", err)
+			}
+		}
 	}
 	limit := ginutils.IntQuery(c, "limit", 10)
 	if limit > 10 {
 		limit = 10
 	}
-	// TODO: vote pagination
-	highlightedFakeNews, err := w.service.GetPopularFakeNews(limit, publishedOffset, 99999999)
+	sorting := ginutils.StringQuery(c, "sorting", "popular")
+	var fakeNews []rss.FakeNewsDto = []rss.FakeNewsDto{}
+	var err error
+	if sorting == "popular" {
+		fakeNews, err = w.service.GetPopularFakeNews(limit, publishedOffset, votesOffset)
+	} else {
+		fakeNews, err = w.service.GetRecentFakeNews(limit, publishedOffset)
+	}
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	if len(highlightedFakeNews) == 0 {
+	if len(fakeNews) == 0 {
 		model := components.FakeNewsViewModel{
 			Base:     w.getBaseModel(c, title),
 			FakeNews: []rss.FakeNewsDto{},
+			OnlyGrid: onlyGrid,
 		}
 		c.HTML(http.StatusOK, "", components.FakeNews(model))
 		return
 	}
-	cursor := fmt.Sprintf("%v", highlightedFakeNews[len(highlightedFakeNews)-1].Published.Format(time.RFC3339Nano))
+	lastFakeNews := fakeNews[len(fakeNews)-1]
+	cursor := fmt.Sprintf("%v¤%v", lastFakeNews.Published.Format(time.RFC3339Nano), lastFakeNews.Votes)
+	// If returned items is less than limit, return blank cursor so we dont request an empty list on next request
+	if len(fakeNews) < limit {
+		cursor = ""
+	}
 	model := components.FakeNewsViewModel{
 		Base:     w.getBaseModel(c, title),
-		FakeNews: highlightedFakeNews,
+		FakeNews: fakeNews,
 		Cursor:   cursor,
+		Sorting:  sorting,
+		OnlyGrid: onlyGrid,
 		Funcs: components.ArticleFuncsModel{
 			TimeDifference: getTimeDifference,
 			TruncateText:   truncateText,

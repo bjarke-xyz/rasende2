@@ -83,7 +83,7 @@ func SearchResults(model SearchResultsViewModel) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"> <button class=\"bg-blue-100 hover:bg-blue-200 mt-5 p-2 rounded-md text-slate-900\" hx-post=\"/search\" hx-target=\"#replaceMe\" hx-swap=\"outerHTML\">Hent flere</button></form></div></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"> <button class=\"btn-primary\" hx-post=\"/search\" hx-target=\"#replaceMe\" hx-swap=\"outerHTML\">Hent flere</button></form></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

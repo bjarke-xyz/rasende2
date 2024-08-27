@@ -201,7 +201,7 @@ func main(model IndexModel) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></div></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div><div>Inspireret af  <a class=\"underline\" href=\"https://web.archive.org/web/20200628061846/https://rasende.dk/\">https://rasende.dk/</a></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
