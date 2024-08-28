@@ -147,6 +147,18 @@ func (r *RssService) GetSiteInfo(siteName string) (*RssUrlDto, error) {
 	}
 	return nil, nil
 }
+func (r *RssService) GetSiteInfoById(id int) (*RssUrlDto, error) {
+	siteInfos, err := r.repository.GetRssUrls()
+	if err != nil {
+		return nil, err
+	}
+	for _, rssUrl := range siteInfos {
+		if rssUrl.Id == id {
+			return &rssUrl, nil
+		}
+	}
+	return nil, nil
+}
 
 func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, orderBy string) ([]RssSearchResult, error) {
 	var items []RssSearchResult = []RssSearchResult{}
@@ -422,6 +434,9 @@ func (r *RssService) GetRecentTitles(ctx context.Context, siteInfo RssUrlDto, li
 	return itemTitles, nil
 }
 
+func (r *RssService) GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]RssItemDto, error) {
+	return r.repository.GetRecentItems(ctx, siteId, limit, insertedAtOffset)
+}
 func (r *RssService) GetPopularFakeNews(limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error) {
 	return r.repository.GetPopularFakeNews(limit, publishedAfter, votes)
 }

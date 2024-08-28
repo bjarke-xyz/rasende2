@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,6 +19,8 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/rss"
 	"github.com/bjarke-xyz/rasende2-api/web/components"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
+	"github.com/sashabaranov/go-openai"
 )
 
 type WebHandlers struct {
@@ -42,12 +47,13 @@ func (w *WebHandlers) getBaseModel(c *gin.Context, title string) components.Base
 		unixBuildTime = time.Now().Unix()
 	}
 	hxRequest := c.Request.Header.Get("HX-Request")
-	log.Println("hxRequest", hxRequest)
+	includeLayout := hxRequest == "" || hxRequest == "false"
+	log.Println("hxRequest", hxRequest, "includeLayout", includeLayout)
 	return components.BaseViewModel{
 		Path:          c.Request.URL.Path,
 		UnixBuildTime: unixBuildTime,
 		Title:         title,
-		IncludeLayout: hxRequest == "" || hxRequest == "false",
+		IncludeLayout: includeLayout,
 	}
 }
 
@@ -228,7 +234,7 @@ func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
 	}
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
-		c.JSON(http.StatusInternalServerError, nil)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
 		return
 	}
 	if len(fakeNews) == 0 {
@@ -298,6 +304,120 @@ func (w *WebHandlers) HandleGetFakeNewsArticle(c *gin.Context) {
 		Description: truncateText(fakeNewsDto.Content, 100),
 	}
 	c.HTML(http.StatusOK, "", components.FakeNewsArticle(fakeNewsArticleViewModel))
+}
+
+func (w *WebHandlers) HandleGetTitleGenerator(c *gin.Context) {
+	title := "Title Generator | Rasende"
+	selectedSiteId := ginutils.IntQuery(c, "siteId", 0)
+
+	sites, err := w.service.GetRssUrls()
+	if err != nil {
+		log.Printf("error getting sites: %v", err)
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	var selectedSite rss.RssUrlDto
+	if selectedSiteId > 0 {
+		_selectedSite, ok := lo.Find(sites, func(s rss.RssUrlDto) bool { return s.Id == selectedSiteId })
+		if ok {
+			selectedSite = _selectedSite
+		}
+	}
+
+	c.HTML(http.StatusOK, "", components.TitleGenerator(components.TitleGeneratorViewModel{
+		Base:           w.getBaseModel(c, title),
+		Sites:          sites,
+		SelectedSiteId: selectedSiteId,
+		SelectedSite:   selectedSite,
+	}))
+}
+
+func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
+	ctx := c.Request.Context()
+	siteId := ginutils.IntQuery(c, "siteId", 0)
+	if siteId == 0 {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		return
+	}
+	defaultLimit := 10
+	limit := ginutils.IntQuery(c, "limit", defaultLimit)
+	if limit > defaultLimit {
+		limit = defaultLimit
+	}
+	var temperature float32 = 1.0
+	cursorQuery := int64(ginutils.IntQuery(c, "cursor", 0))
+	var insertedAtOffset *time.Time
+	if cursorQuery > 0 {
+		_insertedAtOffset := time.Unix(cursorQuery, 0)
+		insertedAtOffset = &_insertedAtOffset
+	}
+	siteInfo, err := w.service.GetSiteInfoById(siteId)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if siteInfo == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found"), DoNotIncludeLayout: true}))
+		return
+	}
+
+	items, err := w.service.GetRecentItems(ctx, siteId, limit, insertedAtOffset)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	cursor := fmt.Sprintf("%v", items[len(items)-1].InsertedAt.Unix())
+	itemTitles := make([]string, len(items))
+	for i, item := range items {
+		itemTitles[i] = item.Title
+	}
+	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
+	stream, err := w.openaiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
+	if err != nil {
+		log.Printf("openai failed: %v", err)
+
+		var apiError *openai.APIError
+		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
+			c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("try again later"), DoNotIncludeLayout: true}))
+		} else {
+			c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		}
+		return
+	}
+
+	log.Println("todo delete", cursor)
+	var sb strings.Builder
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	c.Stream(func(io.Writer) bool {
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				log.Println("\nStream finished")
+				titlesStr := sb.String()
+				titles := strings.Split(titlesStr, "\n")
+				for _, title := range titles {
+					title := strings.TrimSpace(title)
+					if len(title) > 0 {
+						err = w.service.CreateFakeNews(siteInfo.Id, title)
+						if err != nil {
+							log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
+						}
+					}
+				}
+				return false
+			}
+			if err != nil {
+				log.Printf("\nStream error: %v\n", err)
+				return false
+			}
+			sb.WriteString(response.Choices[0].Delta.Content)
+			// c.SSEvent("message", contentEvent)
+			c.Writer.Flush()
+		}
+	})
 }
 
 func parseArticleSlug(slug string) (int, time.Time, string, error) {

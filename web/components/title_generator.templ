@@ -1,0 +1,51 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2-api/rss"
+)
+
+type TitleGeneratorViewModel struct {
+	Base           BaseViewModel
+	Sites          []rss.RssUrlDto
+	SelectedSiteId int
+	SelectedSite   rss.RssUrlDto
+}
+
+templ titleGenerator(model TitleGeneratorViewModel) {
+	<div class="m-4" id="title-generator-container">
+		<div class="flex justify-center">
+			<div class="flex flex-row align-middle space-x-2">
+				<div class="flex flex-col justify-center align-middle">
+					<form hx-get="/title-generator" hx-target="#title-generator-container" hx-trigger="change from:select[name='siteId']" hx-push-url="true">
+						<label for="site">Nyhedsmedie</label>
+						<select id="site" class="select min-w-40" name="siteId">
+							<option value="" disabled="" selected="">Vælg</option>
+							for _, site := range model.Sites {
+								<option
+									value={ fmt.Sprint(site.Id) }
+									if model.SelectedSiteId == site.Id {
+										selected="selected"
+									}
+								>{ site.Name }</option>
+							}
+						</select>
+					</form>
+				</div>
+			</div>
+		</div>
+		if model.SelectedSiteId > 0 {
+			<div class="flex flex-col justify-center mt-16 mb-4">
+				<div class="flex flex-row mb-4">
+					<h1 class="text-3xl">
+						<span class="bg-blue-100 text-blue-800 font-semibold mr-0.5 px-2.5 rounded dark:bg-blue-200 dark:text-blue-800">{ model.SelectedSite.Name }</span>
+					</h1>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ TitleGenerator(model TitleGeneratorViewModel) {
+	@Layout(model.Base, titleGenerator(model))
+}

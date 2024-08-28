@@ -112,6 +112,8 @@ func main() {
 	r.POST("/search", webHandlers.HandlePostSearch)
 	r.GET("/fake-news", webHandlers.HandleGetFakeNews)
 	r.GET("/fake-news/:slug", webHandlers.HandleGetFakeNewsArticle)
+	r.GET("/title-generator", webHandlers.HandleGetTitleGenerator)
+	r.GET("/generate-titles", webHandlers.HandleGetSseTitles)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()

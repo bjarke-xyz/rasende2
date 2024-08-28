@@ -7,6 +7,7 @@ npm-ci:
 
 npm-build-prod:
 	cp node_modules/htmx.org/dist/htmx.min.js web/static/js/vendor && \
+	cp node_modules/htmx-ext-sse/sse.js web/static/js/vendor && \
 	cp node_modules/chart.js/dist/chart.umd.js web/static/js/vendor
 
 npm-build-dev: npm-build-prod
@@ -22,6 +23,7 @@ build: npm-ci npm-build-prod
 # dev runs the development server where it builds the tailwind css sheet,
 # and compiles the project whenever a file is changed.
 dev: npm-build-dev
+	go generate
 	templ generate --watch --cmd="go generate" &\
 	templ generate --watch --cmd="go run ."
 
