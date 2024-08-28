@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bjarke-xyz/rasende2-api/metrics"
@@ -177,6 +178,11 @@ func (o *OpenAIClient) GenerateArticleTitlesList(ctx context.Context, siteName s
 	}
 }
 
+func (o *OpenAIClient) GenerateArticleTitlesFake(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (ChatCompletionStream, error) {
+	fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3}
+	return fakeChatCompletionStream, nil
+}
+
 func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
 	previousTitlesStr := ""
 	tkm, err := tiktoken.EncodingForModel(chatModel)
@@ -316,6 +322,39 @@ func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
 	return stream, err
+}
+
+type ChatCompletionStream interface {
+	Recv() (*fakeChatCompletionStreamResponse, error)
+}
+
+type fakeChatCompletionStream struct {
+	numCalls int
+}
+
+func (f *fakeChatCompletionStream) Recv() (*fakeChatCompletionStreamResponse, error) {
+	f.numCalls = f.numCalls - 1
+	if f.numCalls <= 0 {
+		return nil, io.EOF
+	}
+	time.Sleep(100 * time.Millisecond)
+	return &fakeChatCompletionStreamResponse{
+		[]struct{ Delta struct{ Content string } }{
+			{
+				Delta: struct{ Content string }{
+					Content: fmt.Sprintf("Her er en meget falsk overskrift - %v - %v\n", f.numCalls, time.Now().UnixMilli()),
+				},
+			},
+		},
+	}, nil
+}
+
+type fakeChatCompletionStreamResponse struct {
+	Choices []struct {
+		Delta struct {
+			Content string
+		}
+	}
 }
 
 var imgLlmPrompt string = `

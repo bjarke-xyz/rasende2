@@ -89,25 +89,125 @@ func titleGenerator(model TitleGeneratorViewModel) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if model.SelectedSiteId > 0 {
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex flex-col justify-center mt-16 mb-4\"><div class=\"flex flex-row mb-4\"><h1 class=\"text-3xl\"><span class=\"bg-blue-100 text-blue-800 font-semibold mr-0.5 px-2.5 rounded dark:bg-blue-200 dark:text-blue-800\">")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<script type=\"text/javascript\">\n            function reInitSse(btn) {\n                sseBeforeMessage();\n                const sseContainer = document.querySelector(\"#title-sse-container\");\n                let sseConnect = sseContainer.attributes.getNamedItem('sse-connect')\n                const cursor = btn.attributes.getNamedItem('data-cursor').value;\n                const url = new URL(`https://example.org${sseConnect.value}`)\n                url.searchParams.set('cursor', cursor)\n                const newSseConnect = `${url.pathname}?${url.searchParams.toString()}`;\n                sseConnect.value = newSseConnect;\n\n                // const sseSwapTitle = document.querySelector(\"[sse-swap='title']\")\n                // const titleAttr = sseSwapTitle.attributes.getNamedItem('sse-swap')\n                // sseSwapTitle.attributes.removeNamedItem('sse-swap')\n                // htmx.process(sseSwapTitle)\n                // sseSwapTitle.attributes.setNamedItem(titleAttr);\n                // htmx.process(sseSwapTitle)\n\n                sseContainer.attributes.removeNamedItem('sse-connect');\n                const hxExt = sseContainer.attributes.getNamedItem('hx-ext');\n                sseContainer.attributes.removeNamedItem('hx-ext');\n                htmx.process(sseContainer);\n                sseContainer.attributes.setNamedItem(sseConnect);\n                sseContainer.attributes.setNamedItem(hxExt);\n                htmx.process(sseContainer);\n            }\n            function sseBeforeMessage() {\n                // document.addEventListener('htmx:sseBeforeMessage', (e)=> {\n                //     console.log(e)\n                //     e.preventDefault();\n                //     document.querySelector(\"#title-placeholder\")?.remove();\n                //     document.querySelector(\"#title-show-more-btn\")?.remove();\n                //     targetElem = e.detail.elt;\n                //     const wrapperElem = document.createElement('div');\n                //     wrapperElem.innerHTML = e.detail.data;\n                //     targetElem.appendChild(wrapperElem);\n                //     const showMoreButton = document.querySelector('#title-show-more-btn');\n                //     if (showMoreButton) {\n                //         showMoreButton.addEventListener('click', reInitSse);\n                //     }\n                // })\n            }\n            sseBeforeMessage();\n            </script> <div class=\"flex flex-col justify-center mt-16 mb-4\"><div class=\"flex flex-row mb-4\"><h1 class=\"text-3xl\"><span class=\"bg-blue-100 text-blue-800 font-semibold mr-0.5 px-2.5 rounded dark:bg-blue-200 dark:text-blue-800\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(model.SelectedSite.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/title_generator.templ`, Line: 41, Col: 143}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/title_generator.templ`, Line: 85, Col: 143}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></h1></div></div>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</span></h1></div><div id=\"title-sse-container-wrapper\"><div id=\"title-sse-container\" hx-ext=\"sse\" hx-swap=\"beforeend\" sse-connect=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var5 string
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/generate-titles?siteId=%v", model.SelectedSiteId))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/title_generator.templ`, Line: 89, Col: 145}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" sse-close=\"sse-close\"><div sse-swap=\"title\"><p id=\"title-placeholder\">Finder på overskrifter...</p></div><div sse-swap=\"button\"></div></div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return templ_7745c5c3_Err
+	})
+}
+
+func GeneratedTitleLink(siteId int, title string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var6 == nil {
+			templ_7745c5c3_Var6 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<p><a href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 templ.SafeURL = templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, title))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var7)))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(title)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/title_generator.templ`, Line: 103, Col: 104}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</a></p>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return templ_7745c5c3_Err
+	})
+}
+
+func ShowMoreTitlesButton(cursor string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var9 == nil {
+			templ_7745c5c3_Var9 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<button class=\"btn-primary\" id=\"title-show-more-btn\" data-cursor=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 string
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(cursor)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/title_generator.templ`, Line: 108, Col: 74}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" onclick=\"reInitSse(this)\">Vis mere</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -128,9 +228,9 @@ func TitleGenerator(model TitleGeneratorViewModel) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var5 == nil {
-			templ_7745c5c3_Var5 = templ.NopComponent
+		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var11 == nil {
+			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = Layout(model.Base, titleGenerator(model)).Render(ctx, templ_7745c5c3_Buffer)

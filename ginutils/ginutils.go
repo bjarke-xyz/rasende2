@@ -1,9 +1,12 @@
 package ginutils
 
 import (
+	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/a-h/templ"
 	"github.com/gin-gonic/gin"
 )
 
@@ -49,4 +52,10 @@ func StringForm(c *gin.Context, name string, defaultVal string) string {
 		return defaultVal
 	}
 	return val
+}
+
+func RenderToString(ctx context.Context, component templ.Component) string {
+	buffer := &strings.Builder{}
+	component.Render(ctx, buffer)
+	return buffer.String()
 }

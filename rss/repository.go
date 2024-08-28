@@ -105,6 +105,7 @@ func (r *RssRepository) GetRecentItems(ctx context.Context, siteId int, limit in
 		args = []interface{}{siteId, insertedAtOffset, limit}
 	}
 	sql := fmt.Sprintf("SELECT %v FROM rss_items WHERE site_id = ? "+offsetWhere+" ORDER BY inserted_at DESC LIMIT ?", getDBTags(RssItemDto{}))
+	log.Printf("GetRecentItems: sql=%v", sql)
 	err = db.Select(&rssItems, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteId, err)

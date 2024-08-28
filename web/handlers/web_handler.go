@@ -348,9 +348,10 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 	cursorQuery := int64(ginutils.IntQuery(c, "cursor", 0))
 	var insertedAtOffset *time.Time
 	if cursorQuery > 0 {
-		_insertedAtOffset := time.Unix(cursorQuery, 0)
+		_insertedAtOffset := time.Unix(cursorQuery, 0).UTC()
 		insertedAtOffset = &_insertedAtOffset
 	}
+	log.Println("insertedAtOffset", insertedAtOffset)
 	siteInfo, err := w.service.GetSiteInfoById(siteId)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
@@ -366,13 +367,16 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
 		return
 	}
+	log.Println("items", items[len(items)-1])
 	cursor := fmt.Sprintf("%v", items[len(items)-1].InsertedAt.Unix())
+	log.Println("cursor", cursor)
 	itemTitles := make([]string, len(items))
 	for i, item := range items {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	stream, err := w.openaiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
+	// stream, err := w.openaiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
+	stream, err := w.openaiClient.GenerateArticleTitlesFake(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
@@ -385,21 +389,18 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 		return
 	}
 
-	log.Println("todo delete", cursor)
-	var sb strings.Builder
+	titles := []string{}
+	var currentTitle strings.Builder
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
-	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Connection", "close")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")
 	c.Stream(func(io.Writer) bool {
 		for {
 			response, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
 				log.Println("\nStream finished")
-				titlesStr := sb.String()
-				titles := strings.Split(titlesStr, "\n")
 				for _, title := range titles {
-					title := strings.TrimSpace(title)
 					if len(title) > 0 {
 						err = w.service.CreateFakeNews(siteInfo.Id, title)
 						if err != nil {
@@ -407,15 +408,28 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 						}
 					}
 				}
+				c.SSEvent("button", ginutils.RenderToString(ctx, components.ShowMoreTitlesButton(cursor)))
+				c.SSEvent("sse-close", "sse-close")
+				c.Writer.Flush()
 				return false
 			}
 			if err != nil {
 				log.Printf("\nStream error: %v\n", err)
 				return false
 			}
-			sb.WriteString(response.Choices[0].Delta.Content)
-			// c.SSEvent("message", contentEvent)
-			c.Writer.Flush()
+			content := response.Choices[0].Delta.Content
+			for _, ch := range content {
+				if ch == '\n' {
+					title := strings.TrimSpace(currentTitle.String())
+					titles = append(titles, title)
+
+					c.SSEvent("title", ginutils.RenderToString(ctx, components.GeneratedTitleLink(siteInfo.Id, title)))
+					c.Writer.Flush()
+					currentTitle.Reset()
+				} else {
+					currentTitle.WriteRune(ch)
+				}
+			}
 		}
 	})
 }

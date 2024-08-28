@@ -35,15 +35,79 @@ templ titleGenerator(model TitleGeneratorViewModel) {
 			</div>
 		</div>
 		if model.SelectedSiteId > 0 {
+			<script type="text/javascript">
+            function reInitSse(btn) {
+                sseBeforeMessage();
+                const sseContainer = document.querySelector("#title-sse-container");
+                let sseConnect = sseContainer.attributes.getNamedItem('sse-connect')
+                const cursor = btn.attributes.getNamedItem('data-cursor').value;
+                const url = new URL(`https://example.org${sseConnect.value}`)
+                url.searchParams.set('cursor', cursor)
+                const newSseConnect = `${url.pathname}?${url.searchParams.toString()}`;
+                sseConnect.value = newSseConnect;
+
+                // const sseSwapTitle = document.querySelector("[sse-swap='title']")
+                // const titleAttr = sseSwapTitle.attributes.getNamedItem('sse-swap')
+                // sseSwapTitle.attributes.removeNamedItem('sse-swap')
+                // htmx.process(sseSwapTitle)
+                // sseSwapTitle.attributes.setNamedItem(titleAttr);
+                // htmx.process(sseSwapTitle)
+
+                sseContainer.attributes.removeNamedItem('sse-connect');
+                const hxExt = sseContainer.attributes.getNamedItem('hx-ext');
+                sseContainer.attributes.removeNamedItem('hx-ext');
+                htmx.process(sseContainer);
+                sseContainer.attributes.setNamedItem(sseConnect);
+                sseContainer.attributes.setNamedItem(hxExt);
+                htmx.process(sseContainer);
+            }
+            function sseBeforeMessage() {
+                // document.addEventListener('htmx:sseBeforeMessage', (e)=> {
+                //     console.log(e)
+                //     e.preventDefault();
+                //     document.querySelector("#title-placeholder")?.remove();
+                //     document.querySelector("#title-show-more-btn")?.remove();
+                //     targetElem = e.detail.elt;
+                //     const wrapperElem = document.createElement('div');
+                //     wrapperElem.innerHTML = e.detail.data;
+                //     targetElem.appendChild(wrapperElem);
+                //     const showMoreButton = document.querySelector('#title-show-more-btn');
+                //     if (showMoreButton) {
+                //         showMoreButton.addEventListener('click', reInitSse);
+                //     }
+                // })
+            }
+            sseBeforeMessage();
+            </script>
 			<div class="flex flex-col justify-center mt-16 mb-4">
 				<div class="flex flex-row mb-4">
 					<h1 class="text-3xl">
 						<span class="bg-blue-100 text-blue-800 font-semibold mr-0.5 px-2.5 rounded dark:bg-blue-200 dark:text-blue-800">{ model.SelectedSite.Name }</span>
 					</h1>
 				</div>
+				<div id="title-sse-container-wrapper">
+					<div id="title-sse-container" hx-ext="sse" hx-swap="beforeend" sse-connect={ fmt.Sprintf("/generate-titles?siteId=%v", model.SelectedSiteId) } sse-close="sse-close">
+						<div sse-swap="title">
+							<p id="title-placeholder">Finder på overskrifter...</p>
+						</div>
+						<div sse-swap="button"></div>
+					</div>
+				</div>
 			</div>
 		}
 	</div>
+}
+
+templ GeneratedTitleLink(siteId int, title string) {
+	<p>
+		<a href={ templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, title)) }>{ title }</a>
+	</p>
+}
+
+templ ShowMoreTitlesButton(cursor string) {
+	<button class="btn-primary" id="title-show-more-btn" data-cursor={ cursor } onclick="reInitSse(this)">
+		Vis mere
+	</button>
 }
 
 templ TitleGenerator(model TitleGeneratorViewModel) {
