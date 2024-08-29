@@ -40,6 +40,8 @@ type Config struct {
 	AdminPassword string
 
 	BuildTime *time.Time
+
+	UseFakeOpenAi bool
 }
 
 const (
@@ -93,5 +95,6 @@ func NewConfig() (*Config, error) {
 		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
 		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
 		BuildTime:               buildTime,
+		UseFakeOpenAi:           os.Getenv("USE_FAKE_OPENAI") == "true",
 	}, nil
 }

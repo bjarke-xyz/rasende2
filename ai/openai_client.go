@@ -23,6 +23,7 @@ import (
 type OpenAIClient struct {
 	appContext *pkg.AppContext
 	client     *openai.Client
+	useFake    bool
 }
 
 const chatModel = "gpt-4o-mini"
@@ -32,10 +33,14 @@ func NewOpenAIClient(appContext *pkg.AppContext) *OpenAIClient {
 	return &OpenAIClient{
 		appContext: appContext,
 		client:     client,
+		useFake:    appContext.Config.UseFakeOpenAi,
 	}
 }
 
 func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
+	if o.useFake {
+		panic("useFake for GenerateImage not implemented")
+	}
 	if translateTitle {
 		req := openai.ChatCompletionRequest{
 			Model:       chatModel,
@@ -174,16 +179,19 @@ func (o *OpenAIClient) GenerateArticleTitlesList(ctx context.Context, siteName s
 				return titlesArr, err
 			}
 		}
-		sb.WriteString(response.Choices[0].Delta.Content)
+		sb.WriteString(response.Content())
 	}
 }
 
-func (o *OpenAIClient) GenerateArticleTitlesFake(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (ChatCompletionStream, error) {
-	fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3}
+func (o *OpenAIClient) generateArticleTitlesFake() (ChatCompletionStream, error) {
+	fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3, content: "Her er en falsk overskrift :)"}
 	return fakeChatCompletionStream, nil
 }
 
-func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (*openai.ChatCompletionStream, error) {
+func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (ChatCompletionStream, error) {
+	if o.useFake {
+		return o.generateArticleTitlesFake()
+	}
 	previousTitlesStr := ""
 	tkm, err := tiktoken.EncodingForModel(chatModel)
 	if err != nil {
@@ -228,10 +236,13 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
-	return stream, err
+	return wrapOpenAiChatCompletionStream(stream), err
 }
 
 func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
+	if o.useFake {
+		return articleTitles[0], nil
+	}
 	log.Printf("SelectBestArticleTitle - site: %v", siteName)
 	// sysPrompt := fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", siteName, siteDescription, len(articleTitles))
 	sysPrompt := fmt.Sprintf("You are the editor of a satirical news media like the Onion or Rokoko Posten. You are given %v news articles titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", len(articleTitles))
@@ -287,11 +298,19 @@ func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName s
 				return "", err
 			}
 		}
-		sb.WriteString(response.Choices[0].Delta.Content)
+		sb.WriteString(response.Content())
 	}
 }
 
-func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (*openai.ChatCompletionStream, error) {
+func (o *OpenAIClient) generateArticleContentFake() (ChatCompletionStream, error) {
+	fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 2, content: "Her er brødteksten af en falsk artikel, som er meget meget lang"}
+	return fakeChatCompletionStream, nil
+}
+
+func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (ChatCompletionStream, error) {
+	if o.useFake {
+		return o.generateArticleContentFake()
+	}
 	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", siteName, articleTitle, temperature)
 	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få en overskrift, og du skal skrive en artikel der passer til den overskrift. Artiklen må IKKE starte med overskriften!", siteName, siteDescription)
 	// sysPrompt := "You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given a article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!!"
@@ -321,40 +340,58 @@ func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API error: %w", err)
 	}
-	return stream, err
+	return wrapOpenAiChatCompletionStream(stream), err
 }
 
 type ChatCompletionStream interface {
-	Recv() (*fakeChatCompletionStreamResponse, error)
+	Recv() (ChatCompletionStreamResponse, error)
+}
+type ChatCompletionStreamResponse interface {
+	Content() string
 }
 
 type fakeChatCompletionStream struct {
 	numCalls int
+	content  string
 }
 
-func (f *fakeChatCompletionStream) Recv() (*fakeChatCompletionStreamResponse, error) {
+func (f *fakeChatCompletionStream) Recv() (ChatCompletionStreamResponse, error) {
 	f.numCalls = f.numCalls - 1
 	if f.numCalls <= 0 {
 		return nil, io.EOF
 	}
 	time.Sleep(100 * time.Millisecond)
-	return &fakeChatCompletionStreamResponse{
-		[]struct{ Delta struct{ Content string } }{
-			{
-				Delta: struct{ Content string }{
-					Content: fmt.Sprintf("Her er en meget falsk overskrift - %v - %v\n", f.numCalls, time.Now().UnixMilli()),
-				},
-			},
-		},
+	return &chatCompletionStreamResponse{
+		content: fmt.Sprintf("%v - %v - %v\n", f.content, f.numCalls, time.Now().UnixMilli()),
 	}, nil
 }
 
-type fakeChatCompletionStreamResponse struct {
-	Choices []struct {
-		Delta struct {
-			Content string
-		}
+type chatCompletionStreamResponse struct {
+	content string
+}
+
+func (f *chatCompletionStreamResponse) Content() string {
+	return f.content
+}
+
+type OpenAiChatCompletionStream struct {
+	stream *openai.ChatCompletionStream
+}
+
+func wrapOpenAiChatCompletionStream(stream *openai.ChatCompletionStream) *OpenAiChatCompletionStream {
+	return &OpenAiChatCompletionStream{
+		stream: stream,
 	}
+}
+func (oai *OpenAiChatCompletionStream) Recv() (ChatCompletionStreamResponse, error) {
+	resp, err := oai.stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	content := resp.Choices[0].Delta.Content
+	return &chatCompletionStreamResponse{
+		content: content,
+	}, nil
 }
 
 var imgLlmPrompt string = `

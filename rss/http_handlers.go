@@ -549,9 +549,9 @@ func (h *HttpHandlers) HandleGenerateTitles(c *gin.Context) {
 				log.Printf("\nStream error: %v\n", err)
 				return false
 			}
-			sb.WriteString(response.Choices[0].Delta.Content)
+			sb.WriteString(response.Content())
 			contentEvent := ContentEvent{
-				Content: response.Choices[0].Delta.Content,
+				Content: response.Content(),
 				Cursor:  cursor,
 			}
 			c.SSEvent("message", contentEvent)
@@ -673,9 +673,9 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 				log.Printf("\nStream error: %v\n", err)
 				return false
 			}
-			sb.WriteString(response.Choices[0].Delta.Content)
+			sb.WriteString(response.Content())
 			contentEvent := ContentEvent{
-				Content: response.Choices[0].Delta.Content,
+				Content: response.Content(),
 			}
 			c.SSEvent("message", contentEvent)
 			imgUrl, err, articleImgOk := articleImgPromise.Poll()

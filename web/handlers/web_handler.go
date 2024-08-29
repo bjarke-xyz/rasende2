@@ -375,8 +375,7 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	// stream, err := w.openaiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
-	stream, err := w.openaiClient.GenerateArticleTitlesFake(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
+	stream, err := w.openaiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
@@ -417,7 +416,7 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 				log.Printf("\nStream error: %v\n", err)
 				return false
 			}
-			content := response.Choices[0].Delta.Content
+			content := response.Content()
 			for _, ch := range content {
 				if ch == '\n' {
 					title := strings.TrimSpace(currentTitle.String())
