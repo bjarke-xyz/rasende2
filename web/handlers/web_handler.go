@@ -617,7 +617,59 @@ func (w *WebHandlers) HandleGetSseArticleContent(c *gin.Context) {
 			c.Writer.Flush()
 		}
 	})
+}
 
+func (w *WebHandlers) HandlePostPublishFakeNews(c *gin.Context) {
+	auth := c.Request.FormValue("password")
+	isAdmin := false
+	if auth == w.context.Config.AdminPassword {
+		isAdmin = true
+	}
+	siteId := ginutils.IntForm(c, "siteId", 0)
+	// TODO: instead of returning html with error, do redirect with error query
+	if siteId == 0 {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		return
+	}
+	site, err := w.service.GetSiteInfoById(siteId)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if site == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId), DoNotIncludeLayout: true}))
+		return
+	}
+	articleTitle := ginutils.StringForm(c, "title", "")
+	if articleTitle == "" {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title"), DoNotIncludeLayout: true}))
+		return
+	}
+
+	article, err := w.service.GetFakeNews(site.Id, articleTitle)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if article == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle), DoNotIncludeLayout: true}))
+		return
+	}
+
+	// only admin can set a fake news highlighted = false
+	var newHighlighted bool
+	if article.Highlighted && isAdmin {
+		newHighlighted = false
+	} else {
+		newHighlighted = !article.Highlighted
+	}
+	err = w.service.SetFakeNewsHighlighted(site.Id, article.Title, newHighlighted)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	article.Highlighted = newHighlighted
+	c.Redirect(http.StatusPermanentRedirect, fmt.Sprintf("/fake-news/%v", article.MakeSlug()))
 }
 
 func parseArticleSlug(slug string) (int, time.Time, string, error) {

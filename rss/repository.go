@@ -79,6 +79,10 @@ type FakeNewsDto struct {
 	Votes       int       `db:"votes" json:"votes"`
 }
 
+func (fn FakeNewsDto) MakeSlug() string {
+	return fmt.Sprintf("%v-%v-%v", fn.SiteId, fn.Published.Format(time.DateOnly), fn.Title)
+}
+
 func (r *RssRepository) GetSiteNames() ([]string, error) {
 	rssUrls, err := r.GetRssUrls()
 	if err != nil {

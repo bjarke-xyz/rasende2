@@ -25,6 +25,7 @@ templ articleGenerator(model ArticleGeneratorViewModel) {
 			<script type="text/javascript">
             document.addEventListener('htmx:sseClose', e => {
                 document.querySelector('#sse-article-content-indicator')?.remove();
+				document.querySelector('#publish-btn').disabled = false;
             });
             </script>
 			<div id="article-sse-container" hx-ext="sse" sse-connect={ fmt.Sprintf("/generate-article?siteId=%v&title=%v", model.Site.Id, url.QueryEscape(model.Article.Title)) } sse-close="sse-close">
@@ -36,6 +37,13 @@ templ articleGenerator(model ArticleGeneratorViewModel) {
 					<span class="animate-pulse" id="sse-article-content-indicator">...</span>
 				</div>
 			</div>
+			<form method="POST" action="/publish-fake-news">
+				<input type="hidden" name="siteId" value={ fmt.Sprint(model.Site.Id) }/>
+				<input type="hidden" name="title" value={ model.Article.Title }/>
+				<button class="btn-primary" id="publish-btn" type="submit" disabled>
+					Udgiv falsk nyhed
+				</button>
+			</form>
 		</div>
 	</div>
 }

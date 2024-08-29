@@ -112,11 +112,13 @@ func main() {
 	r.POST("/search", webHandlers.HandlePostSearch)
 	r.GET("/fake-news", webHandlers.HandleGetFakeNews)
 	r.GET("/fake-news/:slug", webHandlers.HandleGetFakeNewsArticle)
+	r.POST("/fake-news/:slug", webHandlers.HandleGetFakeNewsArticle)
 	r.GET("/title-generator", webHandlers.HandleGetTitleGenerator)
 	r.GET("/generate-titles", webHandlers.HandleGetSseTitles)
 	r.GET("/generate-titles-sse", webHandlers.HandleGetTitleGeneratorSse)
 	r.GET("/article-generator", webHandlers.HandleGetArticleGenerator)
 	r.GET("/generate-article", webHandlers.HandleGetSseArticleContent)
+	r.POST("/publish-fake-news", webHandlers.HandlePostPublishFakeNews)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()

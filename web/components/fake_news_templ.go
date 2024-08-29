@@ -179,7 +179,7 @@ func FakeNews(model FakeNewsViewModel) templ.Component {
 }
 
 func getArticleUrl(fn rss.FakeNewsDto) string {
-	return fmt.Sprintf("/fake-news/%v-%v-%v", fn.SiteId, fn.Published.Format(time.DateOnly), fn.Title)
+	return fmt.Sprintf("/fake-news/%v", fn.MakeSlug())
 }
 
 func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel) templ.Component {
