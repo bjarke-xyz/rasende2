@@ -70,7 +70,7 @@ templ titleGenerator(model TitleGeneratorViewModel) {
 
 templ GeneratedTitleLink(siteId int, title string) {
 	<p>
-		<a href={ templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, url.QueryEscape(title))) }>{ title }</a>
+		<a target="_blank" href={ templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, url.QueryEscape(title))) }>{ title }</a>
 	</p>
 }
 

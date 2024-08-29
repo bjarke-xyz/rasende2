@@ -221,9 +221,9 @@ func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
 			}
 		}
 	}
-	limit := ginutils.IntQuery(c, "limit", 10)
-	if limit > 10 {
-		limit = 10
+	limit := ginutils.IntQuery(c, "limit", 5)
+	if limit > 5 {
+		limit = 5
 	}
 	sorting := ginutils.StringQuery(c, "sorting", "popular")
 	var fakeNews []rss.FakeNewsDto = []rss.FakeNewsDto{}
