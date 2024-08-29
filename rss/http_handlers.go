@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
+	"github.com/bjarke-xyz/rasende2-api/config"
 	"github.com/bjarke-xyz/rasende2-api/ginutils"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/gin-gonic/gin"
@@ -20,8 +21,6 @@ import (
 	"github.com/samber/lo"
 	openai "github.com/sashabaranov/go-openai"
 )
-
-const PlaceholderImgUrl = "https://static.bjarke.xyz/placeholder.png"
 
 type HttpHandlers struct {
 	context      *pkg.AppContext
@@ -600,7 +599,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 		if existing.ImageUrl != nil && *existing.ImageUrl != "" {
 			c.SSEvent("message", ContentEvent{ImageUrl: *existing.ImageUrl, ImageStatus: ImageStatusReady})
 		} else {
-			c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png", ImageStatus: ImageStatusReady})
+			c.SSEvent("message", ContentEvent{ImageUrl: config.PlaceholderImgUrl, ImageStatus: ImageStatusReady})
 		}
 		c.Stream(func(w io.Writer) bool {
 			contentEvent := ContentEvent{
@@ -643,7 +642,7 @@ func (h *HttpHandlers) HandleGenerateArticleContent(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")
-	c.SSEvent("message", ContentEvent{ImageUrl: "https://static.bjarke.xyz/placeholder.png", ImageStatus: ImageStatusGenerating})
+	c.SSEvent("message", ContentEvent{ImageUrl: config.PlaceholderImgUrl, ImageStatus: ImageStatusGenerating})
 	c.Stream(func(w io.Writer) bool {
 		imgUrlSent := false
 		for {

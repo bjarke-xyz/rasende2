@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/bjarke-xyz/rasende2-api/ai"
+	"github.com/bjarke-xyz/rasende2-api/config"
 	"github.com/bjarke-xyz/rasende2-api/ginutils"
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/bjarke-xyz/rasende2-api/rss"
@@ -407,7 +408,7 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 						}
 					}
 				}
-				c.SSEvent("button", ginutils.RenderToString(ctx, components.ShowMoreTitlesButton(siteInfo.Id, cursor)))
+				c.SSEvent("button", ginutils.RenderToStringCtx(ctx, components.ShowMoreTitlesButton(siteInfo.Id, cursor)))
 				c.SSEvent("sse-close", "sse-close")
 				c.Writer.Flush()
 				return false
@@ -422,7 +423,7 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 					title := strings.TrimSpace(currentTitle.String())
 					titles = append(titles, title)
 
-					c.SSEvent("title", ginutils.RenderToString(ctx, components.GeneratedTitleLink(siteInfo.Id, title)))
+					c.SSEvent("title", ginutils.RenderToStringCtx(ctx, components.GeneratedTitleLink(siteInfo.Id, title)))
 					c.Writer.Flush()
 					currentTitle.Reset()
 				} else {
@@ -441,6 +442,182 @@ func (w *WebHandlers) HandleGetTitleGeneratorSse(c *gin.Context) {
 	}
 	cursor := ginutils.StringQuery(c, "cursor", "")
 	c.HTML(http.StatusOK, "", components.TitlesSse(siteId, cursor, false))
+}
+
+func (w *WebHandlers) HandleGetArticleGenerator(c *gin.Context) {
+	log.Println(c.Request.URL.Query())
+	pageTitle := "Article Generator | Fake News"
+	siteId := ginutils.IntQuery(c, "siteId", 0)
+	if siteId == 0 {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId")}))
+		return
+	}
+	site, err := w.service.GetSiteInfoById(siteId)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	if site == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId)}))
+		return
+	}
+	articleTitle := ginutils.StringQuery(c, "title", "")
+	if articleTitle == "" {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title")}))
+		return
+	}
+
+	article, err := w.service.GetFakeNews(site.Id, articleTitle)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		return
+	}
+	if article == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle)}))
+		return
+	}
+
+	model := components.ArticleGeneratorViewModel{
+		Base:             w.getBaseModel(c, pageTitle),
+		Site:             *site,
+		Article:          *article,
+		ImagePlaceholder: config.PlaceholderImgUrl,
+	}
+	c.HTML(http.StatusOK, "", components.ArticleGenerator(model))
+}
+
+func (w *WebHandlers) HandleGetSseArticleContent(c *gin.Context) {
+	siteId := ginutils.IntQuery(c, "siteId", 0)
+	if siteId == 0 {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		return
+	}
+	site, err := w.service.GetSiteInfoById(siteId)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if site == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId), DoNotIncludeLayout: true}))
+		return
+	}
+	articleTitle := ginutils.StringQuery(c, "title", "")
+	if articleTitle == "" {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title"), DoNotIncludeLayout: true}))
+		return
+	}
+
+	article, err := w.service.GetFakeNews(site.Id, articleTitle)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if article == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle), DoNotIncludeLayout: true}))
+		return
+	}
+
+	if len(article.Content) > 0 {
+		log.Printf("found existing fake news for site %v title %v", site.Name, article.Title)
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "close")
+		c.Writer.Header().Set("Transfer-Encoding", "chunked")
+		if article.ImageUrl != nil && *article.ImageUrl != "" {
+			c.SSEvent("image", ginutils.RenderToString(c, components.ArticleImg(*article.ImageUrl, article.Title)))
+		} else {
+			c.SSEvent("image", ginutils.RenderToString(c, components.ArticleImg(config.PlaceholderImgUrl, article.Title)))
+		}
+		c.Stream(func(w io.Writer) bool {
+			sseContent := strings.ReplaceAll(article.Content, "\n", "<br />")
+			c.SSEvent("content", sseContent)
+			c.SSEvent("sse-close", "sse-close")
+			c.Writer.Flush()
+			return false
+		})
+		return
+	}
+
+	articleImgPromise := pkg.NewPromise(func() (string, error) {
+		imgUrl, err := w.openaiClient.GenerateImage(c.Request.Context(), site.Name, site.DescriptionEn, article.Title, true)
+		if err != nil {
+			log.Printf("error maing fake news img: %v", err)
+		}
+		if imgUrl != "" {
+			w.service.SetFakeNewsImgUrl(site.Id, article.Title, imgUrl)
+		}
+		return imgUrl, err
+	})
+
+	var temperature float32 = 1.0
+	stream, err := w.openaiClient.GenerateArticleContent(c.Request.Context(), site.Name, site.Description, article.Title, temperature)
+	if err != nil {
+		log.Printf("openai failed: %v", err)
+		var apiError *openai.APIError
+		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
+			c.HTML(http.StatusTooManyRequests, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		} else {
+			c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		}
+		return
+	}
+
+	var sb strings.Builder
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "close")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	c.Stream(func(io.Writer) bool {
+		imgUrlSent := false
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				log.Println("\nStream finished")
+				articleContent := sb.String()
+				err = w.service.UpdateFakeNews(site.Id, articleTitle, articleContent)
+				if err != nil {
+					log.Printf("error saving fake news: %v", err)
+				}
+				if !imgUrlSent {
+					imgUrl, err := articleImgPromise.Get()
+					if err != nil {
+						log.Printf("error getting openai img: %v", err)
+					}
+					if imgUrl != "" {
+						c.SSEvent("image", ginutils.RenderToString(c, components.ArticleImg(imgUrl, article.Title)))
+						imgUrlSent = true
+					}
+				}
+				c.SSEvent("sse-close", "sse-close")
+				c.Writer.Flush()
+				return false
+			}
+			if err != nil {
+				log.Printf("\nStream error: %v\n", err)
+				c.SSEvent("sse-close", "sse-close")
+				c.Writer.Flush()
+				return false
+			}
+			content := response.Content()
+			sb.WriteString(content)
+			sseContent := fmt.Sprintf("<span>%v</span>", strings.ReplaceAll(content, "\n", "<br />"))
+			c.SSEvent("content", sseContent)
+			if !imgUrlSent {
+				imgUrl, err, articleImgOk := articleImgPromise.Poll()
+				if articleImgOk {
+					if err != nil {
+						log.Printf("error getting openai img: %v", err)
+					}
+					if imgUrl != "" {
+						c.SSEvent("image", ginutils.RenderToString(c, components.ArticleImg(imgUrl, article.Title)))
+						imgUrlSent = true
+					}
+				}
+			}
+			c.Writer.Flush()
+		}
+	})
+
 }
 
 func parseArticleSlug(slug string) (int, time.Time, string, error) {

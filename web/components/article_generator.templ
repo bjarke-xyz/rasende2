@@ -1,0 +1,49 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2-api/rss"
+	"net/url"
+)
+
+type ArticleGeneratorViewModel struct {
+	Base             BaseViewModel
+	Site             rss.RssUrlDto
+	Article          rss.FakeNewsDto
+	ImagePlaceholder string
+}
+
+templ articleGenerator(model ArticleGeneratorViewModel) {
+	<div class="m-4">
+		<div class="flex flex-col justify-center max-w-3xl">
+			<div class="flex flex-row">
+				<h1 class="text-3xl">
+					@Badge(model.Site.Name)
+				</h1>
+			</div>
+			<h1 class="text-xl font-bold mt-4">{ model.Article.Title } </h1>
+			<script type="text/javascript">
+            document.addEventListener('htmx:sseClose', e => {
+                document.querySelector('#sse-article-content-indicator')?.remove();
+            });
+            </script>
+			<div id="article-sse-container" hx-ext="sse" sse-connect={ fmt.Sprintf("/generate-article?siteId=%v&title=%v", model.Site.Id, url.QueryEscape(model.Article.Title)) } sse-close="sse-close">
+				<div sse-swap="image">
+					<img class="animate-pulse" height="512" width="512" src={ model.ImagePlaceholder } alt={ model.Article.Title }/>
+				</div>
+				<div>
+					<p sse-swap="content" hx-swap="beforeend"></p>
+					<span class="animate-pulse" id="sse-article-content-indicator">...</span>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ ArticleImg(src string, alt string) {
+	<img height="512" width="512" src={ src } alt={ alt }/>
+}
+
+templ ArticleGenerator(model ArticleGeneratorViewModel) {
+	@Layout(model.Base, articleGenerator(model))
+}

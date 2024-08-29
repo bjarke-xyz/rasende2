@@ -39,7 +39,7 @@ func NewOpenAIClient(appContext *pkg.AppContext) *OpenAIClient {
 
 func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
 	if o.useFake {
-		panic("useFake for GenerateImage not implemented")
+		return "https://placecats.com/512/512", nil
 	}
 	if translateTitle {
 		req := openai.ChatCompletionRequest{
@@ -184,7 +184,8 @@ func (o *OpenAIClient) GenerateArticleTitlesList(ctx context.Context, siteName s
 }
 
 func (o *OpenAIClient) generateArticleTitlesFake() (ChatCompletionStream, error) {
-	fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3, content: "Her er en falsk overskrift :)"}
+	// fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3, content: "Her er en falsk overskrift :)"}
+	fakeChatCompletionStream := &fakeChatCompletionStream{contents: []string{"Her er ", "en falsk ove", fmt.Sprintf("rskrift :) %v", time.Now().UnixMilli()), "\n Og her ko", fmt.Sprintf("mmer den næste! %v\n", time.Now().UnixMilli())}}
 	return fakeChatCompletionStream, nil
 }
 
@@ -303,7 +304,7 @@ func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName s
 }
 
 func (o *OpenAIClient) generateArticleContentFake() (ChatCompletionStream, error) {
-	fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 2, content: "Her er brødteksten af en falsk artikel, som er meget meget lang"}
+	fakeChatCompletionStream := &fakeChatCompletionStream{contents: []string{"Her er brø", "dteksten af en ", " falsk artikel, som er m", "eget meget lang\n"}}
 	return fakeChatCompletionStream, nil
 }
 
@@ -351,18 +352,20 @@ type ChatCompletionStreamResponse interface {
 }
 
 type fakeChatCompletionStream struct {
-	numCalls int
-	content  string
+	contents []string
+	index    int
 }
 
 func (f *fakeChatCompletionStream) Recv() (ChatCompletionStreamResponse, error) {
-	f.numCalls = f.numCalls - 1
-	if f.numCalls <= 0 {
+	if f.index > (len(f.contents) - 1) {
 		return nil, io.EOF
 	}
+	index := f.index
+	f.index++
+	content := f.contents[index]
 	time.Sleep(100 * time.Millisecond)
 	return &chatCompletionStreamResponse{
-		content: fmt.Sprintf("%v - %v - %v\n", f.content, f.numCalls, time.Now().UnixMilli()),
+		content: content,
 	}, nil
 }
 
@@ -389,6 +392,7 @@ func (oai *OpenAiChatCompletionStream) Recv() (ChatCompletionStreamResponse, err
 		return nil, err
 	}
 	content := resp.Choices[0].Delta.Content
+	// log.Printf("content = '%v' // len=%v", content, len(content))
 	return &chatCompletionStreamResponse{
 		content: content,
 	}, nil

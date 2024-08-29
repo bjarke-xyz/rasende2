@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"github.com/bjarke-xyz/rasende2-api/rss"
+	"net/url"
 )
 
 type TitleGeneratorViewModel struct {
@@ -69,7 +70,7 @@ templ titleGenerator(model TitleGeneratorViewModel) {
 
 templ GeneratedTitleLink(siteId int, title string) {
 	<p>
-		<a href={ templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, title)) }>{ title }</a>
+		<a href={ templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, url.QueryEscape(title))) }>{ title }</a>
 	</p>
 }
 

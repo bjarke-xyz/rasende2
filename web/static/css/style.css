@@ -26,3 +26,8 @@
 .htmx-request.htmx-indicator {
     opacity: 1;
 }
+
+br {
+    overflow-wrap: normal;
+    word-break: normal;
+}

@@ -54,8 +54,11 @@ func StringForm(c *gin.Context, name string, defaultVal string) string {
 	return val
 }
 
-func RenderToString(ctx context.Context, component templ.Component) string {
+func RenderToStringCtx(ctx context.Context, component templ.Component) string {
 	buffer := &strings.Builder{}
 	component.Render(ctx, buffer)
 	return buffer.String()
+}
+func RenderToString(c *gin.Context, component templ.Component) string {
+	return RenderToStringCtx(c.Request.Context(), component)
 }
