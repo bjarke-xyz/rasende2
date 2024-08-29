@@ -119,6 +119,7 @@ func main() {
 	r.GET("/article-generator", webHandlers.HandleGetArticleGenerator)
 	r.GET("/generate-article", webHandlers.HandleGetSseArticleContent)
 	r.POST("/publish-fake-news", webHandlers.HandlePostPublishFakeNews)
+	r.POST("/vote-article", webHandlers.HandlePostArticleVote)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()

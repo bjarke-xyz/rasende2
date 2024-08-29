@@ -3,6 +3,7 @@ package rss
 import (
 	"cmp"
 	"context"
+	"crypto/md5"
 	"database/sql"
 	"embed"
 	"encoding/json"
@@ -79,8 +80,15 @@ type FakeNewsDto struct {
 	Votes       int       `db:"votes" json:"votes"`
 }
 
-func (fn FakeNewsDto) MakeSlug() string {
+func (fn FakeNewsDto) Slug() string {
 	return fmt.Sprintf("%v-%v-%v", fn.SiteId, fn.Published.Format(time.DateOnly), fn.Title)
+}
+func (fn *FakeNewsDto) Id() string {
+	str := fmt.Sprintf("%v:%v:%v", fn.SiteId, fn.Title, fn.Published.UnixMilli())
+	bytes := []byte(str)
+	hashedBytes := md5.Sum(bytes)
+	hashStr := fmt.Sprintf("%x", hashedBytes)
+	return hashStr
 }
 
 func (r *RssRepository) GetSiteNames() ([]string, error) {

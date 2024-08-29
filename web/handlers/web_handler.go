@@ -253,12 +253,14 @@ func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
 	if len(fakeNews) < limit {
 		cursor = ""
 	}
+	alreadyVoted := getAlreadyVoted(c)
 	model := components.FakeNewsViewModel{
-		Base:     w.getBaseModel(c, title),
-		FakeNews: fakeNews,
-		Cursor:   cursor,
-		Sorting:  sorting,
-		OnlyGrid: onlyGrid,
+		Base:         w.getBaseModel(c, title),
+		FakeNews:     fakeNews,
+		Cursor:       cursor,
+		Sorting:      sorting,
+		OnlyGrid:     onlyGrid,
+		AlreadyVoted: alreadyVoted,
 		Funcs: components.ArticleFuncsModel{
 			TimeDifference: getTimeDifference,
 			TruncateText:   truncateText,
@@ -669,7 +671,78 @@ func (w *WebHandlers) HandlePostPublishFakeNews(c *gin.Context) {
 		return
 	}
 	article.Highlighted = newHighlighted
-	c.Redirect(http.StatusPermanentRedirect, fmt.Sprintf("/fake-news/%v", article.MakeSlug()))
+	c.Redirect(http.StatusPermanentRedirect, fmt.Sprintf("/fake-news/%v", article.Slug()))
+}
+
+func (w *WebHandlers) HandlePostArticleVote(c *gin.Context) {
+	siteId := ginutils.IntForm(c, "siteId", 0)
+	// TODO: instead of returning html with error, do redirect with error query
+	if siteId == 0 {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		return
+	}
+	site, err := w.service.GetSiteInfoById(siteId)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if site == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId), DoNotIncludeLayout: true}))
+		return
+	}
+	articleTitle := ginutils.StringForm(c, "title", "")
+	if articleTitle == "" {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title"), DoNotIncludeLayout: true}))
+		return
+	}
+
+	article, err := w.service.GetFakeNews(site.Id, articleTitle)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		return
+	}
+	if article == nil {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle), DoNotIncludeLayout: true}))
+		return
+	}
+
+	direction := c.Request.FormValue("direction")
+	if direction != "up" && direction != "down" {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid vote %v", direction), DoNotIncludeLayout: true}))
+	}
+	up := direction == "up"
+	vote := -1
+	if up {
+		vote = 1
+	}
+
+	updatedVotes, err := w.service.VoteFakeNews(site.Id, article.Title, vote)
+	if err != nil {
+		c.JSON(500, err.Error())
+		return
+	}
+	article.Votes = updatedVotes
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(fmt.Sprintf("VOTED.%v", article.Id()), direction, 3600*24, "/", "", true, true)
+	alreadyVoted := getAlreadyVoted(c)
+	alreadyVoted[article.Id()] = direction
+	c.HTML(http.StatusOK, "", components.FakeNewsVotes(*article, alreadyVoted))
+}
+
+func getAlreadyVoted(c *gin.Context) map[string]string {
+	cookies := c.Request.Cookies()
+	result := make(map[string]string, 0)
+	for _, cookie := range cookies {
+		name := cookie.Name
+		if strings.HasPrefix(name, "VOTED.") {
+			nameParts := strings.Split(name, "VOTED.")
+			if len(nameParts) >= 2 {
+				id := nameParts[1]
+				result[id] = cookie.Value
+			}
+		}
+	}
+	return result
 }
 
 func parseArticleSlug(slug string) (int, time.Time, string, error) {
