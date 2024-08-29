@@ -407,7 +407,7 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 						}
 					}
 				}
-				c.SSEvent("button", ginutils.RenderToString(ctx, components.ShowMoreTitlesButton(cursor)))
+				c.SSEvent("button", ginutils.RenderToString(ctx, components.ShowMoreTitlesButton(siteInfo.Id, cursor)))
 				c.SSEvent("sse-close", "sse-close")
 				c.Writer.Flush()
 				return false
@@ -431,6 +431,16 @@ func (w *WebHandlers) HandleGetSseTitles(c *gin.Context) {
 			}
 		}
 	})
+}
+
+func (w *WebHandlers) HandleGetTitleGeneratorSse(c *gin.Context) {
+	siteId := ginutils.IntQuery(c, "siteId", 0)
+	if siteId == 0 {
+		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		return
+	}
+	cursor := ginutils.StringQuery(c, "cursor", "")
+	c.HTML(http.StatusOK, "", components.TitlesSse(siteId, cursor, false))
 }
 
 func parseArticleSlug(slug string) (int, time.Time, string, error) {
