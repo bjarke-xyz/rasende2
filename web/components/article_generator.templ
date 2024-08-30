@@ -37,13 +37,15 @@ templ articleGenerator(model ArticleGeneratorViewModel) {
 					<span class="animate-pulse" id="sse-article-content-indicator">...</span>
 				</div>
 			</div>
-			<form method="POST" action="/publish-fake-news">
-				<input type="hidden" name="siteId" value={ fmt.Sprint(model.Site.Id) }/>
-				<input type="hidden" name="title" value={ model.Article.Title }/>
-				<button class="btn-primary" id="publish-btn" type="submit" disabled>
-					Udgiv falsk nyhed
-				</button>
-			</form>
+			if !model.Article.Highlighted {
+				<form method="POST" action="/publish-fake-news">
+					<input type="hidden" name="siteId" value={ fmt.Sprint(model.Site.Id) }/>
+					<input type="hidden" name="title" value={ model.Article.Title }/>
+					<button class="btn-primary" id="publish-btn" type="submit" disabled>
+						Udgiv falsk nyhed
+					</button>
+				</form>
+			}
 		</div>
 	</div>
 }

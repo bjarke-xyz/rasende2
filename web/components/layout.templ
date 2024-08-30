@@ -23,6 +23,7 @@ type BaseViewModel struct {
 	FlashWarn     []string
 	FlashError    []string
 	NoCache       bool
+	IsAdmin       bool
 }
 
 templ Layout(viewModel BaseViewModel, children ...templ.Component) {
@@ -60,7 +61,7 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 							@child
 						}
 					</div>
-					@footer()
+					@footer(viewModel)
 				</div>
 			</body>
 		</html>
@@ -95,9 +96,15 @@ templ header(path string) {
 	</div>
 }
 
-templ footer() {
+templ footer(model BaseViewModel) {
 	<footer class="p-2">
-		<div class="flex flex-row justify-around text-sm"></div>
+		<div class="flex flex-row justify-end text-sm">
+			if model.IsAdmin {
+				<form method="POST" action="/logout">
+					<button class="btn-primary">Logout</button>
+				</form>
+			}
+		</div>
 	</footer>
 }
 

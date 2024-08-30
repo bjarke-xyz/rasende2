@@ -31,6 +31,7 @@ type BaseViewModel struct {
 	FlashWarn     []string
 	FlashError    []string
 	NoCache       bool
+	IsAdmin       bool
 }
 
 func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Component {
@@ -59,7 +60,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(viewModel.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 35, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 36, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -72,7 +73,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/static/css/tailwind.css?v=%v", viewModel.UnixBuildTime))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 36, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 37, Col: 86}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -85,7 +86,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/static/js/ready.js?v=%v", viewModel.UnixBuildTime))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 37, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 38, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -98,7 +99,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/static/js/vendor/chart.umd.js?v=%v", viewModel.UnixBuildTime))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 38, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 39, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -111,7 +112,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 39, Col: 92}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 40, Col: 92}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -124,7 +125,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/static/js/vendor/sse.js?v=%v", viewModel.UnixBuildTime))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 40, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 41, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +138,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 41, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 42, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -193,7 +194,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = footer().Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = footer(viewModel).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -248,7 +249,7 @@ func headerLink(currentPath string, linkPath string, text string) templ.Componen
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 76, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 77, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -275,7 +276,7 @@ func headerLink(currentPath string, linkPath string, text string) templ.Componen
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 78, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 79, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -340,7 +341,7 @@ func header(path string) templ.Component {
 	})
 }
 
-func footer() templ.Component {
+func footer(model BaseViewModel) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -358,7 +359,17 @@ func footer() templ.Component {
 			templ_7745c5c3_Var15 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<footer class=\"p-2\"><div class=\"flex flex-row justify-around text-sm\"></div></footer>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<footer class=\"p-2\"><div class=\"flex flex-row justify-end text-sm\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if model.IsAdmin {
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<form method=\"POST\" action=\"/logout\"><button class=\"btn-primary\">Logout</button></form>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("</div></footer>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -391,7 +402,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(model.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 105, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 112, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -404,7 +415,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(model.Image)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 107, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 114, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -417,7 +428,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(model.Url)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 108, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 115, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -430,7 +441,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(model.Description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 109, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 116, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -516,7 +527,7 @@ func flash(flashType string, msgs []string) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 137, Col: 9}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 144, Col: 9}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {

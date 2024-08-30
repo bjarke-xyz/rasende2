@@ -102,11 +102,13 @@ func getArticleUrl(fn rss.FakeNewsDto) string {
 
 templ articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[string]string) {
 	<div class="flex flex-col min-w-[256px] max-w-[512px] shadow-md rounded-lg dark:bg-slate-700">
-		<img
-			class="w-full h-[384px] object-cover"
-			src={ getValOrDefault(fn.ImageUrl, config.PlaceholderImgUrl) }
-			alt={ fn.Title }
-		/>
+		<a href={ templ.SafeURL(getArticleUrl(fn)) } target="_blank" rel="noopener noreferrer">
+			<img
+				class="w-full h-[384px] object-cover"
+				src={ getValOrDefault(fn.ImageUrl, config.PlaceholderImgUrl) }
+				alt={ fn.Title }
+			/>
+		</a>
 		<div class="p-4 flex flex-col flex-1">
 			<div class="flex items-center justify-between mb-2">
 				<span class="bg-blue-100 text-blue-800 dark:bg-blue-200 dark:text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">

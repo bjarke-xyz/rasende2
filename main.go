@@ -124,6 +124,8 @@ func main() {
 	r.POST("/vote-article", webHandlers.HandlePostArticleVote)
 	r.GET("/login", webHandlers.HandleGetLogin)
 	r.POST("/login", webHandlers.HandlePostLogin)
+	r.POST("/logout", webHandlers.HandlePostLogout)
+	r.POST("/reset-article-content", webHandlers.HandlePostResetContent)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()

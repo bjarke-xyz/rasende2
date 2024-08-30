@@ -60,6 +60,7 @@ func (w *WebHandlers) getBaseModel(c *gin.Context, title string) components.Base
 		FlashWarn:     ginutils.GetFlashes(c, ginutils.FlashTypeWarn),
 		FlashError:    ginutils.GetFlashes(c, ginutils.FlashTypeError),
 		NoCache:       c.Request.URL.Query().Get("nocache") == "true",
+		IsAdmin:       ginutils.IsAdmin(c),
 	}
 	return model
 }
@@ -609,7 +610,7 @@ func (w *WebHandlers) HandlePostPublishFakeNews(c *gin.Context) {
 		isAdmin = true
 	}
 	siteId := ginutils.IntForm(c, "siteId", 0)
-	// TODO: instead of returning html with error, do redirect with error query
+	// TODO: instead of returning html with error, do redirect with flash error
 	if siteId == 0 {
 		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
 		return
@@ -653,6 +654,38 @@ func (w *WebHandlers) HandlePostPublishFakeNews(c *gin.Context) {
 	}
 	article.Highlighted = newHighlighted
 	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/fake-news/%v", article.Slug()))
+}
+
+func (w *WebHandlers) HandlePostResetContent(c *gin.Context) {
+	redirectPath := c.Request.Header.Get("Referer")
+	if redirectPath == "" {
+		redirectPath = "/"
+	}
+	if !ginutils.IsAdmin(c) {
+		ginutils.AddFlashWarn(c, "Requires admin")
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+	siteId := ginutils.IntForm(c, "siteId", 0)
+	if siteId == 0 {
+		ginutils.AddFlashWarn(c, "missing site")
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+	title := ginutils.StringForm(c, "title", "")
+	if title == "" {
+		ginutils.AddFlashWarn(c, "missing title")
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+	err := w.service.ResetFakeNewsContent(siteId, title)
+	if err != nil {
+		ginutils.AddFlashError(c, err)
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+
+	c.Redirect(http.StatusSeeOther, redirectPath)
 }
 
 func (w *WebHandlers) HandlePostArticleVote(c *gin.Context) {
@@ -717,6 +750,7 @@ func (w *WebHandlers) HandleGetLogin(c *gin.Context) {
 }
 
 func (w *WebHandlers) HandlePostLogin(c *gin.Context) {
+	// TODO: return path query param
 	email := c.Request.FormValue("email")
 	password := c.Request.FormValue("password")
 	session := sessions.Default(c)
@@ -729,6 +763,18 @@ func (w *WebHandlers) HandlePostLogin(c *gin.Context) {
 		ginutils.AddFlashWarn(c, "Fokert adgangskode")
 		c.Redirect(http.StatusSeeOther, "/login")
 	}
+}
+
+func (w *WebHandlers) HandlePostLogout(c *gin.Context) {
+	redirectPath := c.Request.Header.Get("Referer")
+	if redirectPath == "" {
+		redirectPath = "/"
+	}
+	session := sessions.Default(c)
+	session.Clear()
+	session.Save()
+	ginutils.AddFlashInfo(c, "Du er nu logget ud!")
+	c.Redirect(http.StatusSeeOther, redirectPath)
 }
 
 func getAlreadyVoted(c *gin.Context) map[string]string {
