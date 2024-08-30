@@ -91,6 +91,10 @@ func NewRssService(context *pkg.AppContext, repository *RssRepository, search *R
 
 const CacheKeyIndexPage = "PAGE:INDEX"
 
+func (r *RssService) cacheKeyIndexPage() string {
+	return CacheKeyIndexPage + ":" + r.context.Config.AppEnv
+}
+
 func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*IndexPageData, error) {
 	query := "rasende"
 	offset := 0
@@ -98,11 +102,12 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*Index
 	searchContent := false
 	orderBy := "-published"
 
+	cacheKey := r.cacheKeyIndexPage()
 	indexPageData := &IndexPageData{}
 	if !nocache {
-		fromCache, _ := r.context.Cache.GetObj(CacheKeyIndexPage+":"+r.context.Config.AppEnv, indexPageData)
+		fromCache, _ := r.context.Cache.GetObj(cacheKey, indexPageData)
 		if fromCache {
-			log.Printf("got %v from cache", CacheKeyIndexPage)
+			log.Printf("got %v from cache", cacheKey)
 			return indexPageData, nil
 		}
 	}
@@ -131,8 +136,8 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*Index
 	}
 	indexPageData.SearchResult = &searchResults
 	indexPageData.ChartsResult = &chartsData
-	go r.context.Cache.InsertObj(CacheKeyIndexPage, indexPageData, 120)
-	log.Printf("key %v missed cache", CacheKeyIndexPage)
+	go r.context.Cache.InsertObj(cacheKey, indexPageData, 120)
+	log.Printf("key %v missed cache", cacheKey)
 	return indexPageData, nil
 }
 
@@ -449,7 +454,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
 	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
 	go r.context.Cache.DeleteExpired()
-	go r.context.Cache.DeleteByPrefix(CacheKeyIndexPage + ":" + r.context.Config.AppEnv)
+	go r.context.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
 	return nil
 }
 
