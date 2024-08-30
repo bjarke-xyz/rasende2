@@ -42,6 +42,8 @@ type Config struct {
 	BuildTime *time.Time
 
 	UseFakeOpenAi bool
+
+	CookieSecret string
 }
 
 const (
@@ -96,5 +98,6 @@ func NewConfig() (*Config, error) {
 		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
 		BuildTime:               buildTime,
 		UseFakeOpenAi:           os.Getenv("USE_FAKE_OPENAI") == "true",
+		CookieSecret:            os.Getenv("COOKIE_SECRET"),
 	}, nil
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/pkg"
 	"github.com/bjarke-xyz/rasende2-api/rss"
 	"github.com/bjarke-xyz/rasende2-api/web/components"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 	"github.com/sashabaranov/go-openai"
@@ -50,12 +51,17 @@ func (w *WebHandlers) getBaseModel(c *gin.Context, title string) components.Base
 	hxRequest := c.Request.Header.Get("HX-Request")
 	includeLayout := hxRequest == "" || hxRequest == "false"
 	log.Println("hxRequest", hxRequest, "includeLayout", includeLayout)
-	return components.BaseViewModel{
+	model := components.BaseViewModel{
 		Path:          c.Request.URL.Path,
 		UnixBuildTime: unixBuildTime,
 		Title:         title,
 		IncludeLayout: includeLayout,
+		FlashInfo:     ginutils.GetFlashes(c, ginutils.FlashTypeInfo),
+		FlashWarn:     ginutils.GetFlashes(c, ginutils.FlashTypeWarn),
+		FlashError:    ginutils.GetFlashes(c, ginutils.FlashTypeError),
+		NoCache:       c.Request.URL.Query().Get("nocache") == "true",
 	}
+	return model
 }
 
 var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
@@ -671,7 +677,7 @@ func (w *WebHandlers) HandlePostPublishFakeNews(c *gin.Context) {
 		return
 	}
 	article.Highlighted = newHighlighted
-	c.Redirect(http.StatusPermanentRedirect, fmt.Sprintf("/fake-news/%v", article.Slug()))
+	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/fake-news/%v", article.Slug()))
 }
 
 func (w *WebHandlers) HandlePostArticleVote(c *gin.Context) {
@@ -727,6 +733,27 @@ func (w *WebHandlers) HandlePostArticleVote(c *gin.Context) {
 	alreadyVoted := getAlreadyVoted(c)
 	alreadyVoted[article.Id()] = direction
 	c.HTML(http.StatusOK, "", components.FakeNewsVotes(*article, alreadyVoted))
+}
+
+func (w *WebHandlers) HandleGetLogin(c *gin.Context) {
+	c.HTML(http.StatusOK, "", components.Login(components.LoginViewModel{
+		Base: w.getBaseModel(c, "Login | Rasende"),
+	}))
+}
+
+func (w *WebHandlers) HandlePostLogin(c *gin.Context) {
+	email := c.Request.FormValue("email")
+	password := c.Request.FormValue("password")
+	session := sessions.Default(c)
+	if email != "" && password == w.context.Config.AdminPassword {
+		session.Set("admin", true)
+		session.Save()
+		ginutils.AddFlashInfo(c, "Du er nu logget ind!")
+		c.Redirect(http.StatusSeeOther, "/")
+	} else {
+		ginutils.AddFlashWarn(c, "Fokert adgangskode")
+		c.Redirect(http.StatusSeeOther, "/login")
+	}
 }
 
 func getAlreadyVoted(c *gin.Context) map[string]string {

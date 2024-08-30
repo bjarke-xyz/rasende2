@@ -57,7 +57,19 @@ func (c *CacheRepo) DeleteExpired() error {
 	now := time.Now().UTC().Unix()
 	_, err = db.Exec("DELETE FROM cache WHERE expires_at < ?", now)
 	if err != nil {
-		return fmt.Errorf("error deleting from cache")
+		return fmt.Errorf("error deleting from cache: %w", err)
+	}
+	return nil
+}
+
+func (c *CacheRepo) DeleteByPrefix(prefix string) error {
+	db, err := db.Open(c.cfg)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec("DELETE FROM cache WHERE k LIKE ?", prefix+"%")
+	if err != nil {
+		return fmt.Errorf("error when deleting from cache by prefix %v: %w", prefix, err)
 	}
 	return nil
 }

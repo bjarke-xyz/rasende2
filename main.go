@@ -17,6 +17,8 @@ import (
 	"github.com/bjarke-xyz/rasende2-api/web/handlers"
 	"github.com/bjarke-xyz/rasende2-api/web/renderer"
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -120,6 +122,8 @@ func main() {
 	r.GET("/generate-article", webHandlers.HandleGetSseArticleContent)
 	r.POST("/publish-fake-news", webHandlers.HandlePostPublishFakeNews)
 	r.POST("/vote-article", webHandlers.HandlePostArticleVote)
+	r.GET("/login", webHandlers.HandleGetLogin)
+	r.POST("/login", webHandlers.HandlePostLogin)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()
@@ -131,6 +135,8 @@ func ginRouter(cfg *config.Config) *gin.Engine {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.Default()
+	store := cookie.NewStore([]byte(cfg.CookieSecret))
+	r.Use(sessions.Sessions("mysession", store))
 	r.Use(cors.Default())
 	r.SetTrustedProxies(nil)
 	if cfg.AppEnv == config.AppEnvProduction {

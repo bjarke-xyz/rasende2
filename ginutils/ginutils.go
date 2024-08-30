@@ -3,10 +3,12 @@ package ginutils
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
+	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -54,6 +56,16 @@ func StringForm(c *gin.Context, name string, defaultVal string) string {
 	return val
 }
 
+func IsAdmin(c *gin.Context) bool {
+	session := sessions.Default(c)
+	adminIface := session.Get("admin")
+	admin, ok := adminIface.(bool)
+	if !ok {
+		return false
+	}
+	return admin
+}
+
 func RenderToStringCtx(ctx context.Context, component templ.Component) string {
 	buffer := &strings.Builder{}
 	component.Render(ctx, buffer)
@@ -61,4 +73,49 @@ func RenderToStringCtx(ctx context.Context, component templ.Component) string {
 }
 func RenderToString(c *gin.Context, component templ.Component) string {
 	return RenderToStringCtx(c.Request.Context(), component)
+}
+
+const FlashTypeInfo = "Info"
+const FlashTypeWarn = "Warn"
+const FlashTypeError = "Error"
+
+func AddFlash(c *gin.Context, flashType string, msg string) {
+	session := sessions.Default(c)
+	// Adding the message with the flashType as a key
+	session.AddFlash(msg, flashType)
+	err := session.Save()
+	if err != nil {
+		log.Printf("error saving flash: %v", err)
+	}
+}
+
+func GetFlashes(c *gin.Context, flashType string) []string {
+	session := sessions.Default(c)
+	flashes := session.Flashes(flashType)
+	flashStrings := make([]string, len(flashes))
+	for i, flash := range flashes {
+		if flashStr, ok := flash.(string); ok {
+			flashStrings[i] = flashStr
+		} else {
+			log.Printf("warning: flash message is not a string, got: %v", flash)
+		}
+	}
+
+	// Save session to persist changes after retrieving flashes
+	err := session.Save()
+	if err != nil {
+		log.Printf("error saving session after getting flashes: %v", err)
+	}
+
+	return flashStrings
+}
+
+func AddFlashInfo(c *gin.Context, msg string) {
+	AddFlash(c, FlashTypeInfo, msg)
+}
+func AddFlashWarn(c *gin.Context, msg string) {
+	AddFlash(c, FlashTypeWarn, msg)
+}
+func AddFlashError(c *gin.Context, err error) {
+	AddFlash(c, FlashTypeError, err.Error())
 }

@@ -1,6 +1,9 @@
 package components
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2-api/ginutils"
+)
 
 type BaseOpenGraphModel struct {
 	Title string
@@ -16,6 +19,10 @@ type BaseViewModel struct {
 	Title         string
 	OpenGraph     *BaseOpenGraphModel
 	IncludeLayout bool
+	FlashInfo     []string
+	FlashWarn     []string
+	FlashError    []string
+	NoCache       bool
 }
 
 templ Layout(viewModel BaseViewModel, children ...templ.Component) {
@@ -40,6 +47,15 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 				<div class="h-screen flex flex-col">
 					@header(viewModel.Path)
 					<div class="mb-auto mt-10">
+						if len(viewModel.FlashError) > 0 {
+							@flash(ginutils.FlashTypeError, viewModel.FlashError)
+						}
+						if len(viewModel.FlashWarn) > 0 {
+							@flash(ginutils.FlashTypeWarn, viewModel.FlashWarn)
+						}
+						if len(viewModel.FlashInfo) > 0 {
+							@flash(ginutils.FlashTypeInfo, viewModel.FlashInfo)
+						}
 						for _, child := range children {
 							@child
 						}
@@ -91,4 +107,35 @@ templ openGraph(model BaseOpenGraphModel) {
 	<meta property="og:image" content={ model.Image }/>
 	<meta property="og:url" content={ model.Url }/>
 	<meta property="og:description" content={ model.Description }/>
+}
+
+var flashScriptHandle = templ.NewOnceHandle()
+
+templ flash(flashType string, msgs []string) {
+	@flashScriptHandle.Once() {
+		<script>
+		function handleFlashClick(elem) {
+			const flashContainer = elem.parentElement;
+			flashContainer?.remove();
+		}
+		</script>
+	}
+	// TODO: 
+	// <div onclick="handleFlashClick(this)" class={ "p-8 m-4 rounded-md text-slate-900 ", templ.KV("bg-red-200", flashType == ginutils.FlashTypeError), templ.KV("bg-yellow-200", flashType == ginutils.FlashTypeWarn), templ.KV("bg-blue-200", flashType == ginutils.FlashTypeInfo) }>
+	// 	for _, msg := range msgs {
+	// 		<p>
+	// 			{ msg }
+	// 		</p>
+	// 	}
+	// </div>
+	<div class={ "relative p-8 m-4 rounded-md text-slate-900 ", templ.KV("bg-red-200", flashType == ginutils.FlashTypeError), templ.KV("bg-yellow-200", flashType == ginutils.FlashTypeWarn), templ.KV("bg-blue-200", flashType == ginutils.FlashTypeInfo) }>
+		<button onclick="handleFlashClick(this)" onclick="this.parentElement.style.display='none';" class="absolute top-2 right-2 text-slate-900">
+			&times;
+		</button>
+		for _, msg := range msgs {
+			<p>
+				{ msg }
+			</p>
+		}
+	</div>
 }

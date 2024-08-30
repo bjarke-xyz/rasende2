@@ -358,6 +358,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
 	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
 	go r.context.Cache.DeleteExpired()
+	go r.context.Cache.DeleteByPrefix("HTML")
 	return nil
 }
 

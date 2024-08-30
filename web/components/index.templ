@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"github.com/bjarke-xyz/rasende2-api/config"
 	"github.com/bjarke-xyz/rasende2-api/rss"
 	"time"
@@ -35,7 +36,7 @@ templ latestRageTime(item rss.RssSearchResult) {
 templ main(model IndexModel) {
 	<div class="m-4" id="index_page">
 		<form>
-			<input type="hidden" hx-get="/" hx-trigger="rasende-focus from:body throttle:1s" hx-target="#index_page" hx-swap="outerHTML"/>
+			<input type="hidden" hx-get={ fmt.Sprintf("/?nocache=%v", model.Base.NoCache) } hx-trigger="rasende-focus from:body throttle:1s" hx-target="#index_page" hx-swap="outerHTML"/>
 		</form>
 		<div>
 			@Centered(false, latestRage())

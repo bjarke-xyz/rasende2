@@ -60,6 +60,16 @@ func (c *CacheService) DeleteExpired() error {
 	err := c.cacheRepo.DeleteExpired()
 	if err != nil {
 		log.Printf("error deleting expired: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (c *CacheService) DeleteByPrefix(prefix string) error {
+	err := c.cacheRepo.DeleteByPrefix(prefix)
+	if err != nil {
+		log.Printf("error deleting by prefix %v: %v", prefix, err)
+		return err
 	}
 	return nil
 }
