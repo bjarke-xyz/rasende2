@@ -100,7 +100,7 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*Index
 
 	indexPageData := &IndexPageData{}
 	if !nocache {
-		fromCache, _ := r.context.Cache.GetObj(CacheKeyIndexPage, indexPageData)
+		fromCache, _ := r.context.Cache.GetObj(CacheKeyIndexPage+":"+r.context.Config.AppEnv, indexPageData)
 		if fromCache {
 			log.Printf("got %v from cache", CacheKeyIndexPage)
 			return indexPageData, nil
@@ -449,7 +449,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
 	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
 	go r.context.Cache.DeleteExpired()
-	go r.context.Cache.DeleteByPrefix(CacheKeyIndexPage)
+	go r.context.Cache.DeleteByPrefix(CacheKeyIndexPage + ":" + r.context.Config.AppEnv)
 	return nil
 }
 
