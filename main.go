@@ -47,7 +47,7 @@ func main() {
 		}
 	}
 
-	cacheRepo := pkg.NewCacheRepo(cfg)
+	cacheRepo := pkg.NewCacheRepo(cfg, true)
 	cacheService := pkg.NewCacheService(cacheRepo)
 
 	ctx := &pkg.AppContext{
