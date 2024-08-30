@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/bjarke-xyz/rasende2-api/config"
-	"github.com/bjarke-xyz/rasende2-api/rss"
+	"github.com/bjarke-xyz/rasende2/config"
+	"github.com/bjarke-xyz/rasende2/rss"
 	"time"
 )
 

@@ -8,7 +8,7 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/bjarke-xyz/rasende2-api/rss"
+import "github.com/bjarke-xyz/rasende2/rss"
 
 func ItemLink(item rss.RssSearchResult) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

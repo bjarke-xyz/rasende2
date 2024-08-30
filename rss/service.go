@@ -20,9 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/bjarke-xyz/rasende2-api/db"
-	"github.com/bjarke-xyz/rasende2-api/pkg"
-	"github.com/bjarke-xyz/rasende2-api/s3utils"
+	"github.com/bjarke-xyz/rasende2/db"
+	"github.com/bjarke-xyz/rasende2/pkg"
+	"github.com/bjarke-xyz/rasende2/s3utils"
 	"github.com/jmoiron/sqlx"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
@@ -579,7 +579,7 @@ func (r *RssService) NotifyBackupDbError(ctx context.Context, err error) error {
 	if err == nil {
 		return nil
 	}
-	msg := "rasende2-api failed to backup: " + err.Error()
+	msg := "rasende2 failed to backup: " + err.Error()
 	reader := strings.NewReader(msg)
 	resp, err := http.Post("https://ntfy.sh/"+r.context.Config.NtfyTopic, "text/plain", reader)
 	if err != nil {

@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/bjarke-xyz/rasende2-api/ginutils"
+	"github.com/bjarke-xyz/rasende2/ginutils"
 )
 
 type BaseOpenGraphModel struct {

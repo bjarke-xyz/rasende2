@@ -1,4 +1,4 @@
-module github.com/bjarke-xyz/rasende2-api
+module github.com/bjarke-xyz/rasende2
 
 go 1.23
 

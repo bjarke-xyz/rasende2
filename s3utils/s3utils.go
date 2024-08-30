@@ -8,7 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	rasendeconfig "github.com/bjarke-xyz/rasende2-api/config"
+	rasendeconfig "github.com/bjarke-xyz/rasende2/config"
 )
 
 func NewImageClientFromConfig(ctx context.Context, rasCfg *rasendeconfig.Config) (*s3.Client, error) {

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bjarke-xyz/rasende2-api/config"
-	"github.com/bjarke-xyz/rasende2-api/db"
+	"github.com/bjarke-xyz/rasende2/config"
+	"github.com/bjarke-xyz/rasende2/db"
 )
 
 type memoryCacheItem struct {

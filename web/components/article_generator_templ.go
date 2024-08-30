@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/bjarke-xyz/rasende2-api/rss"
+	"github.com/bjarke-xyz/rasende2/rss"
 	"net/url"
 )
 

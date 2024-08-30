@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarke-xyz/rasende2-api/db"
-	"github.com/bjarke-xyz/rasende2-api/pkg"
+	"github.com/bjarke-xyz/rasende2/db"
+	"github.com/bjarke-xyz/rasende2/pkg"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 	"github.com/samber/lo"

@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/bjarke-xyz/rasende2-api/metrics"
-	"github.com/bjarke-xyz/rasende2-api/pkg"
-	"github.com/bjarke-xyz/rasende2-api/s3utils"
+	"github.com/bjarke-xyz/rasende2/metrics"
+	"github.com/bjarke-xyz/rasende2/pkg"
+	"github.com/bjarke-xyz/rasende2/s3utils"
 	"github.com/pkoukk/tiktoken-go"
 	openai "github.com/sashabaranov/go-openai"
 )

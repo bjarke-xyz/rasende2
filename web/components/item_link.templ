@@ -1,6 +1,6 @@
 package components
 
-import "github.com/bjarke-xyz/rasende2-api/rss"
+import "github.com/bjarke-xyz/rasende2/rss"
 
 templ ItemLink(item rss.RssSearchResult) {
 	<a href={ templ.URL(item.Link) } target="_blank" rel="noreferrer" class="hover:underline">
