@@ -59,6 +59,11 @@ type RssService struct {
 	search     *RssSearch
 }
 
+type IndexPageData struct {
+	SearchResult *SearchResult
+	ChartsResult *ChartsResult
+}
+
 var (
 	rssFetchStatusCodes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "rasende2_rss_fetch_status_codes",
@@ -82,6 +87,92 @@ func NewRssService(context *pkg.AppContext, repository *RssRepository, search *R
 		sanitizer:  bluemonday.StrictPolicy(),
 		search:     search,
 	}
+}
+
+const CacheKeyIndexPage = "PAGE:INDEX"
+
+func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*IndexPageData, error) {
+	query := "rasende"
+	offset := 0
+	limit := 10
+	searchContent := false
+	orderBy := "-published"
+
+	indexPageData := &IndexPageData{}
+	if !nocache {
+		fromCache, _ := r.context.Cache.GetObj(CacheKeyIndexPage, indexPageData)
+		if fromCache {
+			log.Printf("got %v from cache", CacheKeyIndexPage)
+			return indexPageData, nil
+		}
+	}
+
+	chartsPromise := pkg.NewPromise(func() (ChartsResult, error) {
+		chartData, err := r.GetChartData(ctx, query)
+		return chartData, err
+	})
+
+	results, err := r.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
+	if err != nil {
+		log.Printf("failed to get items with query %v: %v", query, err)
+		return &IndexPageData{}, err
+	}
+	if len(results) > limit {
+		results = results[0:limit]
+	}
+	searchResults := SearchResult{
+		HighlightedWords: []string{query},
+		Items:            results,
+	}
+	chartsData, err := chartsPromise.Get()
+	if err != nil {
+		log.Printf("failed to get charts data: %v", err)
+		return &IndexPageData{}, err
+	}
+	indexPageData.SearchResult = &searchResults
+	indexPageData.ChartsResult = &chartsData
+	go r.context.Cache.InsertObj(CacheKeyIndexPage, indexPageData, 120)
+	log.Printf("key %v missed cache", CacheKeyIndexPage)
+	return indexPageData, nil
+}
+
+func (r *RssService) GetChartData(ctx context.Context, query string) (ChartsResult, error) {
+	isRasende := query == "rasende"
+
+	siteCountPromise := pkg.NewPromise(func() ([]SiteCount, error) {
+		return r.GetSiteCountForSearchQuery(ctx, query, false)
+	})
+
+	now := time.Now()
+	sevenDaysAgo := now.Add(-time.Hour * 24 * 6)
+	tomorrow := now.Add(time.Hour * 24)
+	itemCount, err := r.GetItemCountForSearchQuery(ctx, query, false, &sevenDaysAgo, &tomorrow, "published")
+	if err != nil {
+		log.Printf("failed to get items with query %v: %v", query, err)
+		return ChartsResult{}, err
+	}
+
+	siteCount, err := siteCountPromise.Get()
+	if err != nil {
+		log.Printf("failed to get site count with query %v: %v", query, err)
+		return ChartsResult{}, err
+	}
+
+	lineTitle := "Den seneste uges raserier"
+	lineDatasetLabel := "Raseriudbrud"
+	doughnutTitle := "Raseri i de forskellige medier"
+	if !isRasende {
+		lineTitle = "Den seneste uges brug af '" + query + "'"
+		lineDatasetLabel = "Antal '" + query + "'"
+		doughnutTitle = "Brug af '" + query + "' i de forskellige medier"
+	}
+	chartsResult := ChartsResult{
+		Charts: []ChartResult{
+			MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
+			MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
+		},
+	}
+	return chartsResult, nil
 }
 
 func (r *RssService) RefreshMetrics() error {
@@ -358,7 +449,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
 	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
 	go r.context.Cache.DeleteExpired()
-	go r.context.Cache.DeleteByPrefix("HTML")
+	go r.context.Cache.DeleteByPrefix(CacheKeyIndexPage)
 	return nil
 }
 
