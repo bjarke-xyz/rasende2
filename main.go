@@ -109,6 +109,7 @@ func main() {
 	r.POST("/api/admin/clean-fake-news", rssHttpHandlers.CleanUpFakeNews(cfg.JobKey))
 
 	staticFiles(r, static)
+	r.HEAD("/", webHandlers.HandleGetIndex)
 	r.GET("/", webHandlers.HandleGetIndex)
 	r.GET("/search", webHandlers.HandleGetSearch)
 	r.POST("/search", webHandlers.HandlePostSearch)
