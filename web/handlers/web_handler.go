@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -252,7 +253,7 @@ func (w *WebHandlers) HandleGetFakeNews(c *gin.Context) {
 }
 
 func (w *WebHandlers) HandleGetFakeNewsArticle(c *gin.Context) {
-	slug := c.Param("slug")
+	slug, _ := url.QueryUnescape(c.Param("slug"))
 	siteId, date, title, err := parseArticleSlug(slug)
 	if err != nil {
 		log.Printf("error parsing slug '%v': %v", slug, err)
@@ -268,7 +269,7 @@ func (w *WebHandlers) HandleGetFakeNewsArticle(c *gin.Context) {
 	if fakeNewsDto == nil {
 		err = fmt.Errorf("fake news not found")
 		log.Printf("error getting fake news: %v", err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		c.HTML(http.StatusNotFound, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
 		return
 	}
 	if fakeNewsDto.Published.Format(time.DateOnly) != date.Format(time.DateOnly) {
