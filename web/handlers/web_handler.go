@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +17,8 @@ import (
 
 	"github.com/bjarke-xyz/rasende2/ai"
 	"github.com/bjarke-xyz/rasende2/config"
+	"github.com/bjarke-xyz/rasende2/db"
+	"github.com/bjarke-xyz/rasende2/db/dao"
 	"github.com/bjarke-xyz/rasende2/ginutils"
 	"github.com/bjarke-xyz/rasende2/pkg"
 	"github.com/bjarke-xyz/rasende2/rss"
@@ -657,10 +661,7 @@ func (w *WebHandlers) HandlePostPublishFakeNews(c *gin.Context) {
 }
 
 func (w *WebHandlers) HandlePostResetContent(c *gin.Context) {
-	redirectPath := c.Request.Header.Get("Referer")
-	if redirectPath == "" {
-		redirectPath = "/"
-	}
+	redirectPath := ginutils.RefererOrDefault(c, "/")
 	if !ginutils.IsAdmin(c) {
 		ginutils.AddFlashWarn(c, "Requires admin")
 		c.Redirect(http.StatusSeeOther, redirectPath)
@@ -744,25 +745,161 @@ func (w *WebHandlers) HandlePostArticleVote(c *gin.Context) {
 }
 
 func (w *WebHandlers) HandleGetLogin(c *gin.Context) {
+	showOtp := c.Query("otp") == "true"
+	email := c.Query("email")
 	c.HTML(http.StatusOK, "", components.Login(components.LoginViewModel{
-		Base: w.getBaseModel(c, "Login | Rasende"),
+		Base:  w.getBaseModel(c, "Login | Rasende"),
+		OTP:   showOtp,
+		Email: email,
 	}))
 }
 
 func (w *WebHandlers) HandlePostLogin(c *gin.Context) {
+	ctx := c.Request.Context()
 	// TODO: return path query param
-	email := c.Request.FormValue("email")
-	password := c.Request.FormValue("password")
-	session := sessions.Default(c)
-	if email != "" && password == w.context.Config.AdminPassword {
-		session.Set("admin", true)
-		session.Save()
-		ginutils.AddFlashInfo(c, "Du er nu logget ind!")
-		c.Redirect(http.StatusSeeOther, "/")
-	} else {
-		ginutils.AddFlashWarn(c, "Fokert adgangskode")
-		c.Redirect(http.StatusSeeOther, "/login")
+	redirectPath := ginutils.RefererOrDefault(c, w.context.Config.BaseUrl+"/login")
+	redirectPathUrl, err := url.Parse(redirectPath)
+	if err != nil {
+		ginutils.AddFlashError(c, err)
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
 	}
+	email := c.Request.FormValue("email")
+	// TODO: check if email is valid (contains @)
+	db, err := db.OpenQueries(w.context.Config)
+	if err != nil {
+		ginutils.AddFlashError(c, err)
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+	user, err := db.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// TODO: create user with that email
+		}
+		ginutils.AddFlashError(c, err)
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+	password := c.Request.FormValue("password")
+	otp := strings.TrimSpace(strings.ReplaceAll(c.Request.FormValue("otp"), "-", ""))
+	session := sessions.Default(c)
+	if otp != "" {
+		magicLinks, err := db.GetLinkByUserId(ctx, user.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				ginutils.AddFlashWarn(c, "Koden virker ikke")
+				c.Redirect(http.StatusSeeOther, redirectPath)
+				return
+			}
+			ginutils.AddFlashError(c, err)
+			c.Redirect(http.StatusSeeOther, redirectPath)
+			return
+		}
+		for _, magicLink := range magicLinks {
+			if pkg.CheckPasswordHash(otp, magicLink.OtpHash) {
+				db.DeleteMagicLink(ctx, magicLink.ID)
+				ginutils.AddFlashInfo(c, "Du er nu logget ind!")
+				c.Redirect(http.StatusSeeOther, "/")
+				return
+			}
+		}
+		ginutils.AddFlashWarn(c, "Koden virker ikke")
+		c.Redirect(http.StatusSeeOther, redirectPath)
+		return
+	}
+	if password == "" {
+		// login link
+		otp, err := pkg.GenerateOTP()
+		if err != nil {
+			ginutils.AddFlashError(c, err)
+			c.Redirect(http.StatusSeeOther, redirectPath)
+			return
+		}
+		otpHash, err := pkg.HashPassword(otp)
+		if err != nil {
+			ginutils.AddFlashError(c, err)
+			c.Redirect(http.StatusSeeOther, redirectPath)
+			return
+		}
+		linkCode, err := pkg.GenerateSecureToken()
+		if err != nil {
+			ginutils.AddFlashError(c, err)
+			c.Redirect(http.StatusSeeOther, redirectPath)
+			return
+		}
+		expiresAt := time.Now().Add(15 * time.Minute)
+		db.CreateMagicLink(ctx, dao.CreateMagicLinkParams{
+			UserID:    user.ID,
+			OtpHash:   otpHash,
+			LinkCode:  linkCode,
+			ExpiresAt: expiresAt,
+		})
+		// TODO: check if user exists before sending mail
+		// TODO: reutrn path query param
+		w.context.Mail.SendAuthLink(pkg.SendAuthLinkRequest{
+			Receiver:            email,
+			CodePath:            fmt.Sprintf("/login-link?code=%v", linkCode),
+			OTP:                 otp,
+			ExpirationTimestamp: expiresAt,
+		})
+		ginutils.AddFlashInfo(c, "Tjek din mail!")
+		redirectQuery := redirectPathUrl.Query()
+		redirectQuery.Set("otp", "true")
+		redirectQuery.Set("email", email)
+		redirectPathUrl.RawQuery = redirectQuery.Encode()
+		c.Redirect(http.StatusSeeOther, redirectPathUrl.String())
+	} else {
+		if email != "" && password == w.context.Config.AdminPassword {
+			session.Set("admin", true)
+			session.Save()
+			ginutils.AddFlashInfo(c, "Du er nu logget ind!")
+			c.Redirect(http.StatusSeeOther, "/")
+		} else {
+			ginutils.AddFlashWarn(c, "Fokert adgangskode")
+			c.Redirect(http.StatusSeeOther, redirectPath)
+		}
+	}
+}
+
+func (w *WebHandlers) HandleGetLoginLink(c *gin.Context) {
+	ctx := c.Request.Context()
+	code := c.Query("code")
+	if code == "" {
+		c.Redirect(http.StatusSeeOther, "/")
+		return
+	}
+	db, err := db.OpenQueries(w.context.Config)
+	if err != nil {
+		ginutils.AddFlashError(c, err)
+		c.Redirect(http.StatusSeeOther, "/")
+		return
+	}
+	magicLink, err := db.GetLinkByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			ginutils.AddFlashWarn(c, "Linket virker ikke")
+			c.Redirect(http.StatusSeeOther, "/")
+			return
+		}
+		ginutils.AddFlashError(c, err)
+		c.Redirect(http.StatusSeeOther, "/")
+		return
+	}
+
+	log.Println("mmagic link", magicLink)
+	err = db.SetUserEmailConfirmed(ctx, magicLink.UserID)
+	if err != nil {
+		log.Printf("error setting user %v email confirmed: %v", magicLink.UserID, err)
+	}
+
+	err = db.DeleteMagicLink(ctx, magicLink.ID)
+	if err != nil {
+		log.Printf("error deleting magic link: %v", err)
+	}
+
+	ginutils.AddFlashInfo(c, "Du er nu logget ind!")
+	c.Redirect(http.StatusSeeOther, "/")
 }
 
 func (w *WebHandlers) HandlePostLogout(c *gin.Context) {

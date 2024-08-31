@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/bjarke-xyz/rasende2/db/dao"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
@@ -29,4 +30,12 @@ func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
 		connections[connStringer.ConnectionString()] = db
 		return db, nil
 	}
+}
+
+func OpenQueries(connStringer ConnectionStringer) (*dao.Queries, error) {
+	db, err := Open(connStringer)
+	if err != nil {
+		return nil, err
+	}
+	return dao.New(db), nil
 }

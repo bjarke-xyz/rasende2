@@ -104,6 +104,8 @@ templ footer(model BaseViewModel) {
 				<form method="POST" action="/logout">
 					<button class="btn-primary">Logout</button>
 				</form>
+			} else {
+				<a href="/login">Login</a>
 			}
 		</div>
 	</footer>
@@ -141,7 +143,7 @@ templ flash(flashType string, msgs []string) {
 			&times;
 		</button>
 		for _, msg := range msgs {
-			<p>
+			<p class="text-lg">
 				{ msg }
 			</p>
 		}

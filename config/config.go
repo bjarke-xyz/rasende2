@@ -27,6 +27,13 @@ type Config struct {
 	S3ImageAccessKeyId     string
 	S3ImageSecretAccessKey string
 
+	SmtpHost     string
+	SmtpUsername string
+	SmtpPassword string
+	SmtpPort     string
+	SmtpSender   string
+	SmtpTest     bool
+
 	SearchIndexPath string
 
 	JobKey string
@@ -44,6 +51,8 @@ type Config struct {
 	UseFakeOpenAi bool
 
 	CookieSecret string
+
+	BaseUrl string
 }
 
 const (
@@ -90,6 +99,12 @@ func NewConfig() (*Config, error) {
 		S3ImageBucket:           os.Getenv("S3_IMAGE_BUCKET"),
 		S3ImageAccessKeyId:      os.Getenv("S3_IMAGE_ACCESS_KEY_ID"),
 		S3ImageSecretAccessKey:  os.Getenv("S3_IMAGE_SECRET_ACCESS_KEY"),
+		SmtpHost:                os.Getenv("SMTP_HOST"),
+		SmtpUsername:            os.Getenv("SMTP_USERNAME"),
+		SmtpPassword:            os.Getenv("SMTP_PASSWORD"),
+		SmtpPort:                os.Getenv("SMTP_PORT"),
+		SmtpSender:              os.Getenv("SMTP_SENDER"),
+		SmtpTest:                os.Getenv("SMTP_TEST") == "true",
 		JobKey:                  os.Getenv("JOB_KEY"),
 		OpenAIAPIKey:            os.Getenv("OPENAI_API_KEY"),
 		AppEnv:                  os.Getenv("APP_ENV"),
@@ -99,5 +114,6 @@ func NewConfig() (*Config, error) {
 		BuildTime:               buildTime,
 		UseFakeOpenAi:           os.Getenv("USE_FAKE_OPENAI") == "true",
 		CookieSecret:            os.Getenv("COOKIE_SECRET"),
+		BaseUrl:                 os.Getenv("BASE_URL"),
 	}, nil
 }

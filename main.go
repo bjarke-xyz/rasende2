@@ -49,11 +49,13 @@ func main() {
 
 	cacheRepo := pkg.NewCacheRepo(cfg, true)
 	cacheService := pkg.NewCacheService(cacheRepo)
+	mailService := pkg.NewMail(cfg)
 
 	ctx := &pkg.AppContext{
 		Config:     cfg,
 		JobManager: *jobs.NewJobManager(),
 		Cache:      cacheService,
+		Mail:       mailService,
 	}
 
 	rssRepository := rss.NewRssRepository(ctx)
@@ -92,16 +94,16 @@ func main() {
 
 	r := ginRouter(cfg)
 	// r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
-	r.GET("/api/search", rssHttpHandlers.HandleSearch)
-	r.GET("/api/charts", rssHttpHandlers.HandleCharts)
-	r.GET("/api/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
-	r.GET("api/fake-news-article", rssHttpHandlers.GetFakeNewsArticle)
-	r.POST("/api/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
-	r.POST("/api/reset-content", rssHttpHandlers.ResetFakeNewsContent)
-	r.POST("/api/vote-fake-news", rssHttpHandlers.HandleArticleVote)
-	r.GET("/api/generate-titles", rssHttpHandlers.HandleGenerateTitles)
-	r.GET("/api/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
-	r.GET("/api/sites", rssHttpHandlers.HandleSites)
+	// r.GET("/api/search", rssHttpHandlers.HandleSearch)
+	// r.GET("/api/charts", rssHttpHandlers.HandleCharts)
+	// r.GET("/api/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
+	// r.GET("api/fake-news-article", rssHttpHandlers.GetFakeNewsArticle)
+	// r.POST("/api/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
+	// r.POST("/api/reset-content", rssHttpHandlers.ResetFakeNewsContent)
+	// r.POST("/api/vote-fake-news", rssHttpHandlers.HandleArticleVote)
+	// r.GET("/api/generate-titles", rssHttpHandlers.HandleGenerateTitles)
+	// r.GET("/api/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
+	// r.GET("/api/sites", rssHttpHandlers.HandleSites)
 	r.POST("/api/job", rssHttpHandlers.RunJob(cfg.JobKey))
 	r.POST("/api/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
 	r.POST("/api/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
@@ -109,6 +111,7 @@ func main() {
 	r.POST("/api/admin/clean-fake-news", rssHttpHandlers.CleanUpFakeNews(cfg.JobKey))
 
 	staticFiles(r, static)
+	// r.Use(middleware.Slow(1 * time.Second))
 	r.HEAD("/", webHandlers.HandleGetIndex)
 	r.GET("/", webHandlers.HandleGetIndex)
 	r.GET("/search", webHandlers.HandleGetSearch)
@@ -124,6 +127,7 @@ func main() {
 	r.POST("/publish-fake-news", webHandlers.HandlePostPublishFakeNews)
 	r.POST("/vote-article", webHandlers.HandlePostArticleVote)
 	r.GET("/login", webHandlers.HandleGetLogin)
+	r.GET("/login-link", webHandlers.HandleGetLoginLink)
 	r.POST("/login", webHandlers.HandlePostLogin)
 	r.POST("/logout", webHandlers.HandlePostLogout)
 	r.POST("/reset-article-content", webHandlers.HandlePostResetContent)

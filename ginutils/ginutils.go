@@ -12,6 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func RefererOrDefault(c *gin.Context, defaultPath string) string {
+	referer := c.Request.Header.Get("Referer")
+	if referer != "" {
+		return referer
+	}
+	return defaultPath
+}
+
 func IntQuery(c *gin.Context, query string, defaultVal int) int {
 	valStr := c.DefaultQuery(query, fmt.Sprintf("%v", defaultVal))
 	val, err := strconv.Atoi(valStr)
