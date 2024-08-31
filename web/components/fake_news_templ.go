@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/bjarke-xyz/rasende2/config"
 	"github.com/bjarke-xyz/rasende2/rss"
+	"net/url"
 	"time"
 )
 
@@ -122,7 +123,7 @@ func fakeNewsGrid(model FakeNewsViewModel) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(model.Cursor)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 75, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 76, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -180,7 +181,7 @@ func FakeNews(model FakeNewsViewModel) templ.Component {
 }
 
 func getArticleUrl(fn rss.FakeNewsDto) string {
-	return fmt.Sprintf("/fake-news/%v", fn.Slug())
+	return fmt.Sprintf("/fake-news/%v", url.QueryEscape(fn.Slug()))
 }
 
 func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[string]string) templ.Component {
@@ -217,7 +218,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(getValOrDefault(fn.ImageUrl, config.PlaceholderImgUrl))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 108, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 109, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -230,7 +231,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fn.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 109, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 110, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -243,7 +244,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fn.SiteName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 115, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 116, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -256,7 +257,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(fn.Published.Format(time.RFC3339))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 117, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 118, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -269,7 +270,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(funcs.TimeDifference(fn.Published))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 118, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 119, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -291,7 +292,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(fn.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 123, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 124, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -304,7 +305,7 @@ func articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[s
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(funcs.TruncateText(fn.Content, 160))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 126, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 127, Col: 97}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -360,7 +361,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("fn-votes-%v", fn.Id()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 143, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 144, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -373,7 +374,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(fn.SiteId))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 144, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 145, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -386,7 +387,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fn.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 145, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 146, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -431,7 +432,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 155, Col: 128}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 156, Col: 128}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -444,7 +445,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#fn-votes-%v", fn.Id()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 156, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 157, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -457,7 +458,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(fn.Votes))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 161, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 162, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -502,7 +503,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 170, Col: 128}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 171, Col: 128}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -515,7 +516,7 @@ func FakeNewsVotes(fn rss.FakeNewsDto, alreadyVoted map[string]string) templ.Com
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#fn-votes-%v", fn.Id()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 171, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/fake_news.templ`, Line: 172, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {

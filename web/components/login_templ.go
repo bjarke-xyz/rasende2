@@ -9,10 +9,11 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 type LoginViewModel struct {
-	Base     BaseViewModel
-	Password bool
-	OTP      bool
-	Email    string
+	Base       BaseViewModel
+	Password   bool
+	OTP        bool
+	Email      string
+	ReturnPath string
 }
 
 func login(model LoginViewModel) templ.Component {
@@ -33,16 +34,29 @@ func login(model LoginViewModel) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex justify-center\"><div class=\"w-full max-w-sm p-6 bg-white text-slate-900 rounded-lg shadow-md\"><h2 class=\"text-2xl font-semibold text-center text-gray-700 mb-6\">Login</h2><form method=\"post\"><div class=\"mb-4\"><label for=\"email\" class=\"block text-gray-700 text-sm font-bold mb-2\">Email</label> <input type=\"email\" id=\"email\" name=\"email\" value=\"")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<div class=\"flex justify-center\"><div class=\"w-full max-w-sm p-6 bg-white text-slate-900 rounded-lg shadow-md\"><h2 class=\"text-2xl font-semibold text-center text-gray-700 mb-6\">Login</h2><form method=\"post\"><input type=\"hidden\" name=\"returnPath\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(model.Email)
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(model.ReturnPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/login.templ`, Line: 21, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/login.templ`, Line: 16, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\"><div class=\"mb-4\"><label for=\"email\" class=\"block text-gray-700 text-sm font-bold mb-2\">Email</label> <input type=\"email\" id=\"email\" name=\"email\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(model.Email)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/login.templ`, Line: 23, Col: 25}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -83,9 +97,9 @@ func Login(model LoginViewModel) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var3 == nil {
-			templ_7745c5c3_Var3 = templ.NopComponent
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = Layout(model.Base, login(model)).Render(ctx, templ_7745c5c3_Buffer)

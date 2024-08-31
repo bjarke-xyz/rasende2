@@ -20,13 +20,14 @@ CREATE TABLE IF NOT EXISTS magic_links(
     expires_at DATETIME NOT NULL,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
-CREATE INDEX IF NOT EXISTS ix_magic_links_user_id ON magic_links(user_id);
+CREATE INDEX IF NOT EXISTS ix_magic_links_user_id_expires_at ON magic_links(user_id, expires_at);
 CREATE INDEX IF NOT EXISTS ix_magic_links_link_code ON magic_links(link_code);
+CREATE INDEX IF NOT EXISTS ix_magic_links_expires_at ON magic_links(expires_at);
 
 -- +goose Down
 DROP TABLE IF EXISTS users;
 DROP INDEX IF EXISTS ix_users_email;
 
 DROP TABLE IF EXISTS magic_links;
-DROP INDEX IF EXISTS ix_magic_links_user_id;
-DROP TABLE IF EXISTS ix_magic_links_link_code;
+DROP INDEX IF EXISTS ix_magic_links_user_id_expires_at;
+DROP INDEX IF EXISTS ix_magic_links_link_code;

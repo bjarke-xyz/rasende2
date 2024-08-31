@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/bjarke-xyz/rasende2/config"
 	"github.com/bjarke-xyz/rasende2/rss"
+	"net/url"
 	"time"
 )
 
@@ -97,7 +98,7 @@ templ FakeNews(model FakeNewsViewModel) {
 }
 
 func getArticleUrl(fn rss.FakeNewsDto) string {
-	return fmt.Sprintf("/fake-news/%v", fn.Slug())
+	return fmt.Sprintf("/fake-news/%v", url.QueryEscape(fn.Slug()))
 }
 
 templ articleCard(fn rss.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[string]string) {

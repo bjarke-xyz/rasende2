@@ -23,7 +23,10 @@ type BaseViewModel struct {
 	FlashWarn     []string
 	FlashError    []string
 	NoCache       bool
-	IsAdmin       bool
+
+	UserId          int64
+	IsAdmin         bool
+	IsAnonymousUser bool
 }
 
 templ Layout(viewModel BaseViewModel, children ...templ.Component) {
@@ -100,7 +103,7 @@ templ header(path string) {
 templ footer(model BaseViewModel) {
 	<footer class="p-2">
 		<div class="flex flex-row justify-end text-sm">
-			if model.IsAdmin {
+			if !model.IsAnonymousUser {
 				<form method="POST" action="/logout">
 					<button class="btn-primary">Logout</button>
 				</form>
@@ -130,20 +133,12 @@ templ flash(flashType string, msgs []string) {
 		}
 		</script>
 	}
-	// TODO: 
-	// <div onclick="handleFlashClick(this)" class={ "p-8 m-4 rounded-md text-slate-900 ", templ.KV("bg-red-200", flashType == ginutils.FlashTypeError), templ.KV("bg-yellow-200", flashType == ginutils.FlashTypeWarn), templ.KV("bg-blue-200", flashType == ginutils.FlashTypeInfo) }>
-	// 	for _, msg := range msgs {
-	// 		<p>
-	// 			{ msg }
-	// 		</p>
-	// 	}
-	// </div>
-	<div class={ "relative p-8 m-4 rounded-md text-slate-900 ", templ.KV("bg-red-200", flashType == ginutils.FlashTypeError), templ.KV("bg-yellow-200", flashType == ginutils.FlashTypeWarn), templ.KV("bg-blue-200", flashType == ginutils.FlashTypeInfo) }>
+	<div class={ "relative p-4 m-4 rounded-md text-slate-900 ", templ.KV("bg-red-200", flashType == ginutils.FlashTypeError), templ.KV("bg-yellow-200", flashType == ginutils.FlashTypeWarn), templ.KV("bg-blue-200", flashType == ginutils.FlashTypeInfo) }>
 		<button onclick="handleFlashClick(this)" onclick="this.parentElement.style.display='none';" class="absolute top-2 right-2 text-slate-900">
 			&times;
 		</button>
 		for _, msg := range msgs {
-			<p class="text-lg">
+			<p class="text-xl">
 				{ msg }
 			</p>
 		}

@@ -64,16 +64,6 @@ func StringForm(c *gin.Context, name string, defaultVal string) string {
 	return val
 }
 
-func IsAdmin(c *gin.Context) bool {
-	session := sessions.Default(c)
-	adminIface := session.Get("admin")
-	admin, ok := adminIface.(bool)
-	if !ok {
-		return false
-	}
-	return admin
-}
-
 func RenderToStringCtx(ctx context.Context, component templ.Component) string {
 	buffer := &strings.Builder{}
 	component.Render(ctx, buffer)

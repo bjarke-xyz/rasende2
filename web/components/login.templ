@@ -1,10 +1,11 @@
 package components
 
 type LoginViewModel struct {
-	Base     BaseViewModel
-	Password bool
-	OTP      bool
-	Email    string
+	Base       BaseViewModel
+	Password   bool
+	OTP        bool
+	Email      string
+	ReturnPath string
 }
 
 templ login(model LoginViewModel) {
@@ -12,6 +13,7 @@ templ login(model LoginViewModel) {
 		<div class="w-full max-w-sm p-6 bg-white text-slate-900 rounded-lg shadow-md">
 			<h2 class="text-2xl font-semibold text-center text-gray-700 mb-6">Login</h2>
 			<form method="post">
+				<input type="hidden" name="returnPath" value={ model.ReturnPath }/>
 				<div class="mb-4">
 					<label for="email" class="block text-gray-700 text-sm font-bold mb-2">Email</label>
 					<input

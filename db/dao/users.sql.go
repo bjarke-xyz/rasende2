@@ -7,6 +7,7 @@ package dao
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -28,6 +29,39 @@ func (q *Queries) CreateMagicLink(ctx context.Context, arg CreateMagicLinkParams
 		arg.LinkCode,
 		arg.ExpiresAt,
 	)
+	return err
+}
+
+const createUser = `-- name: CreateUser :one
+INSERT INTO users (email, password_hash) VALUES (?, ?) RETURNING id, created_at, updated_at, email, email_confirmed, password_hash, is_admin
+`
+
+type CreateUserParams struct {
+	Email        string         `json:"email"`
+	PasswordHash sql.NullString `json:"password_hash"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createUser, arg.Email, arg.PasswordHash)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.EmailConfirmed,
+		&i.PasswordHash,
+		&i.IsAdmin,
+	)
+	return i, err
+}
+
+const deleteExpiredMagicLinks = `-- name: DeleteExpiredMagicLinks :exec
+DELETE FROM magic_links WHERE expires_at < CURRENT_TIMESTAMP
+`
+
+func (q *Queries) DeleteExpiredMagicLinks(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredMagicLinks)
 	return err
 }
 
@@ -61,13 +95,13 @@ func (q *Queries) GetLinkByCode(ctx context.Context, linkCode string) (MagicLink
 	return i, err
 }
 
-const getLinkByUserId = `-- name: GetLinkByUserId :many
+const getLinksByUserId = `-- name: GetLinksByUserId :many
 SELECT id, created_at, updated_at, user_id, otp_hash, link_code, expires_at FROM magic_links
-WHERE user_id = ?
+WHERE user_id = ? AND expires_at >= CURRENT_TIMESTAMP
 `
 
-func (q *Queries) GetLinkByUserId(ctx context.Context, userID int64) ([]MagicLink, error) {
-	rows, err := q.db.QueryContext(ctx, getLinkByUserId, userID)
+func (q *Queries) GetLinksByUserId(ctx context.Context, userID int64) ([]MagicLink, error) {
+	rows, err := q.db.QueryContext(ctx, getLinksByUserId, userID)
 	if err != nil {
 		return nil, err
 	}
