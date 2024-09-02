@@ -202,7 +202,7 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	stream, err := w.openaiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
+	stream, err := w.aiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 
@@ -365,7 +365,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 	}
 
 	articleImgPromise := pkg.NewPromise(func() (string, error) {
-		imgUrl, err := w.openaiClient.GenerateImage(c.Request.Context(), site.Name, site.DescriptionEn, article.Title, true)
+		imgUrl, err := w.aiClient.GenerateImage(c.Request.Context(), site.Name, site.DescriptionEn, article.Title, true)
 		if err != nil {
 			log.Printf("error maing fake news img: %v", err)
 		}
@@ -376,7 +376,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 	})
 
 	var temperature float32 = 1.0
-	stream, err := w.openaiClient.GenerateArticleContent(c.Request.Context(), site.Name, site.Description, article.Title, temperature)
+	stream, err := w.aiClient.GenerateArticleContent(c.Request.Context(), site.Name, site.Description, article.Title, temperature)
 	if err != nil {
 		log.Printf("openai failed: %v", err)
 		var apiError *openai.APIError

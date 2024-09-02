@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarke-xyz/rasende2/internal/ai"
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/news"
 	"github.com/bjarke-xyz/rasende2/pkg"
@@ -16,18 +15,18 @@ import (
 )
 
 type api struct {
-	context      *core.AppContext
-	service      *news.RssService
-	openaiClient *ai.OpenAIClient
-	search       *news.RssSearch
+	context  *core.AppContext
+	service  *news.RssService
+	aiClient core.AiClient
+	search   *news.RssSearch
 }
 
-func NewAPI(context *core.AppContext, service *news.RssService, openaiClient *ai.OpenAIClient, search *news.RssSearch) *api {
+func NewAPI(context *core.AppContext, service *news.RssService, openaiClient core.AiClient, search *news.RssSearch) *api {
 	return &api{
-		context:      context,
-		service:      service,
-		openaiClient: openaiClient,
-		search:       search,
+		context:  context,
+		service:  service,
+		aiClient: openaiClient,
+		search:   search,
 	}
 }
 
@@ -175,14 +174,14 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 		var temperature float32 = 1
 		var generatedTitleCount = 30
-		generatedArticleTitles, err := a.openaiClient.GenerateArticleTitlesList(ctx, site.Name, site.DescriptionEn, recentArticleTitles, generatedTitleCount, temperature)
+		generatedArticleTitles, err := a.aiClient.GenerateArticleTitlesList(ctx, site.Name, site.DescriptionEn, recentArticleTitles, generatedTitleCount, temperature)
 		if err != nil {
 			log.Printf("error getting generated article titles: %v", err)
 			c.JSON(500, err.Error())
 			return
 		}
 		log.Printf("generated titles: %v", strings.Join(generatedArticleTitles, ", "))
-		selectedTitle, err := a.openaiClient.SelectBestArticleTitle(ctx, site.Name, site.DescriptionEn, generatedArticleTitles)
+		selectedTitle, err := a.aiClient.SelectBestArticleTitle(ctx, site.Name, site.DescriptionEn, generatedArticleTitles)
 		if err != nil {
 			log.Printf("error selecting best article title: %v", err)
 			c.JSON(500, err.Error())
@@ -198,7 +197,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 
 		articleImgPromise := pkg.NewPromise(func() (string, error) {
-			imgUrl, err := a.openaiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle, true)
+			imgUrl, err := a.aiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle, true)
 			if err != nil {
 				log.Printf("error making fake news img: %v", err)
 			}
@@ -208,7 +207,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 			return imgUrl, err
 		})
 
-		articleContent, err := a.openaiClient.GenerateArticleContentStr(ctx, site.Name, site.DescriptionEn, selectedTitle, temperature)
+		articleContent, err := a.aiClient.GenerateArticleContentStr(ctx, site.Name, site.DescriptionEn, selectedTitle, temperature)
 		if err != nil {
 			log.Printf("error generating article content: %v", err)
 			c.JSON(500, err.Error())

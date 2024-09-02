@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bjarke-xyz/rasende2/internal/ai"
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/news"
 	"github.com/bjarke-xyz/rasende2/internal/web/auth"
@@ -20,18 +19,18 @@ import (
 var static embed.FS
 
 type web struct {
-	context      *core.AppContext
-	service      *news.RssService
-	openaiClient *ai.OpenAIClient
-	search       *news.RssSearch
+	context  *core.AppContext
+	service  *news.RssService
+	aiClient core.AiClient
+	search   *news.RssSearch
 }
 
-func NewWeb(context *core.AppContext, service *news.RssService, openaiClient *ai.OpenAIClient, search *news.RssSearch) *web {
+func NewWeb(context *core.AppContext, service *news.RssService, openaiClient core.AiClient, search *news.RssSearch) *web {
 	return &web{
-		context:      context,
-		service:      service,
-		openaiClient: openaiClient,
-		search:       search,
+		context:  context,
+		service:  service,
+		aiClient: openaiClient,
+		search:   search,
 	}
 }
 

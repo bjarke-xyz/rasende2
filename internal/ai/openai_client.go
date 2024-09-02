@@ -20,7 +20,7 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-type OpenAIClient struct {
+type openAIClient struct {
 	appContext *core.AppContext
 	client     *openai.Client
 	useFake    bool
@@ -28,16 +28,16 @@ type OpenAIClient struct {
 
 const chatModel = "gpt-4o-mini"
 
-func NewOpenAIClient(appContext *core.AppContext) *OpenAIClient {
+func NewOpenAIClient(appContext *core.AppContext) core.AiClient {
 	client := openai.NewClient(appContext.Config.OpenAIAPIKey)
-	return &OpenAIClient{
+	return &openAIClient{
 		appContext: appContext,
 		client:     client,
 		useFake:    appContext.Config.UseFakeOpenAi,
 	}
 }
 
-func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
+func (o *openAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
 	if o.useFake {
 		return "https://placecats.com/512/512", nil
 	}
@@ -127,7 +127,7 @@ func (o *OpenAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 	return url, nil
 }
 
-func (o *OpenAIClient) uploadImage(ctx context.Context, imgBase64Json string, articleTitle string) (string, error) {
+func (o *openAIClient) uploadImage(ctx context.Context, imgBase64Json string, articleTitle string) (string, error) {
 	imgBytes, err := base64.StdEncoding.DecodeString(imgBase64Json)
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64json: %w", err)
@@ -155,7 +155,7 @@ func (o *OpenAIClient) uploadImage(ctx context.Context, imgBase64Json string, ar
 	return url, nil
 }
 
-func (o *OpenAIClient) GenerateArticleTitlesList(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
+func (o *openAIClient) GenerateArticleTitlesList(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
 	streamResp, err := o.GenerateArticleTitles(ctx, siteName, siteDescription, previousTitles, newTitlesCount, temperature)
 	if err != nil {
 		return nil, err
@@ -183,13 +183,13 @@ func (o *OpenAIClient) GenerateArticleTitlesList(ctx context.Context, siteName s
 	}
 }
 
-func (o *OpenAIClient) generateArticleTitlesFake() (ChatCompletionStream, error) {
+func (o *openAIClient) generateArticleTitlesFake() (core.ChatCompletionStream, error) {
 	// fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3, content: "Her er en falsk overskrift :)"}
-	fakeChatCompletionStream := &fakeChatCompletionStream{contents: []string{"Her er ", "en falsk ove", fmt.Sprintf("rskrift :) %v", time.Now().UnixMilli()), "\n Og her ko", fmt.Sprintf("mmer den næste! %v\n", time.Now().UnixMilli())}}
+	fakeChatCompletionStream := core.NewFakeChatCompletionStream([]string{"Her er ", "en falsk ove", fmt.Sprintf("rskrift :) %v", time.Now().UnixMilli()), "\n Og her ko", fmt.Sprintf("mmer den næste! %v\n", time.Now().UnixMilli())})
 	return fakeChatCompletionStream, nil
 }
 
-func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (ChatCompletionStream, error) {
+func (o *openAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (core.ChatCompletionStream, error) {
 	if o.useFake {
 		return o.generateArticleTitlesFake()
 	}
@@ -240,7 +240,7 @@ func (o *OpenAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	return wrapOpenAiChatCompletionStream(stream), err
 }
 
-func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
+func (o *openAIClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
 	if o.useFake {
 		return articleTitles[0], nil
 	}
@@ -283,7 +283,7 @@ func (o *OpenAIClient) SelectBestArticleTitle(ctx context.Context, siteName stri
 	}
 }
 
-func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (string, error) {
+func (o *openAIClient) GenerateArticleContentStr(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (string, error) {
 	streamResp, err := o.GenerateArticleContent(ctx, siteName, siteDescription, articleTitle, temperature)
 	if err != nil {
 		return "", err
@@ -303,12 +303,12 @@ func (o *OpenAIClient) GenerateArticleContentStr(ctx context.Context, siteName s
 	}
 }
 
-func (o *OpenAIClient) generateArticleContentFake() (ChatCompletionStream, error) {
-	fakeChatCompletionStream := &fakeChatCompletionStream{contents: []string{"Her er brø", "dteksten af en ", " falsk artikel, som er m", "eget meget lang\n"}}
+func (o *openAIClient) generateArticleContentFake() (core.ChatCompletionStream, error) {
+	fakeChatCompletionStream := core.NewFakeChatCompletionStream([]string{"Her er brø", "dteksten af en ", " falsk artikel, som er m", "eget meget lang\n"})
 	return fakeChatCompletionStream, nil
 }
 
-func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (ChatCompletionStream, error) {
+func (o *openAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (core.ChatCompletionStream, error) {
 	if o.useFake {
 		return o.generateArticleContentFake()
 	}
@@ -344,39 +344,6 @@ func (o *OpenAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 	return wrapOpenAiChatCompletionStream(stream), err
 }
 
-type ChatCompletionStream interface {
-	Recv() (ChatCompletionStreamResponse, error)
-}
-type ChatCompletionStreamResponse interface {
-	Content() string
-}
-
-type fakeChatCompletionStream struct {
-	contents []string
-	index    int
-}
-
-func (f *fakeChatCompletionStream) Recv() (ChatCompletionStreamResponse, error) {
-	if f.index > (len(f.contents) - 1) {
-		return nil, io.EOF
-	}
-	index := f.index
-	f.index++
-	content := f.contents[index]
-	time.Sleep(100 * time.Millisecond)
-	return &chatCompletionStreamResponse{
-		content: content,
-	}, nil
-}
-
-type chatCompletionStreamResponse struct {
-	content string
-}
-
-func (f *chatCompletionStreamResponse) Content() string {
-	return f.content
-}
-
 type OpenAiChatCompletionStream struct {
 	stream *openai.ChatCompletionStream
 }
@@ -386,16 +353,14 @@ func wrapOpenAiChatCompletionStream(stream *openai.ChatCompletionStream) *OpenAi
 		stream: stream,
 	}
 }
-func (oai *OpenAiChatCompletionStream) Recv() (ChatCompletionStreamResponse, error) {
+func (oai *OpenAiChatCompletionStream) Recv() (core.ChatCompletionStreamResponse, error) {
 	resp, err := oai.stream.Recv()
 	if err != nil {
 		return nil, err
 	}
 	content := resp.Choices[0].Delta.Content
 	// log.Printf("content = '%v' // len=%v", content, len(content))
-	return &chatCompletionStreamResponse{
-		content: content,
-	}, nil
+	return core.NewChatCompletionStreamResponse(content), nil
 }
 
 var imgLlmPrompt string = `
