@@ -147,7 +147,7 @@ func Layout(viewModel BaseViewModel, children ...templ.Component) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" defer></script><script data-goatcounter=\"https://rasende2.goatcounter.com/count\" async src=\"//gc.zgo.at/count.js\"></script>")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("\" defer></script><script>\n\t\t\t\t\twindow.goatcounter = {\n\t\t\t\t\t\t// The passed value is the default.\n\t\t\t\t\t\tpath: function(p) {\n\t\t\t\t\t\t\t// Don't track email query param\n\t\t\t\t\t\t\tif (p.includes(\"?\")) {\n\t\t\t\t\t\t\t\tconst questionMarkIndex = p.indexOf(\"?\")\n\t\t\t\t\t\t\t\tconst queryParams = p.substring(questionMarkIndex)\n\t\t\t\t\t\t\t\tconst urlSearchParams = new URLSearchParams(queryParams);\n\t\t\t\t\t\t\t\tif (urlSearchParams.has(\"email\")) {\n\t\t\t\t\t\t\t\t\turlSearchParams.set(\"email\", \"[REDACTED]\")\n\t\t\t\t\t\t\t\t\tconst noQueryP = p.substring(0, questionMarkIndex)\n\t\t\t\t\t\t\t\t\tconst newP = p + \"?\" + urlSearchParams.toString();\n\t\t\t\t\t\t\t\t\treturn newP;\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\treturn p;\n\t\t\t\t\t\t},\n\t\t\t\t\t}\n\t\t\t\t</script><script data-goatcounter=\"https://rasende2.goatcounter.com/count\" async src=\"//gc.zgo.at/count.js\"></script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -252,7 +252,7 @@ func headerLink(currentPath string, linkPath string, text string) templ.Componen
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 81, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 101, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -279,7 +279,7 @@ func headerLink(currentPath string, linkPath string, text string) templ.Componen
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 83, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 103, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -410,7 +410,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(model.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 118, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 138, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -423,7 +423,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(model.Image)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 120, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 140, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -436,7 +436,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(model.Url)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 121, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 141, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -449,7 +449,7 @@ func openGraph(model BaseOpenGraphModel) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(model.Description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 122, Col: 60}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 142, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -535,7 +535,7 @@ func flash(flashType string, msgs []string) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(msg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 142, Col: 9}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/components/layout.templ`, Line: 162, Col: 9}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
