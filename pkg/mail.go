@@ -9,7 +9,18 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/config"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+var mailCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "rasende2_mails_sent",
+	Help: "Number of mails sent",
+}, []string{"type"})
+var mailErrorCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "rasende2_mails_error",
+	Help: "Number of mail errors",
+}, []string{"type"})
 
 type MailService struct {
 	cfg *config.Config
@@ -33,6 +44,7 @@ func (m *MailService) SendAuthLink(req SendAuthLinkRequest) error {
 	codeUrl := fmt.Sprintf("%v%v", m.cfg.BaseUrl, req.CodePath)
 	formattedOtp := fmt.Sprintf("%s-%s", req.OTP[:3], req.OTP[3:])
 	sendMailReq := SendMailRequest{
+		Type:     "auth_link",
 		Receiver: req.Receiver,
 		Subject:  "Your link to sign in",
 		Message: fmt.Sprintf(`
@@ -56,6 +68,7 @@ If you didn't ask for this, just ignore it.
 }
 
 type SendMailRequest struct {
+	Type     string
 	Receiver string
 	Subject  string
 	Message  string
@@ -72,8 +85,10 @@ func (m *MailService) Send(req SendMailRequest) error {
 	err := smtp.SendMail(m.cfg.SmtpHost+":"+m.cfg.SmtpPort, auth, m.cfg.SmtpSender, []string{req.Receiver}, messageBytes)
 	if err != nil {
 		log.Printf("error sending mail to %v: %v", req.Receiver, err)
+		mailErrorCounter.WithLabelValues(req.Type).Inc()
 		return err
 	}
+	mailCounter.WithLabelValues(req.Type).Inc()
 	return nil
 }
 
