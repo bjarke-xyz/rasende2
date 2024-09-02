@@ -1,32 +1,25 @@
 package main
 
 import (
-	"context"
-	"embed"
-	"io/fs"
 	"log"
 	"net/http"
-	"strings"
 
-	"github.com/bjarke-xyz/rasende2/ai"
-	"github.com/bjarke-xyz/rasende2/config"
-	"github.com/bjarke-xyz/rasende2/db"
-	"github.com/bjarke-xyz/rasende2/jobs"
-	"github.com/bjarke-xyz/rasende2/pkg"
-	"github.com/bjarke-xyz/rasende2/rss"
-	"github.com/bjarke-xyz/rasende2/web/handlers"
-	"github.com/bjarke-xyz/rasende2/web/renderer"
+	"github.com/bjarke-xyz/rasende2/internal/ai"
+	"github.com/bjarke-xyz/rasende2/internal/api"
+	"github.com/bjarke-xyz/rasende2/internal/config"
+	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/mail"
+	"github.com/bjarke-xyz/rasende2/internal/news"
+	"github.com/bjarke-xyz/rasende2/internal/repository"
+	"github.com/bjarke-xyz/rasende2/internal/repository/db"
+	"github.com/bjarke-xyz/rasende2/internal/web"
+	"github.com/bjarke-xyz/rasende2/internal/web/renderer"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-//go:embed web/static/*
-var static embed.FS
-
-//go:generate npx tailwindcss build -i web/static/css/style.css -o web/static/css/tailwind.css -m
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -47,90 +40,30 @@ func main() {
 		}
 	}
 
-	cacheRepo := pkg.NewCacheRepo(cfg, true)
-	cacheService := pkg.NewCacheService(cacheRepo)
-	mailService := pkg.NewMail(cfg)
+	cache := repository.NewCacheService(repository.NewCacheRepo(cfg, true))
+	mailService := mail.NewMail(cfg)
 
-	ctx := &pkg.AppContext{
-		Config:     cfg,
-		JobManager: *jobs.NewJobManager(),
-		Cache:      cacheService,
-		Mail:       mailService,
+	ctx := &core.AppContext{
+		Config: cfg,
+		Cache:  cache,
+		Mail:   mailService,
 	}
 
-	rssRepository := rss.NewRssRepository(ctx)
-	rssSearch := rss.NewRssSearch(cfg.SearchIndexPath)
-	rssService := rss.NewRssService(ctx, rssRepository, rssSearch)
-
-	indexCreated, err := rssSearch.OpenAndCreateIndexIfNotExists()
-	if err != nil {
-		log.Printf("failed to open/create index: %v", err)
-	}
-	if indexCreated {
-		go rssService.AddMissingItemsToSearchIndexAndLogError(context.Background(), nil)
-	}
-	defer rssSearch.CloseIndex()
-
-	go func() {
-		err := rssService.RefreshMetrics()
-		if err != nil {
-			log.Printf("error refreshing metrics: %v", err)
-		}
-	}()
-
+	rssRepository := repository.NewSqliteNews(ctx)
+	rssSearch := news.NewRssSearch(cfg.SearchIndexPath)
+	rssService := news.NewRssService(ctx, rssRepository, rssSearch)
 	openAiClient := ai.NewOpenAIClient(ctx)
 
-	defer ctx.JobManager.Stop()
-	ctx.JobManager.Cron("1 * * * *", rss.JobIdentifierIngestion, func() error {
-		job := rss.NewIngestionJob(rssService)
-		return job.ExecuteJob()
-	}, false)
-	go ctx.JobManager.Start()
+	rssService.Initialise()
+	defer rssService.Dispose()
 
 	runMetricsServer()
 
-	rssHttpHandlers := rss.NewHttpHandlers(ctx, rssService, openAiClient, rssSearch)
-	webHandlers := handlers.NewWebHandlers(ctx, rssService, openAiClient, rssSearch)
-
+	apiHandlers := api.NewAPI(ctx, rssService, openAiClient, rssSearch)
+	webHandlers := web.NewWeb(ctx, rssService, openAiClient, rssSearch)
 	r := ginRouter(cfg)
-	// r.POST("/migrate", rssHttpHandlers.HandleMigrate(cfg.JobKey))
-	// r.GET("/api/search", rssHttpHandlers.HandleSearch)
-	// r.GET("/api/charts", rssHttpHandlers.HandleCharts)
-	// r.GET("/api/highlighted-fake-news", rssHttpHandlers.GetHighlightedFakeNews)
-	// r.GET("api/fake-news-article", rssHttpHandlers.GetFakeNewsArticle)
-	// r.POST("/api/set-highlight", rssHttpHandlers.SetHighlightedFakeNews)
-	// r.POST("/api/reset-content", rssHttpHandlers.ResetFakeNewsContent)
-	// r.POST("/api/vote-fake-news", rssHttpHandlers.HandleArticleVote)
-	// r.GET("/api/generate-titles", rssHttpHandlers.HandleGenerateTitles)
-	// r.GET("/api/generate-content", rssHttpHandlers.HandleGenerateArticleContent)
-	// r.GET("/api/sites", rssHttpHandlers.HandleSites)
-	r.POST("/api/job", rssHttpHandlers.RunJob(cfg.JobKey))
-	r.POST("/api/backup-db", rssHttpHandlers.BackupDb(cfg.JobKey))
-	r.POST("/api/admin/rebuild-index", rssHttpHandlers.RebuildIndex(cfg.JobKey))
-	r.POST("/api/admin/auto-generate-fake-news", rssHttpHandlers.AutoGenerateFakeNews(cfg.JobKey))
-	r.POST("/api/admin/clean-fake-news", rssHttpHandlers.CleanUpFakeNews(cfg.JobKey))
-
-	staticFiles(r, static)
-	// r.Use(middleware.Slow(1 * time.Second))
-	r.HEAD("/", webHandlers.HandleGetIndex)
-	r.GET("/", webHandlers.HandleGetIndex)
-	r.GET("/search", webHandlers.HandleGetSearch)
-	r.POST("/search", webHandlers.HandlePostSearch)
-	r.GET("/fake-news", webHandlers.HandleGetFakeNews)
-	r.GET("/fake-news/:slug", webHandlers.HandleGetFakeNewsArticle)
-	r.POST("/fake-news/:slug", webHandlers.HandleGetFakeNewsArticle)
-	r.GET("/title-generator", webHandlers.HandleGetTitleGenerator)
-	r.GET("/generate-titles", webHandlers.HandleGetSseTitles)
-	r.GET("/generate-titles-sse", webHandlers.HandleGetTitleGeneratorSse)
-	r.GET("/article-generator", webHandlers.HandleGetArticleGenerator)
-	r.GET("/generate-article", webHandlers.HandleGetSseArticleContent)
-	r.POST("/publish-fake-news", webHandlers.HandlePostPublishFakeNews)
-	r.POST("/vote-article", webHandlers.HandlePostArticleVote)
-	r.GET("/login", webHandlers.HandleGetLogin)
-	r.GET("/login-link", webHandlers.HandleGetLoginLink)
-	r.POST("/login", webHandlers.HandlePostLogin)
-	r.POST("/logout", webHandlers.HandlePostLogout)
-	r.POST("/reset-article-content", webHandlers.HandlePostResetContent)
+	apiHandlers.Route(r)
+	webHandlers.Route(r)
 
 	log.Printf("Listening on http://localhost:%s", cfg.Port)
 	r.Run()
@@ -165,30 +98,4 @@ func runMetricsServer() {
 		mux.Handle("/metrics", promhttp.Handler())
 		http.ListenAndServe(":9091", mux)
 	}()
-}
-
-func staticFiles(r *gin.Engine, staticFs fs.FS) {
-	staticWeb, err := fs.Sub(staticFs, "web/static")
-	if err != nil {
-		log.Printf("failed to get fs sub for static: %v", err)
-	}
-	httpFsStaticWeb := http.FS(staticWeb)
-	r.Use(staticCacheMiddleware())
-	r.StaticFS("/static", httpFsStaticWeb)
-	r.StaticFileFS("/favicon.ico", "./favicon.ico", httpFsStaticWeb)
-	r.StaticFileFS("/favicon-16x16.png", "./favicon-16x16.png", httpFsStaticWeb)
-	r.StaticFileFS("/favicon-32x32.png", "./favicon-32x32.png", httpFsStaticWeb)
-	r.StaticFileFS("/apple-touch-icon.png", "./apple-touch-icon.png", httpFsStaticWeb)
-	r.StaticFileFS("/site.webmanifest", "./site.webmanifest", httpFsStaticWeb)
-
-}
-
-func staticCacheMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/static/js") || strings.HasPrefix(path, "/static/css") {
-			c.Header("Cache-Control", "public, max-age=31536000, immutable")
-		}
-		c.Next()
-	}
 }

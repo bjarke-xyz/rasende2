@@ -1,0 +1,96 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2/internal/core"
+	"net/url"
+)
+
+type TitleGeneratorViewModel struct {
+	Base           BaseViewModel
+	Sites          []core.NewsSite
+	SelectedSiteId int
+	SelectedSite   core.NewsSite
+}
+
+templ titleGenerator(model TitleGeneratorViewModel) {
+	<div class="m-4" id="title-generator-container">
+		<div class="flex justify-center">
+			<div class="flex flex-row align-middle space-x-2">
+				<div class="flex flex-col justify-center align-middle">
+					<form hx-get="/title-generator" hx-target="#title-generator-container" hx-trigger="change from:select[name='siteId']" hx-push-url="true">
+						<label for="site">Nyhedsmedie</label>
+						<select id="site" class="select min-w-40" name="siteId">
+							<option value="" disabled="" selected="">Vælg</option>
+							for _, site := range model.Sites {
+								<option
+									value={ fmt.Sprint(site.Id) }
+									if model.SelectedSiteId == site.Id {
+										selected="selected"
+									}
+								>{ site.Name }</option>
+							}
+						</select>
+					</form>
+				</div>
+			</div>
+		</div>
+		if model.SelectedSiteId > 0 {
+			<script type="text/javascript">
+			document.addEventListener('htmx:sseOpen', e => {
+				const btn = document.querySelector("#title-show-more-btn")
+				if (btn) {
+					btn.disabled = true;
+				}
+			});
+			document.addEventListener('htmx:sseClose', e => {
+				const btn = document.querySelector("#title-show-more-btn")
+				if (btn) {
+					btn.disabled = false;
+				}
+			});
+			document.addEventListener('htmx:sseBeforeMessage', (e)=> {
+				document.querySelector("#title-placeholder")?.remove();
+				document.querySelector("#title-show-more-btn")?.remove();
+			})
+            </script>
+			<div class="flex flex-col justify-center mt-16 mb-4">
+				<div class="flex flex-row mb-4">
+					<h1 class="text-3xl">
+						<span class="bg-blue-100 text-blue-800 font-semibold mr-0.5 px-2.5 rounded dark:bg-blue-200 dark:text-blue-800">{ model.SelectedSite.Name }</span>
+					</h1>
+				</div>
+				<div id="title-sse-container-wrapper">
+					@TitlesSse(model.SelectedSiteId, "", true)
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ GeneratedTitleLink(siteId int, title string) {
+	<p>
+		<a target="_blank" href={ templ.SafeURL(fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, url.QueryEscape(title))) }>{ title }</a>
+	</p>
+}
+
+templ ShowMoreTitlesButton(siteId int, cursor string) {
+	<button class="btn-primary" id="title-show-more-btn" onclick="this.disabled = true;" data-cursor={ cursor } hx-get={ fmt.Sprintf("/generate-titles-sse?siteId=%v&cursor=%v", siteId, cursor) } hx-target="#title-sse-container-wrapper">
+		Vis mere
+	</button>
+}
+
+templ TitlesSse(siteId int, cursor string, placeholder bool) {
+	<div id="title-sse-container" hx-ext="sse" hx-swap="beforeend" sse-connect={ fmt.Sprintf("/generate-titles?siteId=%v&cursor=%v", siteId, cursor) } sse-close="sse-close">
+		<div sse-swap="title">
+			if placeholder {
+				<p id="title-placeholder">Finder på overskrifter...</p>
+			}
+		</div>
+		<div sse-swap="button"></div>
+	</div>
+}
+
+templ TitleGenerator(model TitleGeneratorViewModel) {
+	@Layout(model.Base, titleGenerator(model))
+}

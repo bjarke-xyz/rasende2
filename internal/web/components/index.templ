@@ -1,0 +1,73 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2/internal/config"
+	"github.com/bjarke-xyz/rasende2/internal/core"
+	"time"
+)
+
+type IndexModel struct {
+	Base          BaseViewModel
+	SearchResults core.SearchResult
+	ChartsResult  core.ChartsResult
+}
+
+templ latestRage() {
+	<p>Seneste raseri:</p>
+}
+
+templ latestRageTitle(items []core.RssSearchResult) {
+	if len(items) == 0 {
+		<p>Ingen raseri!</p>
+	} else {
+		<div>
+			@ItemLink(items[0])
+		</div>
+	}
+}
+
+templ latestRageTime(item core.RssSearchResult) {
+	<div title={ item.Published.Format(time.RFC3339) }>
+		{ config.DanishTimeagoConfig.FormatRelativeDuration(time.Now().Sub(item.Published)) }
+	</div>
+}
+
+templ main(model IndexModel) {
+	<div class="m-4" id="index_page">
+		<form>
+			<input type="hidden" hx-get={ fmt.Sprintf("/?nocache=%v", model.Base.NoCache) } hx-trigger="rasende-focus from:body throttle:1s" hx-target="#index_page" hx-swap="outerHTML"/>
+		</form>
+		<div>
+			@Centered(false, latestRage())
+			@Centered(true, latestRageTitle(model.SearchResults.Items))
+			if len(model.SearchResults.Items) > 0 {
+				@Centered(false, latestRageTime(model.SearchResults.Items[0]))
+			}
+			<div class="flex flex-col m-4 mt-8">
+				<p class="text-lg font-bold">Tidligere raserier:</p>
+				for _, item := range model.SearchResults.Items[1:] {
+					<div>
+						@ItemLink(item)
+					</div>
+				}
+			</div>
+			<div class="mt-8">
+				@RasendeChart(model.ChartsResult)
+			</div>
+			<div>
+				Inspireret af 
+				<a
+					class="underline"
+					href="https://web.archive.org/web/20200628061846/https://rasende.dk/"
+				>
+					https://rasende.dk/
+				</a>
+			</div>
+		</div>
+	</div>
+}
+
+templ Index(model IndexModel) {
+	@Layout(model.Base, main(model))
+}
