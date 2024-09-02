@@ -14,7 +14,7 @@ npm-build-dev: npm-build-prod
 	cp node_modules/chart.js/dist/chart.umd.js.map web/static/js/vendor
 
 # build builds the tailwind css sheet, and compiles the binary into a usable thing.
-build: npm-ci npm-build-prod
+build: npm-ci npm-build-prod 
 	go mod tidy && \
 	go generate && \
 	go build -ldflags="-w -s" -o ${BINARY_NAME}

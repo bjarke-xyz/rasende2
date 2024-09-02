@@ -55,7 +55,7 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 								if (urlSearchParams.has("email")) {
 									urlSearchParams.set("email", "[REDACTED]")
 									const noQueryP = p.substring(0, questionMarkIndex)
-									const newP = p + "?" + urlSearchParams.toString();
+									const newP = noQueryP + "?" + urlSearchParams.toString();
 									return newP;
 								}
 							}
