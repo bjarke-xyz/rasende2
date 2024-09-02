@@ -43,6 +43,26 @@ templ Layout(viewModel BaseViewModel, children ...templ.Component) {
 				<script src={ fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime) } defer></script>
 				<script src={ fmt.Sprintf("/static/js/vendor/sse.js?v=%v", viewModel.UnixBuildTime) } defer></script>
 				<script src={ fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script>
+					window.goatcounter = {
+						// The passed value is the default.
+						path: function(p) {
+							// Don't track email query param
+							if (p.includes("?")) {
+								const questionMarkIndex = p.indexOf("?")
+								const queryParams = p.substring(questionMarkIndex)
+								const urlSearchParams = new URLSearchParams(queryParams);
+								if (urlSearchParams.has("email")) {
+									urlSearchParams.set("email", "[REDACTED]")
+									const noQueryP = p.substring(0, questionMarkIndex)
+									const newP = p + "?" + urlSearchParams.toString();
+									return newP;
+								}
+							}
+							return p;
+						},
+					}
+				</script>
 				<script data-goatcounter="https://rasende2.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 				if viewModel.OpenGraph != nil {
 					@openGraph(*viewModel.OpenGraph)
