@@ -30,7 +30,10 @@ generate:
 
 clean:
 	go clean
-	rm ${BINARY_NAME}
+	rm -f internal/web/static/css/tailwind.css
+	rm -f internal/web/static/js/vendor/*.js
+	rm -f internal/web/static/js/vendor/*.js.map
+	rm -f ${BINARY_NAME}
 	rm -rf cache/*
 	touch cache/.gitkeep
 

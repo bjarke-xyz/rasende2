@@ -10,9 +10,9 @@ data/*
 # *templ.go
 *templ.txt
 
-web/static/css/tailwind.css
-web/static/js/vendor/*
-!web/static/js/vendor/gitkeep
+internal/web/static/css/tailwind.css
+internal/web/static/js/vendor/*
+!internal/web/static/js/vendor/.gitkeep
 
 node_modules
 
