@@ -106,7 +106,8 @@
     ],
     "description": "Meget mere end Danmarks førende erhvervsavis. Børsen sætter dagsordenen for erhvervslivet - hele erhvervslivet. Vi skriver interessant og med kant. På alle platforme. Om et erhvervsliv i bevægelse. Til moderne mennesker, der søger indhold og berigelse - både når de er ude, hjemme, på arbejde og på vej.",
     "descriptionEn": "Much more than Denmark's leading business newspaper. Børsen sets the agenda for business - all business. We write interestingly and with edge. On all platforms. About a business world in motion. For modern people who seek content and enrichment - whether they are out, at home, at work, or on the go.",
-    "id": 6
+    "id": 6,
+    "userAgentKey": "chrome"
   },
   {
     "name": "Kristeligt Dagblad",

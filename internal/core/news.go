@@ -99,6 +99,7 @@ type NewsSite struct {
 	Id                int      `json:"id"`
 	Disabled          bool     `json:"disabled"`
 	ArticleHasContent bool     `json:"articleHasContent"`
+	UserAgentKey      string   `json:"userAgentKey"`
 }
 
 type RssItemDto struct {

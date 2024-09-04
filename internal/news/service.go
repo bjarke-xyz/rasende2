@@ -476,12 +476,22 @@ func (r *RssService) parse(rssUrl core.NewsSite) ([]core.RssItemDto, error) {
 
 }
 
+var userAgents = map[string]string{
+	"chrome": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+}
+
 func (r *RssService) getContents(rssUrl core.NewsSite) ([]string, error) {
 	contents := make([]string, 0)
 	for _, url := range rssUrl.Urls {
 		req, err := http.NewRequest(http.MethodGet, url, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		if rssUrl.UserAgentKey != "" {
+			userAgent, ok := userAgents[rssUrl.UserAgentKey]
+			if ok {
+				req.Header.Set("User-Agent", userAgent)
+			}
 		}
 		client := &http.Client{}
 		resp, err := client.Do(req)
