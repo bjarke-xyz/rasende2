@@ -18,13 +18,13 @@ func (w *web) GetChartdata(ctx context.Context, query string) (core.ChartsResult
 	isRasende := query == "rasende"
 
 	siteCountPromise := pkg.NewPromise(func() ([]core.SiteCount, error) {
-		return w.service.GetSiteCountForSearchQuery(ctx, query, false)
+		return w.appContext.Deps.Service.GetSiteCountForSearchQuery(ctx, query, false)
 	})
 
 	now := time.Now()
 	sevenDaysAgo := now.Add(-time.Hour * 24 * 6)
 	tomorrow := now.Add(time.Hour * 24)
-	itemCount, err := w.service.GetItemCountForSearchQuery(ctx, query, false, &sevenDaysAgo, &tomorrow, "published")
+	itemCount, err := w.appContext.Deps.Service.GetItemCountForSearchQuery(ctx, query, false, &sevenDaysAgo, &tomorrow, "published")
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		return core.ChartsResult{}, err
@@ -84,7 +84,7 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 	searchContentStr := StringForm(c, "content", "false")
 	searchContent := searchContentStr == "on"
 	orderBy := allowedOrderBys[0]
-	results, err := w.service.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
+	results, err := w.appContext.Deps.Service.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))

@@ -7,6 +7,69 @@ import (
 	"time"
 )
 
+type NewsRepository interface {
+	GetSites(ctx context.Context) ([]NewsSite, error)
+	GetSiteNames(ctx context.Context) ([]string, error)
+	GetRecentItems(ctx context.Context, siteId int, limit int, insertAtOffset *time.Time) ([]RssItemDto, error)
+	GetRecentItemIds(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time, maxLookBack *time.Time) ([]string, *time.Time, error)
+	GetItemsByIds(ctx context.Context, itemIds []string) ([]RssItemDto, error)
+	GetSiteCountByItemIds(ctx context.Context, allItemIds []string) ([]SiteCount, error)
+	GetExistingItemsByIds(ctx context.Context, itemIds []string) (map[string]any, error)
+	GetArticleCounts(ctx context.Context) (map[int]int, error)
+	InsertItems(ctx context.Context, newsSite NewsSite, items []RssItemDto) (int, error)
+	EnrichSiteCountWithSiteNames(ctx context.Context, siteCounts []SiteCount)
+	EnrichRssSearchResultWithSiteNames(ctx context.Context, rssSearchResults []RssSearchResult)
+
+	GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]FakeNewsDto, error)
+	GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error)
+	GetFakeNews(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
+	CreateFakeNews(ctx context.Context, siteId int, title string) error
+	UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error
+	SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error
+	SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error
+	ResetFakeNewsContent(ctx context.Context, siteId int, title string) error
+	VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error)
+}
+
+type NewsService interface {
+	Initialise(ctx context.Context)
+	Dispose()
+	GetIndexPageData(ctx context.Context, nocache bool) (*IndexPageData, error)
+	GetChartData(ctx context.Context, query string) (ChartsResult, error)
+	GetSiteNames(ctx context.Context) ([]string, error)
+	GetSiteInfos(ctx context.Context) ([]NewsSite, error)
+	GetSiteInfo(ctx context.Context, siteName string) (*NewsSite, error)
+	GetSiteInfoById(ctx context.Context, id int) (*NewsSite, error)
+	SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, orderBy string) ([]RssSearchResult, error)
+	GetItemCountForSearchQuery(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]SearchQueryCount, error)
+	GetSiteCountForSearchQuery(ctx context.Context, query string, searchContent bool) ([]SiteCount, error)
+	GetRecentTitles(ctx context.Context, siteInfo NewsSite, limit int, shuffle bool) ([]string, error)
+	GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]RssItemDto, error)
+	AddMissingItemsToSearchIndexAndLogError(ctx context.Context, maxLookBack *time.Time)
+
+	GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error)
+	GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]FakeNewsDto, error)
+	GetFakeNews(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
+	CreateFakeNews(ctx context.Context, siteId int, title string) error
+	UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error
+	SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error
+	SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error
+	ResetFakeNewsContent(ctx context.Context, siteId int, title string) error
+	VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error)
+	CleanUpFakeNewsAndLogError(ctx context.Context)
+	CleanUpFakeNews(ctx context.Context) error
+
+	FetchAndSaveNewItems(ctx context.Context) error
+	RefreshMetrics(ctx context.Context) error
+	BackupDbAndLogError(ctx context.Context) error
+	NotifyBackupDbError(ctx context.Context, err error) error
+	BackupDb(ctx context.Context) error
+}
+
+type IndexPageData struct {
+	SearchResult *SearchResult
+	ChartsResult *ChartsResult
+}
 type SiteCount struct {
 	SiteId   int    `json:"siteId"`
 	SiteName string `json:"siteName"`
@@ -69,30 +132,6 @@ func (fn *FakeNewsDto) Id() string {
 	hashedBytes := md5.Sum(bytes)
 	hashStr := fmt.Sprintf("%x", hashedBytes)
 	return hashStr
-}
-
-type NewsRepository interface {
-	GetSites(ctx context.Context) ([]NewsSite, error)
-	GetSiteNames(ctx context.Context) ([]string, error)
-	GetRecentItems(ctx context.Context, siteId int, limit int, insertAtOffset *time.Time) ([]RssItemDto, error)
-	GetRecentItemIds(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time, maxLookBack *time.Time) ([]string, *time.Time, error)
-	GetItemsByIds(ctx context.Context, itemIds []string) ([]RssItemDto, error)
-	GetSiteCountByItemIds(ctx context.Context, allItemIds []string) ([]SiteCount, error)
-	GetExistingItemsByIds(ctx context.Context, itemIds []string) (map[string]any, error)
-	GetArticleCounts(ctx context.Context) (map[int]int, error)
-	InsertItems(ctx context.Context, newsSite NewsSite, items []RssItemDto) (int, error)
-	EnrichSiteCountWithSiteNames(ctx context.Context, siteCounts []SiteCount)
-	EnrichRssSearchResultWithSiteNames(ctx context.Context, rssSearchResults []RssSearchResult)
-
-	GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]FakeNewsDto, error)
-	GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error)
-	GetFakeNews(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
-	CreateFakeNews(ctx context.Context, siteId int, title string) error
-	UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error
-	SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error
-	SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error
-	ResetFakeNewsContent(ctx context.Context, siteId int, title string) error
-	VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error)
 }
 
 type SearchResult struct {

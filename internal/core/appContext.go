@@ -7,6 +7,16 @@ import (
 
 type AppContext struct {
 	Config *config.Config
-	Cache  Cache
-	Mail   *mail.MailService
+	Infra  *AppInfra
+	Deps   *AppDeps
+}
+
+type AppInfra struct {
+	Cache Cache
+	Mail  *mail.MailService
+}
+
+type AppDeps struct {
+	Service  NewsService
+	AiClient AiClient
 }

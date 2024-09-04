@@ -36,11 +36,6 @@ type RssService struct {
 	search     *RssSearch
 }
 
-type IndexPageData struct {
-	SearchResult *core.SearchResult
-	ChartsResult *core.ChartsResult
-}
-
 var (
 	rssFetchStatusCodes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "rasende2_rss_fetch_status_codes",
@@ -57,7 +52,7 @@ var (
 	})
 )
 
-func NewRssService(context *core.AppContext, repository core.NewsRepository, search *RssSearch) *RssService {
+func NewRssService(context *core.AppContext, repository core.NewsRepository, search *RssSearch) core.NewsService {
 	return &RssService{
 		context:    context,
 		repository: repository,
@@ -72,7 +67,7 @@ func (r *RssService) cacheKeyIndexPage() string {
 	return CacheKeyIndexPage + ":" + r.context.Config.AppEnv
 }
 
-func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*IndexPageData, error) {
+func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*core.IndexPageData, error) {
 	query := "rasende"
 	offset := 0
 	limit := 10
@@ -80,9 +75,9 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*Index
 	orderBy := "-published"
 
 	cacheKey := r.cacheKeyIndexPage()
-	indexPageData := &IndexPageData{}
+	indexPageData := &core.IndexPageData{}
 	if !nocache {
-		fromCache, _ := r.context.Cache.GetObj(cacheKey, indexPageData)
+		fromCache, _ := r.context.Infra.Cache.GetObj(cacheKey, indexPageData)
 		if fromCache {
 			log.Printf("got %v from cache", cacheKey)
 			return indexPageData, nil
@@ -97,7 +92,7 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*Index
 	results, err := r.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
-		return &IndexPageData{}, err
+		return &core.IndexPageData{}, err
 	}
 	if len(results) > limit {
 		results = results[0:limit]
@@ -109,11 +104,11 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*Index
 	chartsData, err := chartsPromise.Get()
 	if err != nil {
 		log.Printf("failed to get charts data: %v", err)
-		return &IndexPageData{}, err
+		return &core.IndexPageData{}, err
 	}
 	indexPageData.SearchResult = &searchResults
 	indexPageData.ChartsResult = &chartsData
-	go r.context.Cache.InsertObj(cacheKey, indexPageData, 120)
+	go r.context.Infra.Cache.InsertObj(cacheKey, indexPageData, 120)
 	log.Printf("key %v missed cache", cacheKey)
 	return indexPageData, nil
 }
@@ -157,8 +152,8 @@ func (r *RssService) GetChartData(ctx context.Context, query string) (core.Chart
 	return chartsResult, nil
 }
 
-func (r *RssService) Initialise() {
-	err := r.RefreshMetrics()
+func (r *RssService) Initialise(ctx context.Context) {
+	err := r.RefreshMetrics(ctx)
 	if err != nil {
 		log.Printf("error refreshing metrics: %v", err)
 	}
@@ -176,12 +171,12 @@ func (r *RssService) Dispose() {
 	r.search.CloseIndex()
 }
 
-func (r *RssService) RefreshMetrics() error {
-	rssUrls, err := r.repository.GetSites(context.TODO())
+func (r *RssService) RefreshMetrics(ctx context.Context) error {
+	rssUrls, err := r.repository.GetSites(ctx)
 	if err != nil {
 		return err
 	}
-	articleCounts, err := r.repository.GetArticleCounts(context.TODO())
+	articleCounts, err := r.repository.GetArticleCounts(ctx)
 	if err != nil {
 		return err
 	}
@@ -218,17 +213,17 @@ func (r *RssService) convertToDto(feedItem *gofeed.Item, rssUrl core.NewsSite) c
 		Published: *published,
 	}
 }
-func (r *RssService) GetSiteNames() ([]string, error) {
-	siteNames, err := r.repository.GetSiteNames(context.TODO())
+func (r *RssService) GetSiteNames(ctx context.Context) ([]string, error) {
+	siteNames, err := r.repository.GetSiteNames(ctx)
 	return siteNames, err
 }
 
-func (r *RssService) GetSiteInfos() ([]core.NewsSite, error) {
-	return r.repository.GetSites(context.TODO())
+func (r *RssService) GetSiteInfos(ctx context.Context) ([]core.NewsSite, error) {
+	return r.repository.GetSites(ctx)
 }
 
-func (r *RssService) GetSiteInfo(siteName string) (*core.NewsSite, error) {
-	siteInfos, err := r.repository.GetSites(context.TODO())
+func (r *RssService) GetSiteInfo(ctx context.Context, siteName string) (*core.NewsSite, error) {
+	siteInfos, err := r.repository.GetSites(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +234,8 @@ func (r *RssService) GetSiteInfo(siteName string) (*core.NewsSite, error) {
 	}
 	return nil, nil
 }
-func (r *RssService) GetSiteInfoById(id int) (*core.NewsSite, error) {
-	siteInfos, err := r.repository.GetSites(context.TODO())
+func (r *RssService) GetSiteInfoById(ctx context.Context, id int) (*core.NewsSite, error) {
+	siteInfos, err := r.repository.GetSites(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -292,7 +287,7 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 			items[i] = item
 		}
 	}
-	r.repository.EnrichRssSearchResultWithSiteNames(context.TODO(), items)
+	r.repository.EnrichRssSearchResultWithSiteNames(ctx, items)
 	return items, err
 }
 
@@ -370,14 +365,14 @@ func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query strin
 		siteCount := core.SiteCount{SiteId: k, Count: v}
 		items = append(items, siteCount)
 	}
-	r.repository.EnrichSiteCountWithSiteNames(context.TODO(), items)
+	r.repository.EnrichSiteCountWithSiteNames(ctx, items)
 	slices.SortFunc(items, func(a, b core.SiteCount) int {
 		return cmp.Compare(a.SiteName, b.SiteName)
 	})
 	return items, nil
 }
 
-func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl core.NewsSite) error {
+func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl core.NewsSite) error {
 	now := time.Now()
 	fromFeed, err := r.parse(rssUrl)
 	if err != nil {
@@ -391,7 +386,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl core.NewsSite) error {
 	}
 
 	dbNow := time.Now()
-	existingIds, err := r.repository.GetExistingItemsByIds(context.TODO(), fromFeedItemIds)
+	existingIds, err := r.repository.GetExistingItemsByIds(ctx, fromFeedItemIds)
 	if err != nil {
 		return fmt.Errorf("failed to get items for %v: %w", rssUrl.Name, err)
 	}
@@ -406,7 +401,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl core.NewsSite) error {
 	}
 
 	log.Printf("FetchAndSaveNewItems: %v inserted %v new items. Took %v", rssUrl.Name, len(toInsert), time.Since(dbNow))
-	articleCount, err := r.repository.InsertItems(context.TODO(), rssUrl, toInsert)
+	articleCount, err := r.repository.InsertItems(ctx, rssUrl, toInsert)
 	if err != nil {
 		return fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err)
 	}
@@ -420,12 +415,12 @@ func (r *RssService) fetchAndSaveNewItemsForSite(rssUrl core.NewsSite) error {
 	return nil
 }
 
-func (r *RssService) GetSites() ([]core.NewsSite, error) {
-	return r.repository.GetSites(context.TODO())
+func (r *RssService) GetSites(ctx context.Context) ([]core.NewsSite, error) {
+	return r.repository.GetSites(ctx)
 }
 
-func (r *RssService) FetchAndSaveNewItems() error {
-	rssUrls, err := r.repository.GetSites(context.TODO())
+func (r *RssService) FetchAndSaveNewItems(ctx context.Context) error {
+	rssUrls, err := r.repository.GetSites(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get rss urls: %w", err)
 	}
@@ -439,7 +434,7 @@ func (r *RssService) FetchAndSaveNewItems() error {
 		rssUrl := rssUrl
 		go func() {
 			defer wg.Done()
-			siteErr := r.fetchAndSaveNewItemsForSite(rssUrl)
+			siteErr := r.fetchAndSaveNewItemsForSite(ctx, rssUrl)
 			if siteErr != nil {
 				log.Printf("fetchAndSaveNewItemsForSite failed for %v: %v", rssUrl.Name, siteErr)
 			}
@@ -449,8 +444,8 @@ func (r *RssService) FetchAndSaveNewItems() error {
 	now := time.Now()
 	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
 	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
-	go r.context.Cache.DeleteExpired()
-	go r.context.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
+	go r.context.Infra.Cache.DeleteExpired()
+	go r.context.Infra.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
 	return nil
 }
 
@@ -530,33 +525,33 @@ func (r *RssService) GetRecentTitles(ctx context.Context, siteInfo core.NewsSite
 func (r *RssService) GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]core.RssItemDto, error) {
 	return r.repository.GetRecentItems(ctx, siteId, limit, insertedAtOffset)
 }
-func (r *RssService) GetPopularFakeNews(limit int, publishedAfter *time.Time, votes int) ([]core.FakeNewsDto, error) {
-	return r.repository.GetPopularFakeNews(context.TODO(), limit, publishedAfter, votes)
+func (r *RssService) GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]core.FakeNewsDto, error) {
+	return r.repository.GetPopularFakeNews(ctx, limit, publishedAfter, votes)
 }
-func (r *RssService) GetRecentFakeNews(limit int, publishedAfter *time.Time) ([]core.FakeNewsDto, error) {
-	return r.repository.GetRecentFakeNews(context.TODO(), limit, publishedAfter)
+func (r *RssService) GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]core.FakeNewsDto, error) {
+	return r.repository.GetRecentFakeNews(ctx, limit, publishedAfter)
 }
-func (r *RssService) GetFakeNews(siteId int, title string) (*core.FakeNewsDto, error) {
-	return r.repository.GetFakeNews(context.TODO(), siteId, title)
+func (r *RssService) GetFakeNews(ctx context.Context, siteId int, title string) (*core.FakeNewsDto, error) {
+	return r.repository.GetFakeNews(ctx, siteId, title)
 }
 
-func (r *RssService) CreateFakeNews(siteId int, title string) error {
-	return r.repository.CreateFakeNews(context.TODO(), siteId, title)
+func (r *RssService) CreateFakeNews(ctx context.Context, siteId int, title string) error {
+	return r.repository.CreateFakeNews(ctx, siteId, title)
 }
-func (r *RssService) UpdateFakeNews(siteId int, title string, content string) error {
-	return r.repository.UpdateFakeNews(context.TODO(), siteId, title, content)
+func (r *RssService) UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error {
+	return r.repository.UpdateFakeNews(ctx, siteId, title, content)
 }
-func (r *RssService) SetFakeNewsImgUrl(siteId int, title string, imgUrl string) error {
-	return r.repository.SetFakeNewsImgUrl(context.TODO(), siteId, title, imgUrl)
+func (r *RssService) SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error {
+	return r.repository.SetFakeNewsImgUrl(ctx, siteId, title, imgUrl)
 }
-func (r *RssService) SetFakeNewsHighlighted(siteId int, title string, highlighted bool) error {
-	return r.repository.SetFakeNewsHighlighted(context.TODO(), siteId, title, highlighted)
+func (r *RssService) SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error {
+	return r.repository.SetFakeNewsHighlighted(ctx, siteId, title, highlighted)
 }
-func (r *RssService) ResetFakeNewsContent(siteId int, title string) error {
-	return r.repository.ResetFakeNewsContent(context.TODO(), siteId, title)
+func (r *RssService) ResetFakeNewsContent(ctx context.Context, siteId int, title string) error {
+	return r.repository.ResetFakeNewsContent(ctx, siteId, title)
 }
-func (r *RssService) VoteFakeNews(siteId int, title string, votes int) (int, error) {
-	return r.repository.VoteFakeNews(context.TODO(), siteId, title, votes)
+func (r *RssService) VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error) {
+	return r.repository.VoteFakeNews(ctx, siteId, title, votes)
 }
 
 func (r *RssService) BackupDbAndLogError(ctx context.Context) error {
@@ -675,10 +670,12 @@ func (r *RssService) AddMissingItemsToSearchIndexAndLogError(ctx context.Context
 	if err != nil {
 		log.Printf("failed to add missing items to search index: %v", err)
 	}
+	go r.context.Infra.Cache.DeleteExpired()
+	go r.context.Infra.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
 }
 
 func (r *RssService) addMissingItemsToSearchIndex(ctx context.Context, maxLookBack *time.Time) error {
-	rssUrls, err := r.repository.GetSites(context.TODO())
+	rssUrls, err := r.repository.GetSites(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting rss urls: %w", err)
 	}
@@ -720,7 +717,7 @@ func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rs
 		}
 		log.Printf("Out of %v db items, %v were not in search index", len(rssItemIds), len(rssItemIdsToIndex))
 		if len(rssItemIdsToIndex) > 0 {
-			err = r.indexItemIds(rssItemIdsToIndex, rssUrl)
+			err = r.indexItemIds(ctx, rssItemIdsToIndex, rssUrl)
 			if err != nil {
 				return fmt.Errorf("error indexing item ids: %w", err)
 			}
@@ -729,7 +726,7 @@ func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rs
 	return nil
 }
 
-func (r *RssService) indexItemIds(allItemIds []string, rssUrl core.NewsSite) error {
+func (r *RssService) indexItemIds(ctx context.Context, allItemIds []string, rssUrl core.NewsSite) error {
 	if len(allItemIds) == 0 {
 		return nil
 	}
@@ -739,7 +736,7 @@ func (r *RssService) indexItemIds(allItemIds []string, rssUrl core.NewsSite) err
 	}
 	itemIdChunks := lo.Chunk(allItemIds, chunkSize)
 	for _, itemIds := range itemIdChunks {
-		items, err := r.repository.GetItemsByIds(context.TODO(), itemIds)
+		items, err := r.repository.GetItemsByIds(ctx, itemIds)
 		if err != nil {
 			return fmt.Errorf("error getting items: %w", err)
 		}

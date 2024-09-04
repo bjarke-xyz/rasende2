@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
-	"github.com/bjarke-xyz/rasende2/internal/news"
 	"github.com/bjarke-xyz/rasende2/internal/web/auth"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
 	"github.com/gin-gonic/gin"
@@ -19,18 +18,12 @@ import (
 var static embed.FS
 
 type web struct {
-	context  *core.AppContext
-	service  *news.RssService
-	aiClient core.AiClient
-	search   *news.RssSearch
+	appContext *core.AppContext
 }
 
-func NewWeb(context *core.AppContext, service *news.RssService, openaiClient core.AiClient, search *news.RssSearch) *web {
+func NewWeb(appContext *core.AppContext) *web {
 	return &web{
-		context:  context,
-		service:  service,
-		aiClient: openaiClient,
-		search:   search,
+		appContext: appContext,
 	}
 }
 
@@ -59,8 +52,8 @@ func (w *web) Route(r *gin.Engine) {
 
 func (w *web) getBaseModel(c *gin.Context, title string) components.BaseViewModel {
 	var unixBuildTime int64 = 0
-	if w.context.Config.BuildTime != nil {
-		unixBuildTime = w.context.Config.BuildTime.Unix()
+	if w.appContext.Config.BuildTime != nil {
+		unixBuildTime = w.appContext.Config.BuildTime.Unix()
 	} else {
 		unixBuildTime = time.Now().Unix()
 	}

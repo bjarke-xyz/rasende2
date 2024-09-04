@@ -34,7 +34,7 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 func (w *web) HandlePostLogin(c *gin.Context) {
 	ctx := c.Request.Context()
 	successPath := StringForm(c, "returnPath", "/")
-	redirectPath := RefererOrDefault(c, w.context.Config.BaseUrl+"/login")
+	redirectPath := RefererOrDefault(c, w.appContext.Config.BaseUrl+"/login")
 	redirectPathUrl, err := url.Parse(redirectPath)
 	if err != nil {
 		AddFlashError(c, err)
@@ -47,7 +47,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 		c.Redirect(http.StatusSeeOther, redirectPath)
 		return
 	}
-	db, err := db.OpenQueries(w.context.Config)
+	db, err := db.OpenQueries(w.appContext.Config)
 	if err != nil {
 		AddFlashError(c, err)
 		c.Redirect(http.StatusSeeOther, redirectPath)
@@ -137,7 +137,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 		})
 		// TODO: check if user exists before sending mail
 		// TODO: reutrn path query param
-		w.context.Mail.SendAuthLink(mail.SendAuthLinkRequest{
+		w.appContext.Infra.Mail.SendAuthLink(mail.SendAuthLinkRequest{
 			Receiver:            email,
 			CodePath:            fmt.Sprintf("/login-link?code=%v&returnpath=%v", linkCode, url.QueryEscape(successPath)),
 			OTP:                 otp,
@@ -161,7 +161,7 @@ func (w *web) HandleGetLoginLink(c *gin.Context) {
 		c.Redirect(http.StatusSeeOther, failurePath)
 		return
 	}
-	db, err := db.OpenQueries(w.context.Config)
+	db, err := db.OpenQueries(w.appContext.Config)
 	if err != nil {
 		AddFlashError(c, err)
 		c.Redirect(http.StatusSeeOther, failurePath)

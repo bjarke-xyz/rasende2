@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/bjarke-xyz/rasende2/pkg"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port             string
+	Port             int
 	DbConnStr        string
 	BackupDbPath     string
 	TursoDatabaseUrl string
@@ -85,7 +86,7 @@ func NewConfig() (*Config, error) {
 		buildTime = &_buildTime
 	}
 	return &Config{
-		Port:                    os.Getenv("PORT"),
+		Port:                    pkg.MustAtoi(os.Getenv("PORT")),
 		DbConnStr:               os.Getenv("DB_CONN_STR"),
 		BackupDbPath:            os.Getenv("BACKUP_DB_PATH"),
 		TursoDatabaseUrl:        os.Getenv("TURSO_DATABASE_URL"),

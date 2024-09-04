@@ -22,11 +22,11 @@ import (
 )
 
 type sqliteNewsRepository struct {
-	context *core.AppContext
+	appContext *core.AppContext
 }
 
-func NewSqliteNews(context *core.AppContext) core.NewsRepository {
-	return &sqliteNewsRepository{context: context}
+func NewSqliteNews(appContext *core.AppContext) core.NewsRepository {
+	return &sqliteNewsRepository{appContext: appContext}
 }
 
 //go:embed sitedata
@@ -58,7 +58,7 @@ func (r *sqliteNewsRepository) GetSiteNames(ctx context.Context) ([]string, erro
 }
 
 func (r *sqliteNewsRepository) GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]core.RssItemDto, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (r *sqliteNewsRepository) GetRecentItems(ctx context.Context, siteId int, l
 	return rssItems, nil
 }
 func (r *sqliteNewsRepository) GetRecentItemIds(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time, maxLookBack *time.Time) ([]string, *time.Time, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +123,7 @@ func (r *sqliteNewsRepository) GetItemsByIds(ctx context.Context, itemIds []stri
 	if len(itemIds) == 0 {
 		return rssItems, nil
 	}
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (r *sqliteNewsRepository) GetSiteCountByItemIds(ctx context.Context, allIte
 	siteCountMap := make(map[int]int, 0)
 	log.Printf("GetSiteCountByItemIds allItemIds=%v", len(allItemIds))
 	itemIdsChunks := lo.Chunk(allItemIds, 4000)
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ func (r *sqliteNewsRepository) EnrichWithSiteNames(ctx context.Context, rssItems
 }
 
 func (r *sqliteNewsRepository) GetExistingItemsByIds(ctx context.Context, itemIds []string) (map[string]any, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func (r *sqliteNewsRepository) GetExistingItemsByIds(ctx context.Context, itemId
 }
 
 func (r *sqliteNewsRepository) GetArticleCounts(ctx context.Context) (map[int]int, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +341,7 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 	if len(items) == 0 {
 		return 0, nil
 	}
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return 0, err
 	}
@@ -380,7 +380,7 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 }
 
 func (r *sqliteNewsRepository) GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]core.FakeNewsDto, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	var fakeNewsDtos []core.FakeNewsDto
 	if err != nil {
 		return fakeNewsDtos, err
@@ -408,7 +408,7 @@ func (r *sqliteNewsRepository) GetRecentFakeNews(ctx context.Context, limit int,
 }
 
 func (r *sqliteNewsRepository) GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]core.FakeNewsDto, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	var fakeNewsDtos []core.FakeNewsDto
 	if err != nil {
 		return fakeNewsDtos, err
@@ -436,7 +436,7 @@ func (r *sqliteNewsRepository) GetPopularFakeNews(ctx context.Context, limit int
 }
 
 func (r *sqliteNewsRepository) GetFakeNews(ctx context.Context, siteId int, title string) (*core.FakeNewsDto, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -454,7 +454,7 @@ func (r *sqliteNewsRepository) GetFakeNews(ctx context.Context, siteId int, titl
 }
 
 func (r *sqliteNewsRepository) CreateFakeNews(ctx context.Context, siteId int, title string) error {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -467,7 +467,7 @@ func (r *sqliteNewsRepository) CreateFakeNews(ctx context.Context, siteId int, t
 }
 
 func (r *sqliteNewsRepository) UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -480,7 +480,7 @@ func (r *sqliteNewsRepository) UpdateFakeNews(ctx context.Context, siteId int, t
 }
 
 func (r *sqliteNewsRepository) SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -492,7 +492,7 @@ func (r *sqliteNewsRepository) SetFakeNewsImgUrl(ctx context.Context, siteId int
 }
 
 func (r *sqliteNewsRepository) SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -504,7 +504,7 @@ func (r *sqliteNewsRepository) SetFakeNewsHighlighted(ctx context.Context, siteI
 }
 
 func (r *sqliteNewsRepository) ResetFakeNewsContent(ctx context.Context, siteId int, title string) error {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -516,7 +516,7 @@ func (r *sqliteNewsRepository) ResetFakeNewsContent(ctx context.Context, siteId 
 }
 
 func (r *sqliteNewsRepository) VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error) {
-	db, err := db.Open(r.context.Config)
+	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return 0, err
 	}

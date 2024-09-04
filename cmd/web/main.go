@@ -1,16 +1,19 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/bjarke-xyz/rasende2/internal/ai"
 	"github.com/bjarke-xyz/rasende2/internal/api"
+	"github.com/bjarke-xyz/rasende2/internal/app"
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
-	"github.com/bjarke-xyz/rasende2/internal/mail"
-	"github.com/bjarke-xyz/rasende2/internal/news"
-	"github.com/bjarke-xyz/rasende2/internal/repository"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/web"
 	"github.com/bjarke-xyz/rasende2/internal/web/renderer"
@@ -23,6 +26,14 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// Create a context that will be canceled when we receive a shutdown signal
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Channel to listen for OS signals
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	cfg, err := config.NewConfig()
 	if err != nil {
@@ -40,34 +51,62 @@ func main() {
 		}
 	}
 
-	cache := repository.NewCacheService(repository.NewCacheRepo(cfg, true))
-	mailService := mail.NewMail(cfg)
-
-	ctx := &core.AppContext{
-		Config: cfg,
-		Cache:  cache,
-		Mail:   mailService,
-	}
-
-	rssRepository := repository.NewSqliteNews(ctx)
-	rssSearch := news.NewRssSearch(cfg.SearchIndexPath)
-	rssService := news.NewRssService(ctx, rssRepository, rssSearch)
-	openAiClient := ai.NewOpenAIClient(ctx)
-
-	rssService.Initialise()
-	defer rssService.Dispose()
+	appContext := app.AppContext(cfg)
+	app.Initialise(ctx, appContext)
+	defer app.Dispose(appContext)
 
 	runMetricsServer()
 
-	apiHandlers := api.NewAPI(ctx, rssService, openAiClient, rssSearch)
-	webHandlers := web.NewWeb(ctx, rssService, openAiClient, rssSearch)
-	r := ginRouter(cfg)
+	srv := Server(appContext)
+	go func() {
+		log.Printf("Starting server on http://localhost%v", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("ListenAndServe(): %v", err)
+		}
+	}()
+
+	// Block until we receive a signal
+	<-stop
+	log.Println("Shutting down server...")
+
+	// Cancel the context to signal all handlers that the server is shutting down
+	cancel()
+
+	// Create a context with a timeout for the server shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	// Shutdown the server gracefully
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Server Shutdown Failed:%+v", err)
+	}
+	log.Println("Server exited properly")
+}
+
+func runMetricsServer() {
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":9091", mux)
+	}()
+}
+
+func Server(appContext *core.AppContext) *http.Server {
+	return &http.Server{
+		Addr:    fmt.Sprintf(":%d", appContext.Config.Port),
+		Handler: routes(appContext),
+	}
+}
+
+func routes(appContext *core.AppContext) http.Handler {
+	r := ginRouter(appContext.Config)
+
+	apiHandlers := api.NewAPI(appContext)
 	apiHandlers.Route(r)
+
+	webHandlers := web.NewWeb(appContext)
 	webHandlers.Route(r)
-
-	log.Printf("Listening on http://localhost:%s", cfg.Port)
-	r.Run()
-
+	return r
 }
 
 func ginRouter(cfg *config.Config) *gin.Engine {
@@ -90,12 +129,4 @@ func ginRouter(cfg *config.Config) *gin.Engine {
 		})
 	})
 	return r
-}
-
-func runMetricsServer() {
-	go func() {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-		http.ListenAndServe(":9091", mux)
-	}()
 }

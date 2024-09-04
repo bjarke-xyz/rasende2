@@ -8,25 +8,18 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
-	"github.com/bjarke-xyz/rasende2/internal/news"
 	"github.com/bjarke-xyz/rasende2/pkg"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
 type api struct {
-	context  *core.AppContext
-	service  *news.RssService
-	aiClient core.AiClient
-	search   *news.RssSearch
+	appContext *core.AppContext
 }
 
-func NewAPI(context *core.AppContext, service *news.RssService, openaiClient core.AiClient, search *news.RssSearch) *api {
+func NewAPI(appContext *core.AppContext) *api {
 	return &api{
-		context:  context,
-		service:  service,
-		aiClient: openaiClient,
-		search:   search,
+		appContext: appContext,
 	}
 }
 
@@ -41,15 +34,18 @@ func (a *api) Route(r *gin.Engine) {
 
 func (a *api) RunJob() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.GetHeader("Authorization") != a.context.Config.JobKey {
+		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
 			c.AbortWithStatus(401)
 			return
 		}
 		fireAndForget := c.Query("fireAndForget") == "true"
+		//using context.Background to not cancel, if this method times out
+		ctx := context.Background()
+
 		if fireAndForget {
-			go a.service.FetchAndSaveNewItems()
+			go a.appContext.Deps.Service.FetchAndSaveNewItems(ctx)
 		} else {
-			a.service.FetchAndSaveNewItems()
+			a.appContext.Deps.Service.FetchAndSaveNewItems(ctx)
 		}
 		c.Status(http.StatusOK)
 	}
@@ -57,16 +53,16 @@ func (a *api) RunJob() gin.HandlerFunc {
 
 func (a *api) BackupDb() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.GetHeader("Authorization") != a.context.Config.JobKey {
+		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
 			c.AbortWithStatus(401)
 			return
 		}
 		fireAndForget := c.Query("fireAndForget") == "true"
 		if fireAndForget {
-			go a.service.BackupDbAndLogError(context.Background())
+			go a.appContext.Deps.Service.BackupDbAndLogError(context.Background())
 		} else {
 			ctx := c.Request.Context()
-			err := a.service.BackupDbAndLogError(ctx)
+			err := a.appContext.Deps.Service.BackupDbAndLogError(ctx)
 			if err != nil {
 				c.String(http.StatusInternalServerError, "backup failed: %v", err)
 				return
@@ -79,16 +75,16 @@ func (a *api) BackupDb() gin.HandlerFunc {
 
 func (a *api) CleanUpFakeNews() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.GetHeader("Authorization") != a.context.Config.JobKey {
+		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
 			c.AbortWithStatus(401)
 			return
 		}
 		fireAndForget := c.Query("fireAndForget") == "true"
 		if fireAndForget {
-			go a.service.CleanUpFakeNewsAndLogError(context.Background())
+			go a.appContext.Deps.Service.CleanUpFakeNewsAndLogError(context.Background())
 		} else {
 			ctx := c.Request.Context()
-			err := a.service.CleanUpFakeNews(ctx)
+			err := a.appContext.Deps.Service.CleanUpFakeNews(ctx)
 			if err != nil {
 				c.String(http.StatusInternalServerError, "fake news clean up failed: %v", err)
 				return
@@ -101,7 +97,7 @@ func (a *api) CleanUpFakeNews() gin.HandlerFunc {
 
 func (a *api) RebuildIndex() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.GetHeader("Authorization") != a.context.Config.JobKey {
+		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
 			c.AbortWithStatus(401)
 			return
 		}
@@ -116,7 +112,7 @@ func (a *api) RebuildIndex() gin.HandlerFunc {
 			}
 			maxLookBack = &_maxLookBack
 		}
-		go a.service.AddMissingItemsToSearchIndexAndLogError(context.Background(), maxLookBack)
+		go a.appContext.Deps.Service.AddMissingItemsToSearchIndexAndLogError(context.Background(), maxLookBack)
 		c.Status(http.StatusOK)
 	}
 }
@@ -125,18 +121,18 @@ var noAutoGenerateSites map[int]any = map[int]any{8: struct{}{} /* DR */, 19: st
 
 func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.GetHeader("Authorization") != a.context.Config.JobKey {
+		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
 			c.AbortWithStatus(401)
 			return
 		}
 		ctx := context.Background()
-		allSites, err := a.service.GetSiteInfos()
+		allSites, err := a.appContext.Deps.Service.GetSiteInfos(ctx)
 		if err != nil {
 			log.Printf("error site infos: %v", err)
 			c.JSON(500, err.Error())
 			return
 		}
-		latestFakeNews, err := a.service.GetRecentFakeNews(3, nil)
+		latestFakeNews, err := a.appContext.Deps.Service.GetRecentFakeNews(ctx, 3, nil)
 		if err != nil {
 			log.Printf("error getting recent fake news: %v", err)
 			c.JSON(500, err.Error())
@@ -166,7 +162,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 			return
 		}
 		site := lo.Sample(sites)
-		recentArticleTitles, err := a.service.GetRecentTitles(ctx, site, 10, true)
+		recentArticleTitles, err := a.appContext.Deps.Service.GetRecentTitles(ctx, site, 10, true)
 		if err != nil {
 			log.Printf("error getting recent article titles: %v", err)
 			c.JSON(500, err.Error())
@@ -174,14 +170,14 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 		var temperature float32 = 1
 		var generatedTitleCount = 30
-		generatedArticleTitles, err := a.aiClient.GenerateArticleTitlesList(ctx, site.Name, site.DescriptionEn, recentArticleTitles, generatedTitleCount, temperature)
+		generatedArticleTitles, err := a.appContext.Deps.AiClient.GenerateArticleTitlesList(ctx, site.Name, site.DescriptionEn, recentArticleTitles, generatedTitleCount, temperature)
 		if err != nil {
 			log.Printf("error getting generated article titles: %v", err)
 			c.JSON(500, err.Error())
 			return
 		}
 		log.Printf("generated titles: %v", strings.Join(generatedArticleTitles, ", "))
-		selectedTitle, err := a.aiClient.SelectBestArticleTitle(ctx, site.Name, site.DescriptionEn, generatedArticleTitles)
+		selectedTitle, err := a.appContext.Deps.AiClient.SelectBestArticleTitle(ctx, site.Name, site.DescriptionEn, generatedArticleTitles)
 		if err != nil {
 			log.Printf("error selecting best article title: %v", err)
 			c.JSON(500, err.Error())
@@ -189,7 +185,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 		log.Printf("selected title: %v", selectedTitle)
 
-		err = a.service.CreateFakeNews(site.Id, selectedTitle)
+		err = a.appContext.Deps.Service.CreateFakeNews(ctx, site.Id, selectedTitle)
 		if err != nil {
 			log.Printf("error creating fake news: %v", err)
 			c.JSON(500, err.Error())
@@ -197,24 +193,24 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 
 		articleImgPromise := pkg.NewPromise(func() (string, error) {
-			imgUrl, err := a.aiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle, true)
+			imgUrl, err := a.appContext.Deps.AiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle, true)
 			if err != nil {
 				log.Printf("error making fake news img: %v", err)
 			}
 			if imgUrl != "" {
-				a.service.SetFakeNewsImgUrl(site.Id, selectedTitle, imgUrl)
+				a.appContext.Deps.Service.SetFakeNewsImgUrl(ctx, site.Id, selectedTitle, imgUrl)
 			}
 			return imgUrl, err
 		})
 
-		articleContent, err := a.aiClient.GenerateArticleContentStr(ctx, site.Name, site.DescriptionEn, selectedTitle, temperature)
+		articleContent, err := a.appContext.Deps.AiClient.GenerateArticleContentStr(ctx, site.Name, site.DescriptionEn, selectedTitle, temperature)
 		if err != nil {
 			log.Printf("error generating article content: %v", err)
 			c.JSON(500, err.Error())
 			return
 		}
 
-		err = a.service.UpdateFakeNews(site.Id, selectedTitle, articleContent)
+		err = a.appContext.Deps.Service.UpdateFakeNews(ctx, site.Id, selectedTitle, articleContent)
 		if err != nil {
 			log.Printf("error updating fake news: %v", err)
 			c.JSON(500, err.Error())
@@ -225,14 +221,14 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		articleImgPromise.Get()
 		log.Printf("img done!")
 
-		err = a.service.SetFakeNewsHighlighted(site.Id, selectedTitle, true)
+		err = a.appContext.Deps.Service.SetFakeNewsHighlighted(ctx, site.Id, selectedTitle, true)
 		if err != nil {
 			log.Printf("error setting highlighted: %v", err)
 			c.JSON(500, err.Error())
 			return
 		}
 
-		createdFakeNews, err := a.service.GetFakeNews(site.Id, selectedTitle)
+		createdFakeNews, err := a.appContext.Deps.Service.GetFakeNews(ctx, site.Id, selectedTitle)
 		if err != nil {
 			log.Printf("error getting fake news: %v", err)
 			c.JSON(500, err.Error())
