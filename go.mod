@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
-	github.com/a-h/templ v0.2.747
+	github.com/a-h/templ v0.2.771
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.16
 	github.com/gin-contrib/sessions v1.0.1
 	github.com/pkoukk/tiktoken-go v0.1.7
@@ -116,6 +116,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/prometheus/client_golang v1.18.0
-	golang.org/x/net v0.24.0 // indirect
+	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 )
