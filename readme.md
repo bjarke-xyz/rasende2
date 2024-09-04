@@ -1,6 +1,6 @@
 # Rasende2
 
-Scrape nyhedssider RSS, find titler der indeholder ordet rasende. 
+Læser nyhedssider RSS, find titler der indeholder ordet rasende. 
 
 ## Database notes
 
