@@ -1,0 +1,45 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2/internal/core"
+)
+
+type SearchResultsViewModel struct {
+	SearchResults core.SearchResult
+	ChartsResult  core.ChartsResult
+	NextOffset    int
+	Search        string
+	IncludeCharts bool
+}
+
+templ SearchResults(model SearchResultsViewModel) {
+	<div id="search-result-items">
+		for _, item := range model.SearchResults.Items {
+			<div>
+				@ItemLink(item)
+			</div>
+		}
+		<div id="replaceMe">
+			<form>
+				<input type="hidden" name="offset" value={ fmt.Sprint(model.NextOffset) }/>
+				<input type="hidden" name="search" value={ model.Search }/>
+				<button
+					class="btn-primary"
+					hx-post="/search"
+					hx-target="#replaceMe"
+					hx-swap="outerHTML"
+				>
+					Hent flere
+				</button>
+			</form>
+		</div>
+	</div>
+	if model.IncludeCharts {
+		<div>
+			<div class="mt-8">
+				@RasendeChart(model.ChartsResult)
+			</div>
+		</div>
+	}
+}

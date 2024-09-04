@@ -1,0 +1,166 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2/internal/core"
+)
+
+type BaseOpenGraphModel struct {
+	Title string
+	// Type  string
+	Image       string
+	Url         string
+	Description string
+}
+
+type BaseViewModel struct {
+	Path          string
+	UnixBuildTime int64
+	Title         string
+	OpenGraph     *BaseOpenGraphModel
+	IncludeLayout bool
+	FlashInfo     []string
+	FlashWarn     []string
+	FlashError    []string
+	NoCache       bool
+
+	UserId          int64
+	IsAdmin         bool
+	IsAnonymousUser bool
+}
+
+templ Layout(viewModel BaseViewModel, children ...templ.Component) {
+	if (viewModel.IncludeLayout) {
+		<!DOCTYPE html>
+		<html lang="en">
+			<head>
+				<meta charset="UTF-8"/>
+				<meta name="viewport" content="width=device-width, initial-scale=1"/>
+				<title>{ viewModel.Title }</title>
+				<link href={ fmt.Sprintf("/static/css/tailwind.css?v=%v", viewModel.UnixBuildTime) } rel="stylesheet"/>
+				<script src={ fmt.Sprintf("/static/js/ready.js?v=%v", viewModel.UnixBuildTime) }></script>
+				<script src={ fmt.Sprintf("/static/js/vendor/chart.umd.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script src={ fmt.Sprintf("/static/js/vendor/htmx.min.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script src={ fmt.Sprintf("/static/js/vendor/sse.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script src={ fmt.Sprintf("/static/js/main.js?v=%v", viewModel.UnixBuildTime) } defer></script>
+				<script>
+					window.goatcounter = {
+						// The passed value is the default.
+						path: function(p) {
+							// Don't track email query param
+							if (p.includes("?")) {
+								const questionMarkIndex = p.indexOf("?")
+								const queryParams = p.substring(questionMarkIndex)
+								const urlSearchParams = new URLSearchParams(queryParams);
+								if (urlSearchParams.has("email")) {
+									urlSearchParams.set("email", "[REDACTED]")
+									const noQueryP = p.substring(0, questionMarkIndex)
+									const newP = noQueryP + "?" + urlSearchParams.toString();
+									return newP;
+								}
+							}
+							return p;
+						},
+					}
+				</script>
+				<script data-goatcounter="https://rasende2.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+				if viewModel.OpenGraph != nil {
+					@openGraph(*viewModel.OpenGraph)
+				}
+			</head>
+			<body class="bg-white text-slate-900 dark:bg-slate-800 dark:text-white">
+				<div class="h-screen flex flex-col">
+					@header(viewModel.Path)
+					<div class="mb-auto mt-10">
+						if len(viewModel.FlashError) > 0 {
+							@flash(core.FlashTypeError, viewModel.FlashError)
+						}
+						if len(viewModel.FlashWarn) > 0 {
+							@flash(core.FlashTypeWarn, viewModel.FlashWarn)
+						}
+						if len(viewModel.FlashInfo) > 0 {
+							@flash(core.FlashTypeInfo, viewModel.FlashInfo)
+						}
+						for _, child := range children {
+							@child
+						}
+					</div>
+					@footer(viewModel)
+				</div>
+			</body>
+		</html>
+	} else {
+		for _, child := range children {
+			@child
+		}
+	}
+}
+
+templ headerLink(currentPath string, linkPath string, text string) {
+	if currentPath == linkPath {
+		<a class="font-bold" href={ templ.URL(linkPath) }>{ text }</a>
+	} else {
+		<a href={ templ.URL(linkPath) }>{ text }</a>
+	}
+}
+
+templ header(path string) {
+	<div class="flex flex-col items-center py-2">
+		<div class="flex flex-row space-x-4">
+			<div>
+				@headerLink(path, "/", "Rasende")
+			</div>
+			<div>
+				@headerLink(path, "/search", "Søg")
+			</div>
+			<div>
+				@headerLink(path, "/fake-news", "Fake News")
+			</div>
+		</div>
+	</div>
+}
+
+templ footer(model BaseViewModel) {
+	<footer class="p-2">
+		<div class="flex flex-row justify-end text-sm">
+			if !model.IsAnonymousUser {
+				<form method="POST" action="/logout">
+					<button class="btn-primary">Logout</button>
+				</form>
+			} else {
+				<a href="/login">Login</a>
+			}
+		</div>
+	</footer>
+}
+
+templ openGraph(model BaseOpenGraphModel) {
+	<meta property="og:title" content={ model.Title }/>
+	<meta property="og:type" content="website"/>
+	<meta property="og:image" content={ model.Image }/>
+	<meta property="og:url" content={ model.Url }/>
+	<meta property="og:description" content={ model.Description }/>
+}
+
+var flashScriptHandle = templ.NewOnceHandle()
+
+templ flash(flashType string, msgs []string) {
+	@flashScriptHandle.Once() {
+		<script>
+		function handleFlashClick(elem) {
+			const flashContainer = elem.parentElement;
+			flashContainer?.remove();
+		}
+		</script>
+	}
+	<div class={ "relative p-4 m-4 rounded-md text-slate-900 ", templ.KV("bg-red-200", flashType == core.FlashTypeError), templ.KV("bg-yellow-200", flashType == core.FlashTypeWarn), templ.KV("bg-blue-200", flashType == core.FlashTypeInfo) }>
+		<button onclick="handleFlashClick(this)" onclick="this.parentElement.style.display='none';" class="absolute top-2 right-2 text-slate-900">
+			&times;
+		</button>
+		for _, msg := range msgs {
+			<p class="text-xl">
+				{ msg }
+			</p>
+		}
+	</div>
+}

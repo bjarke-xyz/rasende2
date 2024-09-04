@@ -1,0 +1,194 @@
+package components
+
+import (
+	"fmt"
+	"github.com/bjarke-xyz/rasende2/internal/config"
+	"github.com/bjarke-xyz/rasende2/internal/core"
+	"net/url"
+	"time"
+)
+
+func getValOrDefault(val *string, defaultVal string) string {
+	if val == nil {
+		return defaultVal
+	}
+	return *val
+}
+
+type ArticleFuncsModel struct {
+	TimeDifference func(t time.Time) string
+	TruncateText   func(str string, maxLength int) string
+}
+
+type FakeNewsViewModel struct {
+	Base         BaseViewModel
+	FakeNews     []core.FakeNewsDto
+	Cursor       string
+	Sorting      string
+	Funcs        ArticleFuncsModel
+	OnlyGrid     bool
+	AlreadyVoted map[string]string // id -> direction
+}
+
+templ fakeNews(model FakeNewsViewModel) {
+	<div class="m-4" id="fake_news_page">
+		<form>
+			<input type="hidden" hx-get="/fake-news" hx-include="select[name='sorting']" hx-push-url="true" hx-trigger="change from:select[name='sorting'], rasende-focus, from:body throttle:1s" hx-target="#fake_news_page" hx-swap="outerHTML"/>
+		</form>
+		<div>
+			<div class="flex flex-row justify-between items-center flex-wrap gap-4">
+				<h2 class="text-3xl font-bold">Falske Nyheder</h2>
+				<div class="flex flex-col gap-4">
+					<a class="btn-primary" href="/title-generator">Opret en falsk nyhed</a>
+					<div>
+						<label for="fake-news-sorting">Sortering</label>
+						<select id="fake-news-sorting" name="sorting" class="select">
+							<option
+								value="popular"
+								if model.Sorting == "popular" {
+									selected="selected"
+								}
+							>Mest populære</option>
+							<option
+								value="latest"
+								if model.Sorting == "latest" {
+									selected="selected"
+								}
+							>Nyeste</option>
+						</select>
+					</div>
+				</div>
+			</div>
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 p-4 max-w-[2600px] m-auto">
+				@fakeNewsGrid(model)
+			</div>
+		</div>
+	</div>
+}
+
+templ fakeNewsGrid(model FakeNewsViewModel) {
+	for _, fn := range model.FakeNews {
+		@articleCard(fn, model.Funcs, model.AlreadyVoted)
+	}
+	<div id="fake-news-button-container" class="flex items-end">
+		<form>
+			<input type="hidden" name="only-grid" value="true"/>
+			<input type="hidden" name="cursor" value={ model.Cursor }/>
+			if len(model.Cursor) > 0 {
+				<button
+					class="btn-primary"
+					hx-get="/fake-news"
+					hx-include="select[name='sorting'], input[name='only-grid'], input[name='cursor']"
+					hx-target="#fake-news-button-container"
+					hx-swap="outerHTML"
+				>
+					Vis mere
+				</button>
+			}
+		</form>
+	</div>
+}
+
+templ FakeNews(model FakeNewsViewModel) {
+	if model.OnlyGrid {
+		@fakeNewsGrid(model)
+	} else {
+		@Layout(model.Base, fakeNews(model))
+	}
+}
+
+func getArticleUrl(fn core.FakeNewsDto) string {
+	return fmt.Sprintf("/fake-news/%v", url.QueryEscape(fn.Slug()))
+}
+
+templ articleCard(fn core.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map[string]string) {
+	<div class="flex flex-col min-w-[256px] max-w-[512px] shadow-md rounded-lg dark:bg-slate-700">
+		<a href={ templ.SafeURL(getArticleUrl(fn)) } target="_blank" rel="noopener noreferrer">
+			<img
+				class="w-full h-[384px] object-cover"
+				src={ getValOrDefault(fn.ImageUrl, config.PlaceholderImgUrl) }
+				alt={ fn.Title }
+			/>
+		</a>
+		<div class="p-4 flex flex-col flex-1">
+			<div class="flex items-center justify-between mb-2">
+				<span class="bg-blue-100 text-blue-800 dark:bg-blue-200 dark:text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded">
+					{ fn.SiteName }
+				</span>
+				<span class="text-gray-500 dark:text-gray-200 text-xs" title={ fn.Published.Format(time.RFC3339) }>
+					{ funcs.TimeDifference(fn.Published) }
+				</span>
+			</div>
+			<h2 class="text-lg font-semibold text-gray-800 dark:text-gray-50 hover:underline">
+				<a href={ templ.SafeURL(getArticleUrl(fn)) } target="_blank" rel="noopener noreferrer">
+					{ fn.Title }
+				</a>
+			</h2>
+			<p class="text-gray-600 dark:text-gray-200 mt-2 mb-auto">{ funcs.TruncateText(fn.Content, 160) }</p>
+			<div class="flex flex-row gap-4 justify-between content-end">
+				<a
+					href={ templ.SafeURL(getArticleUrl(fn)) }
+					target="_blank"
+					rel="noopener noreferrer"
+					class="text-blue-500 dark:text-blue-200 dark:hover:text-blue-300 hover:text-blue-700 mt-4 inline-block"
+				>
+					Læs mere
+				</a>
+				@FakeNewsVotes(fn, alreadyVoted)
+			</div>
+		</div>
+	</div>
+}
+
+templ FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) {
+	<div id={ fmt.Sprintf("fn-votes-%v", fn.Id()) }>
+		<input type="hidden" name="siteId" value={ fmt.Sprint(fn.SiteId) }/>
+		<input type="hidden" name="title" value={ fn.Title }/>
+		<div class="flex items-center space-x-4">
+			<form>
+				<input type="hidden" name="direction" value="up"/>
+				<button
+					class={ "text-2xl", templ.KV("text-gray-400", !hasVotedUp(fn, alreadyVoted)), templ.KV("text-green-500", hasVotedUp(fn, alreadyVoted)) }
+					if hasVotedUp(fn, alreadyVoted) {
+						disabled="disabled"
+					}
+					hx-post="/vote-article"
+					hx-include={ fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()) }
+					hx-target={ fmt.Sprintf("#fn-votes-%v", fn.Id()) }
+				>
+					▲
+				</button>
+			</form>
+			<span class="text-lg font-semibold">{ fmt.Sprint(fn.Votes) }</span>
+			<form>
+				<input type="hidden" name="direction" value="down"/>
+				<button
+					class={ "text-2xl", templ.KV("text-gray-400", !hasVotedDown(fn, alreadyVoted)), templ.KV("text-red-500", hasVotedDown(fn, alreadyVoted)) }
+					if hasVotedDown(fn, alreadyVoted) {
+						disabled="disabled"
+					}
+					hx-post="/vote-article"
+					hx-include={ fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()) }
+					hx-target={ fmt.Sprintf("#fn-votes-%v", fn.Id()) }
+				>
+					▼
+				</button>
+			</form>
+		</div>
+	</div>
+}
+
+func hasVotedUp(fn core.FakeNewsDto, alreadyVoted map[string]string) bool {
+	dir, ok := alreadyVoted[fn.Id()]
+	if !ok {
+		return false
+	}
+	return dir == "up"
+}
+func hasVotedDown(fn core.FakeNewsDto, alreadyVoted map[string]string) bool {
+	dir, ok := alreadyVoted[fn.Id()]
+	if !ok {
+		return false
+	}
+	return dir == "down"
+}
