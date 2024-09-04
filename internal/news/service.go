@@ -153,17 +153,17 @@ func (r *RssService) GetChartData(ctx context.Context, query string) (core.Chart
 }
 
 func (r *RssService) Initialise(ctx context.Context) {
-	err := r.RefreshMetrics(ctx)
-	if err != nil {
-		log.Printf("error refreshing metrics: %v", err)
-	}
-
 	indexCreated, err := r.search.OpenAndCreateIndexIfNotExists()
 	if err != nil {
 		log.Printf("failed to open/create index: %v", err)
 	}
 	if indexCreated {
 		go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), nil)
+	}
+
+	err = r.RefreshMetrics(ctx)
+	if err != nil {
+		log.Printf("error refreshing metrics: %v", err)
 	}
 }
 
