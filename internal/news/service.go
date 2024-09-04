@@ -489,15 +489,16 @@ func (r *RssService) getContents(rssUrl core.NewsSite) ([]string, error) {
 			return nil, fmt.Errorf("error getting %v: %w", url, err)
 		}
 		rssFetchStatusCodes.WithLabelValues(fmt.Sprintf("%v", resp.StatusCode), rssUrl.Name, url).Inc()
-		if resp.StatusCode > 299 {
-			return nil, fmt.Errorf("error getting %v, returned error code %v", url, resp.StatusCode)
-		}
 		defer resp.Body.Close()
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("error reading body of %v: %w", url, err)
 		}
 		bodyStr := string(body)
+		if resp.StatusCode > 299 {
+			log.Printf("error getting %v, got status code %v. headers='%v', body='%v'", url, resp.StatusCode, resp.Header, bodyStr)
+			return nil, fmt.Errorf("error getting %v, returned error code %v", url, resp.StatusCode)
+		}
 		contents = append(contents, bodyStr)
 	}
 	return contents, nil
