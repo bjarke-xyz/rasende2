@@ -141,7 +141,7 @@ templ articleCard(fn core.FakeNewsDto, funcs ArticleFuncsModel, alreadyVoted map
 }
 
 templ FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) {
-	<div id={ fmt.Sprintf("fn-votes-%v", fn.Id()) }>
+	<div id={ fmt.Sprintf("fn-votes-%v", fn.Identifier()) }>
 		<input type="hidden" name="siteId" value={ fmt.Sprint(fn.SiteId) }/>
 		<input type="hidden" name="title" value={ fn.Title }/>
 		<div class="flex items-center space-x-4">
@@ -153,8 +153,8 @@ templ FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) {
 						disabled="disabled"
 					}
 					hx-post="/vote-article"
-					hx-include={ fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()) }
-					hx-target={ fmt.Sprintf("#fn-votes-%v", fn.Id()) }
+					hx-include={ fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Identifier(), fn.Identifier()) }
+					hx-target={ fmt.Sprintf("#fn-votes-%v", fn.Identifier()) }
 				>
 					▲
 				</button>
@@ -168,8 +168,8 @@ templ FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) {
 						disabled="disabled"
 					}
 					hx-post="/vote-article"
-					hx-include={ fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()) }
-					hx-target={ fmt.Sprintf("#fn-votes-%v", fn.Id()) }
+					hx-include={ fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Identifier(), fn.Identifier()) }
+					hx-target={ fmt.Sprintf("#fn-votes-%v", fn.Identifier()) }
 				>
 					▼
 				</button>
@@ -179,14 +179,14 @@ templ FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) {
 }
 
 func hasVotedUp(fn core.FakeNewsDto, alreadyVoted map[string]string) bool {
-	dir, ok := alreadyVoted[fn.Id()]
+	dir, ok := alreadyVoted[fn.Identifier()]
 	if !ok {
 		return false
 	}
 	return dir == "up"
 }
 func hasVotedDown(fn core.FakeNewsDto, alreadyVoted map[string]string) bool {
-	dir, ok := alreadyVoted[fn.Id()]
+	dir, ok := alreadyVoted[fn.Identifier()]
 	if !ok {
 		return false
 	}

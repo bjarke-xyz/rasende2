@@ -435,13 +435,31 @@ func (r *sqliteNewsRepository) GetPopularFakeNews(ctx context.Context, limit int
 	return fakeNewsDtos, nil
 }
 
-func (r *sqliteNewsRepository) GetFakeNews(ctx context.Context, siteId int, title string) (*core.FakeNewsDto, error) {
+func (r *sqliteNewsRepository) GetFakeNews(ctx context.Context, id string) (*core.FakeNewsDto, error) {
 	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return nil, err
 	}
 	var fakeNewsDto core.FakeNewsDto
-	sqlQuery := fmt.Sprintf("SELECT %v FROM fake_news WHERE site_id = ? and title = ?", DBTags(core.FakeNewsDto{}))
+	sqlQuery := fmt.Sprintf("SELECT %v FROM fake_news WHERE external_id = ?", DBTags(core.FakeNewsDto{}))
+	err = db.Get(&fakeNewsDto, sqlQuery, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	r.EnrichOneFakeNewsWithSiteNames(ctx, &fakeNewsDto)
+	return &fakeNewsDto, nil
+}
+
+func (r *sqliteNewsRepository) GetFakeNewsByTitle(ctx context.Context, siteId int, title string) (*core.FakeNewsDto, error) {
+	db, err := db.Open(r.appContext.Config)
+	if err != nil {
+		return nil, err
+	}
+	var fakeNewsDto core.FakeNewsDto
+	sqlQuery := fmt.Sprintf("SELECT %v FROM fake_news WHERE site_id = ? AND title = ?", DBTags(core.FakeNewsDto{}))
 	err = db.Get(&fakeNewsDto, sqlQuery, siteId, title)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -453,13 +471,13 @@ func (r *sqliteNewsRepository) GetFakeNews(ctx context.Context, siteId int, titl
 	return &fakeNewsDto, nil
 }
 
-func (r *sqliteNewsRepository) CreateFakeNews(ctx context.Context, siteId int, title string) error {
+func (r *sqliteNewsRepository) CreateFakeNews(ctx context.Context, siteId int, title string, externalId string) error {
 	db, err := db.Open(r.appContext.Config)
 	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
-	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published, site_id) VALUES (?, ?, ?, ?, ?) on conflict do nothing", "", title, "", now, siteId)
+	_, err = db.Exec("INSERT INTO fake_news (site_name, title, content, published, site_id, external_id) VALUES (?, ?, ?, ?, ?, ?) on conflict do nothing", "", title, "", now, siteId, externalId)
 	if err != nil {
 		return fmt.Errorf("error inserting fake news: %w", err)
 	}

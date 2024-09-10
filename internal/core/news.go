@@ -5,6 +5,8 @@ import (
 	"crypto/md5"
 	"fmt"
 	"time"
+
+	"github.com/gosimple/slug"
 )
 
 type NewsRepository interface {
@@ -22,8 +24,9 @@ type NewsRepository interface {
 
 	GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]FakeNewsDto, error)
 	GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error)
-	GetFakeNews(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
-	CreateFakeNews(ctx context.Context, siteId int, title string) error
+	GetFakeNews(ctx context.Context, id string) (*FakeNewsDto, error)
+	GetFakeNewsByTitle(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
+	CreateFakeNews(ctx context.Context, siteId int, title string, externalId string) error
 	UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error
 	SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error
 	SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error
@@ -49,8 +52,9 @@ type NewsService interface {
 
 	GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error)
 	GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]FakeNewsDto, error)
-	GetFakeNews(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
-	CreateFakeNews(ctx context.Context, siteId int, title string) error
+	GetFakeNews(ctx context.Context, id string) (*FakeNewsDto, error)
+	GetFakeNewsByTitle(ctx context.Context, siteId int, title string) (*FakeNewsDto, error)
+	CreateFakeNews(ctx context.Context, siteId int, title string, externalId string) error
 	UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error
 	SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error
 	SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error
@@ -122,12 +126,15 @@ type FakeNewsDto struct {
 	ImageUrl    *string   `db:"img_url" json:"imageUrl"`
 	Highlighted bool      `db:"highlighted" json:"highlighted"`
 	Votes       int       `db:"votes" json:"votes"`
+	ExternalId  *string   `db:"external_id" json:"externalId"`
 }
 
 func (fn FakeNewsDto) Slug() string {
-	return fmt.Sprintf("%v-%v-%v", fn.SiteId, fn.Published.Format(time.DateOnly), fn.Title)
+	titleSlug := slug.Make(fn.Title)
+	return fmt.Sprintf("%v-%v", *fn.ExternalId, titleSlug)
+	// return fmt.Sprintf("%v-%v-%v", fn.SiteId, fn.Published.Format(time.DateOnly), fn.Title)
 }
-func (fn *FakeNewsDto) Id() string {
+func (fn *FakeNewsDto) Identifier() string {
 	str := fmt.Sprintf("%v:%v:%v", fn.SiteId, fn.Title, fn.Published.UnixMilli())
 	bytes := []byte(str)
 	hashedBytes := md5.Sum(bytes)

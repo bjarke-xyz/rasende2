@@ -96,14 +96,14 @@ func (w *web) HandleGetFakeNews(c *gin.Context) {
 
 func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 	ctx := c.Request.Context()
-	slug, _ := url.QueryUnescape(c.Param("slug"))
-	siteId, date, title, err := parseArticleSlug(slug)
+	querySlug, _ := url.QueryUnescape(c.Param("slug"))
+	externalId, _, err := parseArticleSlugV2(querySlug)
 	if err != nil {
-		log.Printf("error parsing slug '%v': %v", slug, err)
+		log.Printf("error parsing slug '%v': %v", querySlug, err)
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
 		return
 	}
-	fakeNewsDto, err := w.appContext.Deps.Service.GetFakeNews(ctx, siteId, title)
+	fakeNewsDto, err := w.appContext.Deps.Service.GetFakeNews(ctx, externalId)
 	if err != nil {
 		log.Printf("error getting fake news: %v", err)
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
@@ -115,12 +115,16 @@ func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 		c.HTML(http.StatusNotFound, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
 		return
 	}
-	if fakeNewsDto.Published.Format(time.DateOnly) != date.Format(time.DateOnly) {
-		err = fmt.Errorf("invalid date. Got=%v, expected=%v", date, fakeNewsDto.Published)
-		log.Printf("returned error because of dates: %v", err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+	if fakeNewsDto.Slug() != querySlug {
+		c.Redirect(http.StatusFound, fmt.Sprintf("/fake-news/%v", fakeNewsDto.Slug()))
 		return
 	}
+	// if fakeNewsDto.Published.Format(time.DateOnly) != date.Format(time.DateOnly) {
+	// 	err = fmt.Errorf("invalid date. Got=%v, expected=%v", date, fakeNewsDto.Published)
+	// 	log.Printf("returned error because of dates: %v", err)
+	// 	c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+	// 	return
+	// }
 	fakeNewsArticleViewModel := components.FakeNewsArticleViewModel{
 		Base:     w.getBaseModel(c, fmt.Sprintf("%s | %v | Fake News", fakeNewsDto.Title, fakeNewsDto.SiteName)),
 		FakeNews: *fakeNewsDto,
@@ -231,9 +235,14 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 				log.Println("\nStream finished")
 				for _, title := range titles {
 					if len(title) > 0 {
-						err = w.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title)
+						externalId, err := pkg.NewNanoid()
 						if err != nil {
-							log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
+							log.Printf("error making nanoid: %v", err)
+						} else {
+							err = w.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title, externalId)
+							if err != nil {
+								log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
+							}
 						}
 					}
 				}
@@ -297,7 +306,7 @@ func (w *web) HandleGetArticleGenerator(c *gin.Context) {
 		return
 	}
 
-	article, err := w.appContext.Deps.Service.GetFakeNews(ctx, site.Id, articleTitle)
+	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
 		return
@@ -338,7 +347,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 		return
 	}
 
-	article, err := w.appContext.Deps.Service.GetFakeNews(ctx, site.Id, articleTitle)
+	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
 		return
@@ -474,7 +483,7 @@ func (w *web) HandlePostPublishFakeNews(c *gin.Context) {
 		return
 	}
 
-	article, err := w.appContext.Deps.Service.GetFakeNews(ctx, site.Id, articleTitle)
+	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
 		return
@@ -553,7 +562,7 @@ func (w *web) HandlePostArticleVote(c *gin.Context) {
 		return
 	}
 
-	article, err := w.appContext.Deps.Service.GetFakeNews(ctx, site.Id, articleTitle)
+	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
 		return
@@ -580,9 +589,9 @@ func (w *web) HandlePostArticleVote(c *gin.Context) {
 	}
 	article.Votes = updatedVotes
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(fmt.Sprintf("VOTED.%v", article.Id()), direction, 3600*24, "/", "", true, true)
+	c.SetCookie(fmt.Sprintf("VOTED.%v", article.Identifier()), direction, 3600*24, "/", "", true, true)
 	alreadyVoted := getAlreadyVoted(c)
-	alreadyVoted[article.Id()] = direction
+	alreadyVoted[article.Identifier()] = direction
 	c.HTML(http.StatusOK, "", components.FakeNewsVotes(*article, alreadyVoted))
 }
 
@@ -602,33 +611,47 @@ func getAlreadyVoted(c *gin.Context) map[string]string {
 	return result
 }
 
-func parseArticleSlug(slug string) (int, time.Time, string, error) {
-	// slug = {site-id:123}-{date:2024-08-19}-{title:article title qwerty}
-	var err error
-	siteId := 0
-	date := time.Time{}
+func parseArticleSlugV2(slug string) (string, string, error) {
+	// slug = {id}-{title}
+	externalId := ""
 	title := ""
 	parts := strings.Split(slug, "-")
 	log.Println(len(parts), parts)
-	if len(parts) < 4 {
-		return siteId, date, title, fmt.Errorf("invalid slug")
+	if len(parts) < 2 {
+		return externalId, title, fmt.Errorf("invalid slug")
 	}
-	siteId, err = strconv.Atoi(parts[0])
-	if err != nil {
-		return siteId, date, title, fmt.Errorf("error parsing site id: %w", err)
-	}
-
-	year := parts[1]
-	month := parts[2]
-	day := parts[3]
-	date, err = time.Parse("2006-01-02", fmt.Sprintf("%v-%v-%v", year, month, day))
-	if err != nil {
-		return siteId, date, title, fmt.Errorf("error parsing date: %w", err)
-	}
-
-	title = strings.Join(parts[4:], "-")
-	return siteId, date, title, nil
+	externalId = parts[0]
+	title = strings.Join(parts[1:], "-")
+	return externalId, title, nil
 }
+
+// func parseArticleSlug(slug string) (int, time.Time, string, error) {
+// 	// slug = {site-id:123}-{date:2024-08-19}-{title:article title qwerty}
+// 	var err error
+// 	siteId := 0
+// 	date := time.Time{}
+// 	title := ""
+// 	parts := strings.Split(slug, "-")
+// 	log.Println(len(parts), parts)
+// 	if len(parts) < 4 {
+// 		return siteId, date, title, fmt.Errorf("invalid slug")
+// 	}
+// 	siteId, err = strconv.Atoi(parts[0])
+// 	if err != nil {
+// 		return siteId, date, title, fmt.Errorf("error parsing site id: %w", err)
+// 	}
+
+// 	year := parts[1]
+// 	month := parts[2]
+// 	day := parts[3]
+// 	date, err = time.Parse("2006-01-02", fmt.Sprintf("%v-%v-%v", year, month, day))
+// 	if err != nil {
+// 		return siteId, date, title, fmt.Errorf("error parsing date: %w", err)
+// 	}
+
+// 	title = strings.Join(parts[4:], "-")
+// 	return siteId, date, title, nil
+// }
 
 func getTimeDifference(date time.Time) string {
 	now := time.Now()

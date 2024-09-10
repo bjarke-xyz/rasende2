@@ -30,7 +30,38 @@ func (a *api) Route(r *gin.Engine) {
 	apiGroup.POST("/admin/rebuild-index", a.RebuildIndex())
 	apiGroup.POST("/admin/auto-generate-fake-news", a.AutoGenerateFakeNews())
 	apiGroup.POST("/admin/clean-fake-news", a.CleanUpFakeNews())
+	// TODO: delete
+	// apiGroup.POST("/admin/migrate", a.Migrate())
 }
+
+// func (a *api) Migrate() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		queries, err := db.OpenQueries(a.appContext.Config)
+// 		db, err := db.Open(a.appContext.Config)
+// 		if err != nil {
+// 			log.Printf("OpenQueries failed: %v", err)
+// 			return
+// 		}
+// 		ctx := c.Request.Context()
+// 		fakeNews, err := queries.GetAllFakeNews(ctx)
+// 		if err != nil {
+// 			log.Printf("GetAllFakeNews failed: %v", err)
+// 			return
+// 		}
+// 		for _, fn := range fakeNews {
+// 			// if fn.ExternalID.Valid {
+// 			// 	continue
+// 			// }
+// 			newId, err := pkg.NewNanoid()
+// 			if err != nil {
+// 				log.Printf("gonanoid new failed: %v", err)
+// 				return
+// 			}
+// 			log.Printf("updating fn %v %v, id=%v", fn.SiteID, fn.Title, newId)
+// 			db.Exec("UPDATE fake_news SET external_id = ? WHERE site_id = ? AND title = ?", newId, fn.SiteID.Int64, fn.Title)
+// 		}
+// 	}
+// }
 
 func (a *api) RunJob() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -184,8 +215,13 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 			return
 		}
 		log.Printf("selected title: %v", selectedTitle)
-
-		err = a.appContext.Deps.Service.CreateFakeNews(ctx, site.Id, selectedTitle)
+		externalId, err := pkg.NewNanoid()
+		if err != nil {
+			log.Printf("error making id: %v", err)
+			c.JSON(500, err.Error())
+			return
+		}
+		err = a.appContext.Deps.Service.CreateFakeNews(ctx, site.Id, selectedTitle, externalId)
 		if err != nil {
 			log.Printf("error creating fake news: %v", err)
 			c.JSON(500, err.Error())
@@ -228,7 +264,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 			return
 		}
 
-		createdFakeNews, err := a.appContext.Deps.Service.GetFakeNews(ctx, site.Id, selectedTitle)
+		createdFakeNews, err := a.appContext.Deps.Service.GetFakeNews(ctx, externalId)
 		if err != nil {
 			log.Printf("error getting fake news: %v", err)
 			c.JSON(500, err.Error())

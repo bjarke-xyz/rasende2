@@ -542,12 +542,15 @@ func (r *RssService) GetPopularFakeNews(ctx context.Context, limit int, publishe
 func (r *RssService) GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]core.FakeNewsDto, error) {
 	return r.repository.GetRecentFakeNews(ctx, limit, publishedAfter)
 }
-func (r *RssService) GetFakeNews(ctx context.Context, siteId int, title string) (*core.FakeNewsDto, error) {
-	return r.repository.GetFakeNews(ctx, siteId, title)
+func (r *RssService) GetFakeNews(ctx context.Context, id string) (*core.FakeNewsDto, error) {
+	return r.repository.GetFakeNews(ctx, id)
+}
+func (r *RssService) GetFakeNewsByTitle(ctx context.Context, siteId int, title string) (*core.FakeNewsDto, error) {
+	return r.repository.GetFakeNewsByTitle(ctx, siteId, title)
 }
 
-func (r *RssService) CreateFakeNews(ctx context.Context, siteId int, title string) error {
-	return r.repository.CreateFakeNews(ctx, siteId, title)
+func (r *RssService) CreateFakeNews(ctx context.Context, siteId int, title string, externalId string) error {
+	return r.repository.CreateFakeNews(ctx, siteId, title, externalId)
 }
 func (r *RssService) UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error {
 	return r.repository.UpdateFakeNews(ctx, siteId, title, content)

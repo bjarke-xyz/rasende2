@@ -359,9 +359,9 @@ func FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("fn-votes-%v", fn.Id()))
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("fn-votes-%v", fn.Identifier()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 144, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 144, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -430,9 +430,9 @@ func FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var22 string
-		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()))
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Identifier(), fn.Identifier()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 156, Col: 128}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 156, Col: 144}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -443,9 +443,9 @@ func FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#fn-votes-%v", fn.Id()))
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#fn-votes-%v", fn.Identifier()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 157, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 157, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -501,9 +501,9 @@ func FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var27 string
-		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Id(), fn.Id()))
+		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("div#fn-votes-%v > input[name='siteId'], div#fn-votes-%v > input[name='title']", fn.Identifier(), fn.Identifier()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 171, Col: 128}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 171, Col: 144}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -514,9 +514,9 @@ func FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 string
-		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#fn-votes-%v", fn.Id()))
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#fn-votes-%v", fn.Identifier()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 172, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/components/fake_news.templ`, Line: 172, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -531,14 +531,14 @@ func FakeNewsVotes(fn core.FakeNewsDto, alreadyVoted map[string]string) templ.Co
 }
 
 func hasVotedUp(fn core.FakeNewsDto, alreadyVoted map[string]string) bool {
-	dir, ok := alreadyVoted[fn.Id()]
+	dir, ok := alreadyVoted[fn.Identifier()]
 	if !ok {
 		return false
 	}
 	return dir == "up"
 }
 func hasVotedDown(fn core.FakeNewsDto, alreadyVoted map[string]string) bool {
-	dir, ok := alreadyVoted[fn.Id()]
+	dir, ok := alreadyVoted[fn.Identifier()]
 	if !ok {
 		return false
 	}

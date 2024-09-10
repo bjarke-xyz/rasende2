@@ -24,6 +24,7 @@ type FakeNews struct {
 	ImgUrl      sql.NullString `json:"img_url"`
 	Highlighted bool           `json:"highlighted"`
 	Votes       int64          `json:"votes"`
+	ExternalID  sql.NullString `json:"external_id"`
 }
 
 type MagicLink struct {
