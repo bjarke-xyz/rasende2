@@ -31,6 +31,18 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 	}))
 }
 
+func (w *web) notifyUserCreated(user dao.User) {
+	msg := fmt.Sprintf("new user created: %v (%v)", user.Email, user.ID)
+	reader := strings.NewReader(msg)
+	resp, err := http.Post("https://ntfy.sh/"+w.appContext.Config.NtfyTopic, "text/plain", reader)
+	if err != nil {
+		log.Printf("error posting to ntfy: %v", err)
+	}
+	if resp.StatusCode != 200 {
+		log.Printf("got non-200 status code from ntfy: %v", resp.StatusCode)
+	}
+}
+
 func (w *web) HandlePostLogin(c *gin.Context) {
 	ctx := c.Request.Context()
 	successPath := StringForm(c, "returnPath", "/")
@@ -64,6 +76,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 				c.Redirect(http.StatusSeeOther, redirectPath)
 				return
 			}
+			w.notifyUserCreated(user)
 		} else {
 			AddFlashError(c, err)
 			c.Redirect(http.StatusSeeOther, redirectPath)
