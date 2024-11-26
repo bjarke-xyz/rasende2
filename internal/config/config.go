@@ -46,6 +46,7 @@ type Config struct {
 	NtfyTopic string
 
 	AdminPassword string
+	AdminEmail    string
 
 	BuildTime *time.Time
 
@@ -112,6 +113,7 @@ func NewConfig() (*Config, error) {
 		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
 		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
 		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
+		AdminEmail:              os.Getenv("ADMIN_EMAIL"),
 		BuildTime:               buildTime,
 		UseFakeOpenAi:           os.Getenv("USE_FAKE_OPENAI") == "true",
 		CookieSecret:            os.Getenv("COOKIE_SECRET"),

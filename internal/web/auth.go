@@ -32,14 +32,15 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 }
 
 func (w *web) notifyUserCreated(user dao.User) {
-	msg := fmt.Sprintf("new user created: %v (%v)", user.Email, user.ID)
-	reader := strings.NewReader(msg)
-	resp, err := http.Post("https://ntfy.sh/"+w.appContext.Config.NtfyTopic, "text/plain", reader)
+	msg := fmt.Sprintf("rasende: new user created: %v (%v)", user.Email, user.ID)
+	err := w.appContext.Infra.Mail.Send(mail.SendMailRequest{
+		Receiver: w.appContext.Config.AdminEmail,
+		Type:     "new_user",
+		Subject:  msg,
+		Message:  msg,
+	})
 	if err != nil {
-		log.Printf("error posting to ntfy: %v", err)
-	}
-	if resp.StatusCode != 200 {
-		log.Printf("got non-200 status code from ntfy: %v", resp.StatusCode)
+		log.Printf("failed to send mail: %v", err)
 	}
 }
 
