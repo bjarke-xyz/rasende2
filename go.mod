@@ -3,17 +3,19 @@ module github.com/bjarke-xyz/rasende2
 go 1.23
 
 require (
-	github.com/PuerkitoBio/goquery v1.8.1
-	github.com/a-h/templ v0.2.771
+	github.com/PuerkitoBio/goquery v1.10.1
+	github.com/a-h/templ v0.3.819
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.16
 	github.com/gin-contrib/sessions v1.0.1
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/pressly/goose/v3 v3.20.0
 	github.com/samber/lo v1.39.0
 	github.com/sashabaranov/go-openai v1.26.3
-	github.com/tursodatabase/libsql-client-go v0.0.0-20240416075003-747366ff79c4
+	github.com/tursodatabase/libsql-client-go v0.0.0-20240902231107-85af5b9d094d
 	github.com/xeonx/timeago v1.0.0-rc5
 )
+
+require github.com/coder/websocket v1.8.12 // indirect
 
 require (
 	github.com/RoaringBitmap/roaring v1.2.3 // indirect
@@ -65,7 +67,6 @@ require (
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/libsql/sqlite-antlr4-parser v0.0.0-20240327125255-dbf53b6cbf06 // indirect
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
@@ -79,9 +80,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.7.0 // indirect
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
-	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	nhooyr.io/websocket v1.8.10 // indirect
 )
 
 require (
@@ -96,13 +96,13 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.0 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	golang.org/x/crypto v0.26.0
-	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/crypto v0.31.0
+	golang.org/x/sys v0.28.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 )
 
 require (
-	github.com/andybalholm/cascadia v1.3.2 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.24.1
 	github.com/aws/aws-sdk-go-v2/config v1.26.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.48.1
@@ -119,6 +119,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/prometheus/client_golang v1.18.0
-	golang.org/x/net v0.28.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 )
