@@ -1,36 +1,28 @@
 [
   {
     "name": "Ekstrabladet",
-    "urls": [
-      "https://ekstrabladet.dk/rssfeed/all/"
-    ],
+    "urls": ["https://ekstrabladet.dk/rssfeed/all/"],
     "description": "Ekstra Bladet er et dansk nyhedsmedie og en af landets mest kendte aviser. Avisen blev grundlagt i 1904 og har siden da været en markant aktør inden for dansk journalistik. Som et populært nyhedsmedie har Ekstra Bladet en karakteristisk stil, der kombinerer nyheder med underholdning og sensationelle historier. Avisen er kendt for sine overskrifter og artikler med høj opmærksomhedsværdi og en provokerende tilgang. Ekstra Bladet appellerer til læsere, der ønsker en mere levende og underholdende nyhedsoplevelse.",
     "descriptionEn": "Ekstra Bladet is a Danish news media and one of the country's most well-known newspapers. The newspaper was founded in 1904 and has since been a significant player in Danish journalism. As a popular news medium, Ekstra Bladet has a distinctive style that combines news with entertainment and sensational stories. The newspaper is known for its headlines and articles with high attention value and a provocative approach. Ekstra Bladet appeals to readers who want a more lively and entertaining news experience.",
     "id": 10
   },
   {
     "name": "BT",
-    "urls": [
-      "https://www.bt.dk/bt/seneste/rss"
-    ],
+    "urls": ["https://www.bt.dk/bt/seneste/rss"],
     "description": "BT er et dansk nyhedsmedie, der betragtes som en af landets største aviser. Det blev grundlagt i 1916 og har siden da været en markant spiller inden for dansk journalistik. I forhold til redaktionel linje betragtes BT som en mere sensationel avis med fokus på tabloide historier. Avisen er kendt for sin iøjnefaldende og ofte kontroversielle overskrifter og artikler. Denne tilgang appellerer til læsere, der søger en mere underholdende og provokerende nyhedstilgang.",
     "descriptionEn": "BT is a Danish news media considered one of the country's largest newspapers. It was founded in 1916 and has since been a significant player in Danish journalism. Editorially, BT is regarded as a more sensational newspaper with a focus on tabloid stories. The newspaper is known for its eye-catching and often controversial headlines and articles. This approach appeals to readers who seek a more entertaining and provocative news angle.",
     "id": 4
   },
   {
     "name": "Avisen Danmark",
-    "urls": [
-      "https://avisendanmark.dk/feed/forside"
-    ],
+    "urls": ["https://avisendanmark.dk/feed/forside"],
     "description": "Avisen.dk er en dansk tabloid-netavis, der oprindeligt blev drevet af Nyhedsavisen og senere Freeway ApS.",
     "descriptionEn": "Avisen.dk is a Danish tabloid online newspaper, originally run by Nyhedsavisen and later Freeway ApS.",
     "id": 2
   },
   {
     "name": "Fyens",
-    "urls": [
-      "https://fyens.dk/feed/forside"
-    ],
+    "urls": ["https://fyens.dk/feed/forside"],
     "description": "Fyens er et dansk nyhedsmedie, der primært fokuserer på at dække begivenheder og historier fra Fyn, en ø i Danmark. Fyens er også navnet på avisen, der blev grundlagt i 1772 og har en lang historie inden for dansk journalistik. Fyens udgives både i trykt form og digitalt og leverer nyheder, reportager, interviews og analyser om forskellige emner, herunder politik, samfund, kultur, sport og lokalstof relateret til Fyn. Avisen har en stab af journalister og redaktører, der arbejder på at rapportere om vigtige begivenheder, problemstillinger og interessante historier fra området.",
     "descriptionEn": "Fyens is a Danish news media that primarily focuses on covering events and stories from Funen, an island in Denmark. Fyens is also the name of the newspaper, which was founded in 1772 and has a long history in Danish journalism. Fyens is published both in print and digitally, providing news, reports, interviews, and analyses on various topics, including politics, society, culture, sports, and local matters related to Funen. The newspaper has a team of journalists and editors who work to report on important events, issues, and interesting stories from the area.",
     "id": 11
@@ -46,45 +38,35 @@
   },
   {
     "name": "Politiken",
-    "urls": [
-      "https://politiken.dk/rss/senestenyt.rss"
-    ],
+    "urls": ["https://politiken.dk/rss/senestenyt.rss"],
     "description": "Politiken er en dansk avis og et af landets mest betydningsfulde nyhedsmedier. Avisen blev grundlagt i 1884 og har siden da været en prominent aktør inden for dansk journalistik. Politiken udgives både i trykt form og digitalt og dækker et bredt spektrum af emner, herunder politik, samfund, kultur, økonomi, videnskab og sport. Avisen har et omfattende netværk af journalister og korrespondenter, der rapporterer fra Danmark og resten af verden. Politiken lægger vægt på grundig og analyserende journalistik samt vinkler og perspektiver, der udfordrer den etablerede tankegang.",
     "descriptionEn": "Politiken is a Danish newspaper and one of the country's most significant news media. The newspaper was founded in 1884 and has since been a prominent player in Danish journalism. Politiken is published both in print and digitally, covering a broad spectrum of topics, including politics, society, culture, economy, science, and sports. The newspaper has an extensive network of journalists and correspondents reporting from Denmark and the rest of the world. Politiken emphasizes thorough and analytical journalism, with angles and perspectives that challenge the established mindset.",
     "id": 17
   },
   {
     "name": "JydskeVestkysten",
-    "urls": [
-      "https://jv.dk/feed/forside"
-    ],
+    "urls": ["https://jv.dk/feed/forside"],
     "description": "JydskeVestkysten, fork. JV, er Danmarks største regionale nyhedsmedie målt både på antallet af ugentlige brugere af jv.dk, der er en halv million og antallet af ugentlige læsere, der ifølge Kantar Gallup i 2021 var på 185.000. Det udkommer i Syd- og Sønderjylland og har sit hovedsæde i Esbjerg.",
     "descriptionEn": "JydskeVestkysten, abbreviated as JV, is Denmark's largest regional news media, measured both by the number of weekly users of jv.dk, which is half a million, and the number of weekly readers, which according to Kantar Gallup in 2021 was 185,000. It is published in Southern and South Jutland and has its headquarters in Esbjerg.",
     "id": 13
   },
   {
     "name": "Berlingske",
-    "urls": [
-      "https://www.berlingske.dk/content/rss"
-    ],
+    "urls": ["https://www.berlingske.dk/content/rss"],
     "description": "Berlingske er en dansk avis og et af Danmarks ældste eksisterende nyhedsmedier. Avisen blev grundlagt i 1749 og har siden spillet en betydelig rolle i dansk mediehistorie. Berlingske har et ry for at være en seriøs og troværdig kilde til nyheder, analyser og debat.",
     "descriptionEn": "Berlingske is a Danish newspaper and one of Denmark's oldest existing news media. The newspaper was founded in 1749 and has since played a significant role in Danish media history. Berlingske is reputed to be a serious and trustworthy source for news, analysis, and debate.",
     "id": 5
   },
   {
     "name": "DR",
-    "urls": [
-      "https://www.dr.dk/nyheder/service/feeds/senestenyt"
-    ],
+    "urls": ["https://www.dr.dk/nyheder/service/feeds/senestenyt"],
     "description": "DR, tidligere Danmarks Radio, er Danmarks nationale public service-selskab, som formidler nyheder, kultur, underholdning og oplysning via tv, radio, dr.dk og mobile platforme efter radio- og fjernsynsloven.",
     "descriptionEn": "DR, formerly Danmarks Radio, is Denmark's national public service company, which disseminates news, culture, entertainment, and information via TV, radio, dr.dk, and mobile platforms in accordance with the Radio and Television Act.",
     "id": 8
   },
   {
     "name": "TV2",
-    "urls": [
-      "https://feeds.services.tv2.dk/api/feeds/nyheder/rss"
-    ],
+    "urls": ["https://feeds.services.tv2.dk/api/feeds/nyheder/rss"],
     "description": "TV 2 er en dansk tv-kanal, der drives af public service-tv-stationen TV 2 Danmark. Den dyster med den DR-ejede DR1 om at være Danmarks mest sete tv-kanal.",
     "descriptionEn": "TV 2 is a Danish TV channel operated by the public service TV station TV 2 Denmark. It competes with DR1, owned by DR, to be Denmark's most-watched TV channel.",
     "id": 19,
@@ -92,18 +74,14 @@
   },
   {
     "name": "Dagens",
-    "urls": [
-      "https://www.dagens.dk/feeds/rss/articles/latest-news/"
-    ],
+    "urls": ["https://www.dagens.dk/feeds/rss/articles/latest-news/"],
     "description": "Vi vil gerne huskes som det netmedie, der fokuserer på skæve vinkler, anderledes historier og interviews med personer, som ikke normalt finder vej til de danske medier.",
     "descriptionEn": "We want to be remembered as the online media that focuses on quirky angles, different stories, and interviews with people who don't usually make their way into the Danish media.",
     "id": 9
   },
   {
     "name": "Børsen",
-    "urls": [
-      "https://borsen.dk/rss"
-    ],
+    "urls": ["https://borsen.dk/rss"],
     "description": "Meget mere end Danmarks førende erhvervsavis. Børsen sætter dagsordenen for erhvervslivet - hele erhvervslivet. Vi skriver interessant og med kant. På alle platforme. Om et erhvervsliv i bevægelse. Til moderne mennesker, der søger indhold og berigelse - både når de er ude, hjemme, på arbejde og på vej.",
     "descriptionEn": "Much more than Denmark's leading business newspaper. Børsen sets the agenda for business - all business. We write interestingly and with edge. On all platforms. About a business world in motion. For modern people who seek content and enrichment - whether they are out, at home, at work, or on the go.",
     "id": 6,
@@ -111,54 +89,42 @@
   },
   {
     "name": "Kristeligt Dagblad",
-    "urls": [
-      "https://www.kristeligt-dagblad.dk/rss/nyheder"
-    ],
+    "urls": ["https://www.kristeligt-dagblad.dk/rss/nyheder"],
     "description": "Kristeligt Dagblad er den eneste danske avis med særlige sider om kirke og tro. Vores kirke- og tro-redaktion beskæftiger sig hver dag med den aktuelle udvikling i folkekirken og alle andre større kirke- og trossamfund, ligesom vi skriver om danskernes forhold til religiøse og etiske spørgsmål generelt.",
     "descriptionEn": "Kristeligt Dagblad is the only Danish newspaper with special pages on church and faith. Our church and faith editorial team deals daily with the current development in the Danish National Church and all other major church and religious communities, as well as writing about Danes' relationship to religious and ethical issues in general.",
     "id": 15
   },
   {
     "name": "Viborg Folkeblad",
-    "urls": [
-      "https://viborg-folkeblad.dk/feed/forside"
-    ],
+    "urls": ["https://viborg-folkeblad.dk/feed/forside"],
     "description": "Viborg Stifts Folkeblad er et dansk dagblad, som udkommer i primært Viborg Kommune.",
     "descriptionEn": "Viborg Stifts Folkeblad is a Danish daily newspaper, primarily published in Viborg Municipality.",
     "id": 21
   },
   {
     "name": "Nordjyske",
-    "urls": [
-      "https://nordjyske.dk/rss/nyheder"
-    ],
+    "urls": ["https://nordjyske.dk/rss/nyheder"],
     "description": "Nordjyske Stiftstidende er en dansk regional avis, som udgives i Aalborg.",
     "descriptionEn": "Nordjyske Stiftstidende is a Danish regional newspaper published in Aalborg.",
     "id": 16
   },
   {
     "name": "Computerworld",
-    "urls": [
-      "https://www.computerworld.dk/rss/all"
-    ],
+    "urls": ["https://www.computerworld.dk/rss/all"],
     "description": "Computerworld er Danmarks største it-medie med over en halv million besøgende hver måned. Computerworld henvender sig til professionelle it-brugere. Det primære stofområde er ikke it-produkter, men snarere de dele af erhvervslivet og samfundet, der anvender it.",
     "descriptionEn": "Computerworld is Denmark's largest IT media, with over half a million visitors every month. Computerworld caters to professional IT users. The primary focus is not on IT products but rather on the parts of business and society that use IT.",
     "id": 7
   },
   {
     "name": "Ingeniøren",
-    "urls": [
-      "https://ing.dk/rss/nyheder"
-    ],
+    "urls": ["https://ing.dk/rss/nyheder"],
     "description": "Ingeniøren, også kaldet Nyhedsmagasinet Ingeniøren, er et dansk ingeniør fagblad med fokus på udviklingen indenfor teknologi og naturvidenskab sat i en samfundsmæssig sammenhæng.",
     "descriptionEn": "Ingeniøren, also known as Nyhedsmagasinet Ingeniøren, is a Danish engineering magazine focusing on developments in technology and natural sciences within a societal context.",
     "id": 12
   },
   {
     "name": "Arbejderen",
-    "urls": [
-      "https://arbejderen.dk/feed/"
-    ],
+    "urls": ["https://arbejderen.dk/feed/"],
     "description": "Arbejderen er det kæmpende Danmarks digitale dagblad. Vores læsere er aktive i fagbevægelsen, de sociale modstandsbevægelser, klimakampen, boligbevægelsen og i kampen mod racisme og reaktion, for fred og international solidaritet. Arbejderen har ingen ambitioner om at være først med det sidste, men ønsker i stedet at skabe overblik og vise sammenhænge i den stadige strøm af løsrevne nyheder. Arbejderen beskriver virkeligheden, som den er, med det formål at forandre den. Vores målsætning er at levere gedigen rød kvalitetsjournalistik.",
     "descriptionEn": "Arbejderen is the fighting Denmark's digital daily newspaper. Our readers are active in the trade union movement, social resistance movements, the climate fight, the housing movement, and the fight against racism and reaction, for peace and international solidarity. Arbejderen has no ambition to be first with the latest, but instead aims to create an overview and show connections in the constant stream of isolated news. Arbejderen describes reality as it is, with the aim of changing it. Our goal is to deliver solid, red quality journalism.",
     "id": 1,
@@ -166,18 +132,14 @@
   },
   {
     "name": "Version2",
-    "urls": [
-      "https://www.version2.dk/rss"
-    ],
+    "urls": ["https://www.version2.dk/rss"],
     "description": "Version2 er den største udgiver i Danmark af medier om teknologi og videnskab. Vi producerer journalistik inden for alle områder af teknologi, ingeniørfag, it og naturvidenskab. Vore medier spænder over avis- og magasinproduktion, live events, messer, websites, nyhedsbreve og podcasts. Tilsammen råder vi over en række titler, der spænder fra overordnet dækning af teknologi målrettet en bred gruppe i samfundet til højt specialiseret formidling inden for nye teknologier og udvalgte brancher. Vores mission er at bygge bro mellem det digitaliserede samfunds beslutningstagere og meningsdannere og de specialister, der hver dag arbejder med udvikling af teknologien og dennes påvirkning af det omgivende samfund.",
     "descriptionEn": "Version2 is Denmark's largest publisher of media about technology and science. We produce journalism in all areas of technology, engineering, IT, and natural sciences. Our media spans newspaper and magazine production, live events, trade shows, websites, newsletters, and podcasts. Together, we manage a range of titles, from general coverage of technology aimed at a broad group in society to highly specialized communication on new technologies and selected industries. Our mission is to bridge the gap between the decision-makers and opinion leaders in the digitalized society and the specialists who work daily with the development of technology and its impact on the surrounding society.",
     "id": 20
   },
   {
     "name": "Ritzau",
-    "urls": [
-      "https://via.ritzau.dk/rss/releases/latest"
-    ],
+    "urls": ["https://via.ritzau.dk/rss/releases/latest"],
     "description": "Ritzau er et troværdigt, hurtigt og markedsorienteret nyhedsbureau, der sælger målrettede nyhedsprodukter og medieservices til mediehuse, virksomheder og organisationer.",
     "descriptionEn": "Ritzau is a trustworthy, fast, and market-oriented news agency that sells targeted news products and media services to media houses, companies, and organizations.",
     "id": 18
