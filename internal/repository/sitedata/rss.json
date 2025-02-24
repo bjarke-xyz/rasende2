@@ -55,7 +55,10 @@
     "urls": ["https://www.berlingske.dk/content/rss"],
     "description": "Berlingske er en dansk avis og et af Danmarks ældste eksisterende nyhedsmedier. Avisen blev grundlagt i 1749 og har siden spillet en betydelig rolle i dansk mediehistorie. Berlingske har et ry for at være en seriøs og troværdig kilde til nyheder, analyser og debat.",
     "descriptionEn": "Berlingske is a Danish newspaper and one of Denmark's oldest existing news media. The newspaper was founded in 1749 and has since played a significant role in Danish media history. Berlingske is reputed to be a serious and trustworthy source for news, analysis, and debate.",
-    "id": 5
+    "id": 5,
+    "blockedTitles": [
+      "Amerikanske meldinger sender chokbølger gennem Europa, mens krigen i Ukraine raser videre – følg med her"
+    ]
   },
   {
     "name": "DR",

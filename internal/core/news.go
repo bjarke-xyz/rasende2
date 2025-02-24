@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gosimple/slug"
@@ -104,6 +105,16 @@ type NewsSite struct {
 	Disabled          bool     `json:"disabled"`
 	ArticleHasContent bool     `json:"articleHasContent"`
 	UserAgentKey      string   `json:"userAgentKey"`
+	BlockedTitles     []string `json:"blockedTitles"`
+}
+
+func (n NewsSite) IsBlockedTitle(title string) bool {
+	for _, blockedTitle := range n.BlockedTitles {
+		if strings.EqualFold(strings.TrimSpace(title), strings.TrimSpace(blockedTitle)) {
+			return true
+		}
+	}
+	return false
 }
 
 type RssItemDto struct {
