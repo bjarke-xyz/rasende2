@@ -81,10 +81,11 @@ func (m *MailService) Send(req SendMailRequest) error {
 		return nil
 	}
 	messageBytes := []byte(message)
+	log.Printf("MAIL: sending mail to %v with subject '%v'", req.Receiver, req.Subject)
 	auth := smtp.PlainAuth("", m.cfg.SmtpUsername, m.cfg.SmtpPassword, m.cfg.SmtpHost)
 	err := smtp.SendMail(m.cfg.SmtpHost+":"+m.cfg.SmtpPort, auth, m.cfg.SmtpSender, []string{req.Receiver}, messageBytes)
 	if err != nil {
-		log.Printf("error sending mail to %v: %v", req.Receiver, err)
+		log.Printf("MAIL: error sending mail to %v: %v", req.Receiver, err)
 		mailErrorCounter.WithLabelValues(req.Type).Inc()
 		return err
 	}
