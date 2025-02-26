@@ -393,7 +393,11 @@ func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl cor
 	toInsert := make([]core.RssItemDto, 0)
 	for _, item := range fromFeed {
 		_, exists := existingIds[item.ItemId]
-		if !exists && !rssUrl.IsBlockedTitle(item.Title) {
+		isBlockedTitle, err := rssUrl.IsBlockedTitle(item.Title)
+		if err != nil {
+			return fmt.Errorf("error checking if title is blocked: %w", err)
+		}
+		if !exists && !isBlockedTitle {
 			item.InsertedAt = &now
 			item.SiteId = rssUrl.Id
 			toInsert = append(toInsert, item)

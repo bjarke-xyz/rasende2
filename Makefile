@@ -28,6 +28,9 @@ generate:
 	sqlc generate
 	npx tailwindcss build -i internal/web/static/css/style.css -o internal/web/static/css/tailwind.css -m
 
+test:
+	go test ./...
+
 clean:
 	go clean
 	rm -f internal/web/static/css/tailwind.css

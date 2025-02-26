@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -97,24 +98,28 @@ type RssSearchResult struct {
 }
 
 type NewsSite struct {
-	Name              string   `json:"name"`
-	Urls              []string `json:"urls"`
-	Description       string   `json:"description"`
-	DescriptionEn     string   `json:"descriptionEn"`
-	Id                int      `json:"id"`
-	Disabled          bool     `json:"disabled"`
-	ArticleHasContent bool     `json:"articleHasContent"`
-	UserAgentKey      string   `json:"userAgentKey"`
-	BlockedTitles     []string `json:"blockedTitles"`
+	Name                 string   `json:"name"`
+	Urls                 []string `json:"urls"`
+	Description          string   `json:"description"`
+	DescriptionEn        string   `json:"descriptionEn"`
+	Id                   int      `json:"id"`
+	Disabled             bool     `json:"disabled"`
+	ArticleHasContent    bool     `json:"articleHasContent"`
+	UserAgentKey         string   `json:"userAgentKey"`
+	BlockedTitlePatterns []string `json:"blockedTitlePatterns"`
 }
 
-func (n NewsSite) IsBlockedTitle(title string) bool {
-	for _, blockedTitle := range n.BlockedTitles {
-		if strings.EqualFold(strings.TrimSpace(title), strings.TrimSpace(blockedTitle)) {
-			return true
+func (n NewsSite) IsBlockedTitle(title string) (bool, error) {
+	for _, blockedTitlePattern := range n.BlockedTitlePatterns {
+		compiledPattern, err := regexp.Compile(blockedTitlePattern)
+		if err != nil {
+			return false, fmt.Errorf("error compiling pattern '%v': %w", blockedTitlePattern, err)
+		}
+		if compiledPattern.MatchString(strings.TrimSpace(title)) {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 type RssItemDto struct {
