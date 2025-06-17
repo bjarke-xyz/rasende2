@@ -75,7 +75,7 @@
   },
   {
     "name": "Dagens",
-    "urls": ["https://www.dagens.dk/feeds/rss/articles/latest-news/"],
+    "urls": ["https://www.dagens.dk/feed"],
     "description": "Vi vil gerne huskes som det netmedie, der fokuserer på skæve vinkler, anderledes historier og interviews med personer, som ikke normalt finder vej til de danske medier.",
     "descriptionEn": "We want to be remembered as the online media that focuses on quirky angles, different stories, and interviews with people who don't usually make their way into the Danish media.",
     "id": 9
