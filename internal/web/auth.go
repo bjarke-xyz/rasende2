@@ -69,15 +69,9 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 	user, err := db.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			user, err = db.CreateUser(ctx, dao.CreateUserParams{
-				Email: email,
-			})
-			if err != nil {
-				AddFlashError(c, err)
-				c.Redirect(http.StatusSeeOther, redirectPath)
-				return
-			}
-			w.notifyUserCreated(user)
+			AddFlashWarn(c, "Bruger ikke fundet. Registrering er deaktiveret.")
+			c.Redirect(http.StatusSeeOther, redirectPath)
+			return
 		} else {
 			AddFlashError(c, err)
 			c.Redirect(http.StatusSeeOther, redirectPath)
