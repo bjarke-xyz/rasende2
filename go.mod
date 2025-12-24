@@ -13,7 +13,7 @@ require (
 	github.com/pressly/goose/v3 v3.20.0
 	github.com/samber/lo v1.39.0
 	github.com/sashabaranov/go-openai v1.26.3
-	github.com/tursodatabase/libsql-client-go v0.0.0-20240902231107-85af5b9d094d
+	github.com/tursodatabase/libsql-client-go v0.0.0-20251219100830-236aa1ff8acc
 	github.com/xeonx/timeago v1.0.0-rc5
 )
 
