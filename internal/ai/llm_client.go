@@ -5,10 +5,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -16,28 +18,29 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/metrics"
 	"github.com/bjarke-xyz/rasende2/internal/storage"
-	"github.com/pkoukk/tiktoken-go"
 	openai "github.com/sashabaranov/go-openai"
 )
 
-type openAIClient struct {
+type llmClient struct {
 	appContext *core.AppContext
 	client     *openai.Client
 	useFake    bool
 }
 
-const chatModel = "gpt-4o-mini"
+const chatModel = "google/gemini-2.5-flash"
 
-func NewOpenAIClient(appContext *core.AppContext) core.AiClient {
-	client := openai.NewClient(appContext.Config.OpenAIAPIKey)
-	return &openAIClient{
+func NewLLMClient(appContext *core.AppContext) core.AiClient {
+	config := openai.DefaultConfig(appContext.Config.LLMAPIKey)
+	config.BaseURL = "https://openrouter.ai/api/v1"
+	client := openai.NewClientWithConfig(config)
+	return &llmClient{
 		appContext: appContext,
 		client:     client,
-		useFake:    appContext.Config.UseFakeOpenAi,
+		useFake:    appContext.Config.UseFakeLLM,
 	}
 }
 
-func (o *openAIClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
+func (o *llmClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
 	if o.useFake {
 		return "https://placecats.com/512/512", nil
 	}
@@ -100,34 +103,103 @@ func (o *openAIClient) GenerateImage(ctx context.Context, siteName string, siteD
 		}
 	}
 
-	imgReq := openai.ImageRequest{
-		Model: "dall-e-3",
-		// Prompt:         fmt.Sprintf("Et billede der passer til en artikel på nyhedsmediet %s. %s. Artiklens overskrift er '%s'. Billedet skal passe til artiklen. Billedet bør IKKE ligne en artikel eller en avis, eller indeholde aviser. Billedet skal være passende til artiklen. Artiklen vises på en hjemmeside.", siteName, siteDescription, articleTitle),
-		// Prompt:         fmt.Sprintf("Create a header image for an article titled '%v'. The article will be published in an online news media called '%v'", articleTitle, siteName),
-		Prompt:         prompt,
-		N:              1,
-		Size:           "1024x1024",
-		Style:          "vivid",
-		ResponseFormat: "b64_json",
+	// Gemini image generation requires custom request with modalities
+	type imageGenRequest struct {
+		Model      string                            `json:"model"`
+		Messages   []map[string]interface{}          `json:"messages"`
+		Modalities []string                          `json:"modalities"`
 	}
+
+	type imageURL struct {
+		URL string `json:"url"`
+	}
+
+	type imageData struct {
+		ImageURL imageURL `json:"image_url"`
+	}
+
+	type messageResponse struct {
+		Role    string      `json:"role"`
+		Content string      `json:"content"`
+		Images  []imageData `json:"images,omitempty"`
+	}
+
+	type choiceResponse struct {
+		Message messageResponse `json:"message"`
+	}
+
+	type imageGenResponse struct {
+		Choices []choiceResponse `json:"choices"`
+	}
+
+	reqBody := imageGenRequest{
+		Model: "google/gemini-2.5-flash-image",
+		Messages: []map[string]interface{}{
+			{
+				"role":    "user",
+				"content": prompt,
+			},
+		},
+		Modalities: []string{"image", "text"},
+	}
+
 	log.Printf("GenerateImage - site: %v, articleTitle: %v", siteName, articleTitle)
-	log.Printf("GenerateImage - Prompt=%v", imgReq.Prompt)
-	imgResp, err := o.client.CreateImage(ctx, imgReq)
+	log.Printf("GenerateImage - Prompt=%v", prompt)
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+o.appContext.Config.LLMAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error making request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("error response from API: %v - %s", resp.StatusCode, string(body))
+	}
+
+	var imgResp imageGenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&imgResp); err != nil {
+		return "", fmt.Errorf("error decoding response: %w", err)
+	}
+
 	metrics.AiCounterImageInc()
-	if err != nil {
-		return "", fmt.Errorf("error generating openai image: %w", err)
+
+	if len(imgResp.Choices) == 0 || len(imgResp.Choices[0].Message.Images) == 0 {
+		return "", fmt.Errorf("image generation returned 0 results")
 	}
-	if len(imgResp.Data) == 0 {
-		return "", fmt.Errorf("openai image returned 0 results")
+
+	// Extract base64 image data from data URL
+	imageDataURL := imgResp.Choices[0].Message.Images[0].ImageURL.URL
+	// Format is typically "data:image/png;base64,<base64data>"
+	parts := strings.Split(imageDataURL, ",")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("unexpected image data URL format: %v", imageDataURL[:50])
 	}
-	url, err := o.uploadImage(ctx, imgResp.Data[0].B64JSON, articleTitle)
+
+	base64Data := parts[1]
+
+	url, err := o.uploadImage(ctx, base64Data, articleTitle)
 	if err != nil {
-		return "", fmt.Errorf("error uploading img base64 to s3")
+		return "", fmt.Errorf("error uploading img base64 to s3: %w", err)
 	}
 	return url, nil
 }
 
-func (o *openAIClient) uploadImage(ctx context.Context, imgBase64Json string, articleTitle string) (string, error) {
+func (o *llmClient) uploadImage(ctx context.Context, imgBase64Json string, articleTitle string) (string, error) {
 	imgBytes, err := base64.StdEncoding.DecodeString(imgBase64Json)
 	if err != nil {
 		return "", fmt.Errorf("error decoding base64json: %w", err)
@@ -155,7 +227,7 @@ func (o *openAIClient) uploadImage(ctx context.Context, imgBase64Json string, ar
 	return url, nil
 }
 
-func (o *openAIClient) GenerateArticleTitlesList(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
+func (o *llmClient) GenerateArticleTitlesList(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
 	streamResp, err := o.GenerateArticleTitles(ctx, siteName, siteDescription, previousTitles, newTitlesCount, temperature)
 	if err != nil {
 		return nil, err
@@ -183,35 +255,27 @@ func (o *openAIClient) GenerateArticleTitlesList(ctx context.Context, siteName s
 	}
 }
 
-func (o *openAIClient) generateArticleTitlesFake() (core.ChatCompletionStream, error) {
+func (o *llmClient) generateArticleTitlesFake() (core.ChatCompletionStream, error) {
 	// fakeChatCompletionStream := &fakeChatCompletionStream{numCalls: 3, content: "Her er en falsk overskrift :)"}
 	fakeChatCompletionStream := core.NewFakeChatCompletionStream([]string{"Her er ", "en falsk ove", fmt.Sprintf("rskrift :) %v", time.Now().UnixMilli()), "\n Og her ko", fmt.Sprintf("mmer den næste! %v\n", time.Now().UnixMilli())})
 	return fakeChatCompletionStream, nil
 }
 
-func (o *openAIClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (core.ChatCompletionStream, error) {
+func (o *llmClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (core.ChatCompletionStream, error) {
 	if o.useFake {
 		return o.generateArticleTitlesFake()
 	}
-	previousTitlesStr := ""
-	tkm, err := tiktoken.EncodingForModel(chatModel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tiktoken encoding: %w", err)
+
+	// Limit to reasonable number of previous titles to avoid context limits
+	maxTitles := 50
+	if len(previousTitles) > maxTitles {
+		previousTitles = previousTitles[:maxTitles]
 	}
-	var token []int
-	previousTitlesCount := 0
-	for _, prevTitle := range previousTitles {
-		previousTitlesCount++
-		tmpStr := previousTitlesStr + "\n" + prevTitle
-		token = tkm.Encode(tmpStr, nil, nil)
-		if len(token) > 3000 {
-			break
-		}
-		previousTitlesStr = tmpStr
-	}
+
+	previousTitlesStr := strings.Join(previousTitles, "\n")
 	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. De nye overskrifter må gerne være sjove eller humoristiske, eller være satiriske i forhold til nyhedsmediet, men de skal stadig være realistiske nok, til at man kunne tro, at de er ægte. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, siteDescription, newTitlesCount, newTitlesCount)
 	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. You will be provided a description of the news media '%v', and a list of previous article titles from that news media. Start each title on a new line. Start each line with a space (' '). Return only titles, nothing else. Make at most %v titles. The titles MUST be danish!. The titles MUST start with a capital letter.", siteName, siteName, newTitlesCount)
-	log.Printf("GenerateArticleTitles - site: %v, tokens: %v, previousTitles: %v", siteName, len(token), previousTitlesCount)
+	log.Printf("GenerateArticleTitles - site: %v, previousTitles: %v", siteName, len(previousTitles))
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
 		Temperature: temperature,
@@ -235,12 +299,12 @@ func (o *openAIClient) GenerateArticleTitles(ctx context.Context, siteName strin
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	metrics.AiCounterTitlesInc()
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI API error: %w", err)
+		return nil, fmt.Errorf("LLM API error: %w", err)
 	}
-	return wrapOpenAiChatCompletionStream(stream), err
+	return wrapLlmChatCompletionStream(stream), err
 }
 
-func (o *openAIClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
+func (o *llmClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
 	if o.useFake {
 		return articleTitles[0], nil
 	}
@@ -266,7 +330,7 @@ func (o *openAIClient) SelectBestArticleTitle(ctx context.Context, siteName stri
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	metrics.AiCounterSelectTitleInc()
 	if err != nil {
-		return "", fmt.Errorf("OpenAI API error: %w", err)
+		return "", fmt.Errorf("LLM API error: %w", err)
 	}
 	var sb strings.Builder
 	for {
@@ -283,7 +347,7 @@ func (o *openAIClient) SelectBestArticleTitle(ctx context.Context, siteName stri
 	}
 }
 
-func (o *openAIClient) GenerateArticleContentStr(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (string, error) {
+func (o *llmClient) GenerateArticleContentStr(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (string, error) {
 	streamResp, err := o.GenerateArticleContent(ctx, siteName, siteDescription, articleTitle, temperature)
 	if err != nil {
 		return "", err
@@ -303,12 +367,12 @@ func (o *openAIClient) GenerateArticleContentStr(ctx context.Context, siteName s
 	}
 }
 
-func (o *openAIClient) generateArticleContentFake() (core.ChatCompletionStream, error) {
+func (o *llmClient) generateArticleContentFake() (core.ChatCompletionStream, error) {
 	fakeChatCompletionStream := core.NewFakeChatCompletionStream([]string{"Her er brø", "dteksten af en ", " falsk artikel, som er m", "eget meget lang\n"})
 	return fakeChatCompletionStream, nil
 }
 
-func (o *openAIClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (core.ChatCompletionStream, error) {
+func (o *llmClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (core.ChatCompletionStream, error) {
 	if o.useFake {
 		return o.generateArticleContentFake()
 	}
@@ -339,22 +403,22 @@ func (o *openAIClient) GenerateArticleContent(ctx context.Context, siteName stri
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	metrics.AiCounterArticleContentInc()
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI API error: %w", err)
+		return nil, fmt.Errorf("LLM API error: %w", err)
 	}
-	return wrapOpenAiChatCompletionStream(stream), err
+	return wrapLlmChatCompletionStream(stream), err
 }
 
-type OpenAiChatCompletionStream struct {
+type LlmChatCompletionStream struct {
 	stream *openai.ChatCompletionStream
 }
 
-func wrapOpenAiChatCompletionStream(stream *openai.ChatCompletionStream) *OpenAiChatCompletionStream {
-	return &OpenAiChatCompletionStream{
+func wrapLlmChatCompletionStream(stream *openai.ChatCompletionStream) *LlmChatCompletionStream {
+	return &LlmChatCompletionStream{
 		stream: stream,
 	}
 }
-func (oai *OpenAiChatCompletionStream) Recv() (core.ChatCompletionStreamResponse, error) {
-	resp, err := oai.stream.Recv()
+func (llm *LlmChatCompletionStream) Recv() (core.ChatCompletionStreamResponse, error) {
+	resp, err := llm.stream.Recv()
 	if err != nil {
 		return nil, err
 	}

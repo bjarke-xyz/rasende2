@@ -211,7 +211,7 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
 	stream, err := w.appContext.Deps.AiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
 	if err != nil {
-		log.Printf("openai failed: %v", err)
+		log.Printf("LLM failed: %v", err)
 
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
@@ -392,7 +392,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 	var temperature float32 = 1.0
 	stream, err := w.appContext.Deps.AiClient.GenerateArticleContent(c.Request.Context(), site.Name, site.Description, article.Title, temperature)
 	if err != nil {
-		log.Printf("openai failed: %v", err)
+		log.Printf("LLM failed: %v", err)
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
 			c.HTML(http.StatusTooManyRequests, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
@@ -421,7 +421,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 				if !imgUrlSent {
 					imgUrl, err := articleImgPromise.Get()
 					if err != nil {
-						log.Printf("error getting openai img: %v", err)
+						log.Printf("error getting LLM img: %v", err)
 					}
 					if imgUrl != "" {
 						c.SSEvent("image", RenderToString(c, components.ArticleImg(imgUrl, article.Title)))
@@ -446,7 +446,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 				imgUrl, err, articleImgOk := articleImgPromise.Poll()
 				if articleImgOk {
 					if err != nil {
-						log.Printf("error getting openai img: %v", err)
+						log.Printf("error getting LLM img: %v", err)
 					}
 					if imgUrl != "" {
 						c.SSEvent("image", RenderToString(c, components.ArticleImg(imgUrl, article.Title)))

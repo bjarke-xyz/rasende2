@@ -9,7 +9,6 @@ require (
 	github.com/a-h/templ v0.3.898
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.16
 	github.com/gin-contrib/sessions v1.0.1
-	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/pressly/goose/v3 v3.20.0
 	github.com/samber/lo v1.39.0
 	github.com/sashabaranov/go-openai v1.26.3
@@ -56,12 +55,10 @@ require (
 	github.com/bytedance/sonic v1.11.3 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
-	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/context v1.1.2 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/sessions v1.2.2 // indirect

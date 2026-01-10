@@ -152,5 +152,12 @@
     "descriptionEn": "Billed-Bladet (stylized as BILLED-BLADET) is \"Denmark's royal weekly magazine,\" published since April 5, 1938. BILLED-BLADET mainly deals with news and stories related to the royal family but also contains plenty of articles about Danish and international celebrities and royals - as well as a large TV guide.",
     "id": 3,
     "disabled": true
+  },
+  {
+    "name": "KøbenhavnLIV",
+    "urls": ["https://kobenhavnliv.dk/feed/forside"],
+    "description": "KøbenhavnLIV er en lokal avis, der dækker nyheder og begivenheder fra København og hovedstadsområdet.",
+    "descriptionEn": "KøbenhavnLIV is a local newspaper covering news and events from Copenhagen and the capital area.",
+    "id": 22
   }
 ]

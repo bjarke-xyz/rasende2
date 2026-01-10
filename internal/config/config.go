@@ -39,7 +39,7 @@ type Config struct {
 
 	JobKey string
 
-	OpenAIAPIKey string
+	LLMAPIKey string
 
 	AppEnv string
 
@@ -50,7 +50,7 @@ type Config struct {
 
 	BuildTime *time.Time
 
-	UseFakeOpenAi bool
+	UseFakeLLM bool
 
 	CookieSecret string
 
@@ -108,14 +108,14 @@ func NewConfig() (*Config, error) {
 		SmtpSender:              os.Getenv("SMTP_SENDER"),
 		SmtpTest:                os.Getenv("SMTP_TEST") == "true",
 		JobKey:                  os.Getenv("JOB_KEY"),
-		OpenAIAPIKey:            os.Getenv("OPENAI_API_KEY"),
+		LLMAPIKey:               os.Getenv("LLM_API_KEY"),
 		AppEnv:                  os.Getenv("APP_ENV"),
 		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
 		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
 		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
 		AdminEmail:              os.Getenv("ADMIN_EMAIL"),
 		BuildTime:               buildTime,
-		UseFakeOpenAi:           os.Getenv("USE_FAKE_OPENAI") == "true",
+		UseFakeLLM:              os.Getenv("USE_FAKE_LLM") == "true",
 		CookieSecret:            os.Getenv("COOKIE_SECRET"),
 		BaseUrl:                 os.Getenv("BASE_URL"),
 	}, nil
