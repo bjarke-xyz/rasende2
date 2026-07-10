@@ -28,38 +28,7 @@ func (a *api) Route(r *gin.Engine) {
 	apiGroup.POST("/admin/rebuild-index", a.RebuildIndex())
 	apiGroup.POST("/admin/auto-generate-fake-news", a.AutoGenerateFakeNews())
 	apiGroup.POST("/admin/clean-fake-news", a.CleanUpFakeNews())
-	// TODO: delete
-	// apiGroup.POST("/admin/migrate", a.Migrate())
 }
-
-// func (a *api) Migrate() gin.HandlerFunc {
-// 	return func(c *gin.Context) {
-// 		queries, err := db.OpenQueries(a.appContext.Config)
-// 		db, err := db.Open(a.appContext.Config)
-// 		if err != nil {
-// 			log.Printf("OpenQueries failed: %v", err)
-// 			return
-// 		}
-// 		ctx := c.Request.Context()
-// 		fakeNews, err := queries.GetAllFakeNews(ctx)
-// 		if err != nil {
-// 			log.Printf("GetAllFakeNews failed: %v", err)
-// 			return
-// 		}
-// 		for _, fn := range fakeNews {
-// 			// if fn.ExternalID.Valid {
-// 			// 	continue
-// 			// }
-// 			newId, err := pkg.NewNanoid()
-// 			if err != nil {
-// 				log.Printf("gonanoid new failed: %v", err)
-// 				return
-// 			}
-// 			log.Printf("updating fn %v %v, id=%v", fn.SiteID, fn.Title, newId)
-// 			db.Exec("UPDATE fake_news SET external_id = ? WHERE site_id = ? AND title = ?", newId, fn.SiteID.Int64, fn.Title)
-// 		}
-// 	}
-// }
 
 func (a *api) RunJob() gin.HandlerFunc {
 	return func(c *gin.Context) {

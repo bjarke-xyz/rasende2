@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"reflect"
 	"strings"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/search"
 	"github.com/bjarke-xyz/rasende2/pkg"
-	"github.com/jmoiron/sqlx"
 )
 
 type sqliteNewsRepository struct {
@@ -29,6 +26,73 @@ func NewSqliteNews(appContext *core.AppContext) core.NewsRepository {
 
 //go:embed sitedata
 var dataFs embed.FS
+
+// Column lists, in the order the scan helpers below read them.
+const (
+	rssItemColumns  = "item_id, site_name, title, content, link, published, inserted_at, site_id"
+	fakeNewsColumns = "site_name, title, content, published, site_id, img_url, highlighted, votes, external_id"
+)
+
+// rowScanner is satisfied by both *sql.Row and *sql.Rows.
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanRssItem reads rssItemColumns. content and link are nullable in the schema
+// but plain strings on the DTO, so a NULL becomes "".
+func scanRssItem(scanner rowScanner) (core.RssItemDto, error) {
+	var item core.RssItemDto
+	var content, link *string
+	err := scanner.Scan(&item.ItemId, &item.SiteName, &item.Title, &content, &link,
+		&item.Published, &item.InsertedAt, &item.SiteId)
+	if err != nil {
+		return item, err
+	}
+	if content != nil {
+		item.Content = *content
+	}
+	if link != nil {
+		item.Link = *link
+	}
+	return item, nil
+}
+
+// scanFakeNews reads fakeNewsColumns. published and site_id are nullable.
+func scanFakeNews(scanner rowScanner) (core.FakeNewsDto, error) {
+	var fakeNews core.FakeNewsDto
+	var published *time.Time
+	var siteId *int64
+	err := scanner.Scan(&fakeNews.SiteName, &fakeNews.Title, &fakeNews.Content, &published, &siteId,
+		&fakeNews.ImageUrl, &fakeNews.Highlighted, &fakeNews.Votes, &fakeNews.ExternalId)
+	if err != nil {
+		return fakeNews, err
+	}
+	if published != nil {
+		fakeNews.Published = *published
+	}
+	if siteId != nil {
+		fakeNews.SiteId = int(*siteId)
+	}
+	return fakeNews, nil
+}
+
+func scanFakeNewsRows(rows *sql.Rows) ([]core.FakeNewsDto, error) {
+	defer rows.Close()
+	var fakeNewsDtos []core.FakeNewsDto
+	for rows.Next() {
+		fakeNews, err := scanFakeNews(rows)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning fake news: %w", err)
+		}
+		fakeNewsDtos = append(fakeNewsDtos, fakeNews)
+	}
+	return fakeNewsDtos, rows.Err()
+}
+
+// placeholders renders "?, ?, ?" for an IN clause of n values.
+func placeholders(n int) string {
+	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
+}
 
 func (r *sqliteNewsRepository) GetSites(ctx context.Context) ([]core.NewsSite, error) {
 	jsonBytes, err := dataFs.ReadFile("sitedata/rss.json")
@@ -60,18 +124,27 @@ func (r *sqliteNewsRepository) GetRecentItems(ctx context.Context, siteId int, l
 	if err != nil {
 		return nil, err
 	}
-	db = db.Unsafe()
 	var rssItems []core.RssItemDto
-	args := []interface{}{siteId, limit}
+	args := []any{siteId, limit}
 	offsetWhere := ""
 	if insertedAtOffset != nil {
 		offsetWhere = " AND inserted_at < ? "
-		args = []interface{}{siteId, insertedAtOffset, limit}
+		args = []any{siteId, insertedAtOffset, limit}
 	}
-	sql := fmt.Sprintf("SELECT %v FROM rss_items WHERE site_id = ? "+offsetWhere+" ORDER BY inserted_at DESC LIMIT ?", DBTags(core.RssItemDto{}))
-	log.Printf("GetRecentItems: sql=%v", sql)
-	err = db.Select(&rssItems, sql, args...)
+	sqlQuery := "SELECT " + rssItemColumns + " FROM rss_items WHERE site_id = ? " + offsetWhere + " ORDER BY inserted_at DESC LIMIT ?"
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
+		return nil, fmt.Errorf("error getting items for site %v: %w", siteId, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		item, err := scanRssItem(rows)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning item for site %v: %w", siteId, err)
+		}
+		rssItems = append(rssItems, item)
+	}
+	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error getting items for site %v: %w", siteId, err)
 	}
 	r.EnrichWithSiteNames(ctx, rssItems)
@@ -179,22 +252,27 @@ func (r *sqliteNewsRepository) GetExistingItemsByIds(ctx context.Context, itemId
 	if err != nil {
 		return nil, err
 	}
-	db = db.Unsafe()
-	query, args, err := sqlx.In("SELECT item_id FROM rss_items WHERE item_id IN (?)", itemIds)
-	if err != nil {
-		return nil, fmt.Errorf("error doing sqlx in: %w", err)
+	result := make(map[string]any, len(itemIds))
+	if len(itemIds) == 0 {
+		return result, nil
 	}
-	query = db.Rebind(query)
-	dbItemIds := make([]string, 0)
-	err = db.Select(&dbItemIds, query, args...)
+	args := make([]any, len(itemIds))
+	for i, itemId := range itemIds {
+		args[i] = itemId
+	}
+	rows, err := db.QueryContext(ctx, "SELECT item_id FROM rss_items WHERE item_id IN ("+placeholders(len(itemIds))+")", args...)
 	if err != nil {
 		return nil, fmt.Errorf("error getting items by id: %w", err)
 	}
-	result := make(map[string]any, len(dbItemIds))
-	for _, itemId := range dbItemIds {
+	defer rows.Close()
+	for rows.Next() {
+		var itemId string
+		if err := rows.Scan(&itemId); err != nil {
+			return nil, fmt.Errorf("error scanning item id: %w", err)
+		}
 		result[itemId] = struct{}{}
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 func (r *sqliteNewsRepository) GetArticleCounts(ctx context.Context) (map[int]int, error) {
@@ -202,21 +280,21 @@ func (r *sqliteNewsRepository) GetArticleCounts(ctx context.Context) (map[int]in
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.Queryx("SELECT site_id, article_count FROM site_count")
+	rows, err := db.QueryContext(ctx, "SELECT site_id, article_count FROM site_count")
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	result := make(map[int]int, 0)
 	for rows.Next() {
 		var siteId int
 		var articleCount int
-		err = rows.Scan(&siteId, &articleCount)
-		if err != nil {
+		if err := rows.Scan(&siteId, &articleCount); err != nil {
 			return nil, fmt.Errorf("error scanning: %w", err)
 		}
 		result[siteId] = articleCount
 	}
-	return result, nil
+	return result, rows.Err()
 }
 
 func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.NewsSite, items []core.RssItemDto) (int, error) {
@@ -228,7 +306,7 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 		return 0, err
 	}
 
-	tx, err := db.Beginx()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin tx: %w", err)
 	}
@@ -263,24 +341,20 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 		}
 	}
 	now := time.Now().UTC()
-	_, err = tx.Exec("INSERT INTO site_count (site_id, article_count, updated_at) VALUES (?, ?, ?) on conflict do update set article_count = article_count + excluded.article_count, updated_at = excluded.updated_at", rssUrl.Id, len(items), now)
+	_, err = tx.ExecContext(ctx, "INSERT INTO site_count (site_id, article_count, updated_at) VALUES (?, ?, ?) on conflict do update set article_count = article_count + excluded.article_count, updated_at = excluded.updated_at", rssUrl.Id, len(items), now)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("failed to insert site count: %w", err)
 	}
-	var articleCounts []int
-	err = tx.Select(&articleCounts, "SELECT article_count FROM site_count WHERE site_id = ?", rssUrl.Id)
-	if err != nil {
+	var articleCount int
+	err = tx.QueryRowContext(ctx, "SELECT article_count FROM site_count WHERE site_id = ?", rssUrl.Id).Scan(&articleCount)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		tx.Rollback()
 		return 0, fmt.Errorf("error getting article count: %w", err)
 	}
 	err = tx.Commit()
 	if err != nil {
 		return 0, fmt.Errorf("failed to commit tx: %w", err)
-	}
-	articleCount := 0
-	if len(articleCounts) > 0 {
-		articleCount = articleCounts[0]
 	}
 	return articleCount, nil
 }
@@ -295,18 +369,18 @@ func (r *sqliteNewsRepository) GetRecentFakeNews(ctx context.Context, limit int,
 	var args []any
 	orderBySql := "ORDER BY published DESC"
 	if publishedAfter != nil {
-		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 AND published < ? %v LIMIT ?", DBTags(core.FakeNewsDto{}), orderBySql)
+		sqlQuery = "SELECT " + fakeNewsColumns + " FROM fake_news WHERE highlighted = 1 AND published < ? " + orderBySql + " LIMIT ?"
 		args = []any{*publishedAfter, limit}
 	} else {
-		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 %v LIMIT ?", DBTags(core.FakeNewsDto{}), orderBySql)
+		sqlQuery = "SELECT " + fakeNewsColumns + " FROM fake_news WHERE highlighted = 1 " + orderBySql + " LIMIT ?"
 		args = []any{limit}
 	}
-	log.Printf("GetRecentFakeNews: SQL=%v, args=%v", sqlQuery, args)
-	err = db.Select(&fakeNewsDtos, sqlQuery, args...)
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fakeNewsDtos, nil
-		}
+		return fakeNewsDtos, err
+	}
+	fakeNewsDtos, err = scanFakeNewsRows(rows)
+	if err != nil {
 		return fakeNewsDtos, err
 	}
 	r.EnrichFakeNewsWithSiteNames(ctx, fakeNewsDtos)
@@ -323,18 +397,18 @@ func (r *sqliteNewsRepository) GetPopularFakeNews(ctx context.Context, limit int
 	var args []any
 	orderBySql := "ORDER BY VOTES desc, published DESC"
 	if publishedAfter != nil {
-		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 AND votes <= ? AND (votes < ? OR published < ?) %v LIMIT ?", DBTags(core.FakeNewsDto{}), orderBySql)
+		sqlQuery = "SELECT " + fakeNewsColumns + " FROM fake_news WHERE highlighted = 1 AND votes <= ? AND (votes < ? OR published < ?) " + orderBySql + " LIMIT ?"
 		args = []any{votes, votes, *publishedAfter, limit}
 	} else {
-		sqlQuery = fmt.Sprintf("SELECT %v FROM fake_news WHERE highlighted = 1 %v LIMIT ?", DBTags(core.FakeNewsDto{}), orderBySql)
+		sqlQuery = "SELECT " + fakeNewsColumns + " FROM fake_news WHERE highlighted = 1 " + orderBySql + " LIMIT ?"
 		args = []any{limit}
 	}
-	log.Printf("GetPopularFakeNews: SQL=%v, args=%v", sqlQuery, args)
-	err = db.Select(&fakeNewsDtos, sqlQuery, args...)
+	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fakeNewsDtos, nil
-		}
+		return fakeNewsDtos, err
+	}
+	fakeNewsDtos, err = scanFakeNewsRows(rows)
+	if err != nil {
 		return fakeNewsDtos, err
 	}
 	r.EnrichFakeNewsWithSiteNames(ctx, fakeNewsDtos)
@@ -346,9 +420,8 @@ func (r *sqliteNewsRepository) GetFakeNews(ctx context.Context, id string) (*cor
 	if err != nil {
 		return nil, err
 	}
-	var fakeNewsDto core.FakeNewsDto
-	sqlQuery := fmt.Sprintf("SELECT %v FROM fake_news WHERE external_id = ?", DBTags(core.FakeNewsDto{}))
-	err = db.Get(&fakeNewsDto, sqlQuery, id)
+	sqlQuery := "SELECT " + fakeNewsColumns + " FROM fake_news WHERE external_id = ?"
+	fakeNewsDto, err := scanFakeNews(db.QueryRowContext(ctx, sqlQuery, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -364,9 +437,8 @@ func (r *sqliteNewsRepository) GetFakeNewsByTitle(ctx context.Context, siteId in
 	if err != nil {
 		return nil, err
 	}
-	var fakeNewsDto core.FakeNewsDto
-	sqlQuery := fmt.Sprintf("SELECT %v FROM fake_news WHERE site_id = ? AND title = ?", DBTags(core.FakeNewsDto{}))
-	err = db.Get(&fakeNewsDto, sqlQuery, siteId, title)
+	sqlQuery := "SELECT " + fakeNewsColumns + " FROM fake_news WHERE site_id = ? AND title = ?"
+	fakeNewsDto, err := scanFakeNews(db.QueryRowContext(ctx, sqlQuery, siteId, title))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -449,24 +521,24 @@ func (r *sqliteNewsRepository) VoteFakeNews(ctx context.Context, siteId int, tit
 		sign = "-"
 	}
 	absVotes := pkg.IntAbs(votes)
-	tx, err := db.Beginx()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("error starting vote tx: %w", err)
 	}
 	query := fmt.Sprintf("UPDATE fake_news SET votes = votes %v ? WHERE site_id = ? AND title = ?", sign)
-	_, err = tx.Exec(query, absVotes, siteId, title)
+	_, err = tx.ExecContext(ctx, query, absVotes, siteId, title)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("error updating fake news votes: %w", err)
 	}
 	var updatedVotes int
-	err = tx.Get(&updatedVotes, "SELECT votes FROM fake_news WHERE site_id = ? AND title = ?", siteId, title)
+	err = tx.QueryRowContext(ctx, "SELECT votes FROM fake_news WHERE site_id = ? AND title = ?", siteId, title).Scan(&updatedVotes)
 	if err != nil {
 		tx.Rollback()
 		return 0, fmt.Errorf("error getting updated votes: %w", err)
 	}
 	if updatedVotes < 0 {
-		_, err = tx.Exec("UPDATE fake_news SET votes = 0 WHERE site_id = ? and title = ?", siteId, title)
+		_, err = tx.ExecContext(ctx, "UPDATE fake_news SET votes = 0 WHERE site_id = ? and title = ?", siteId, title)
 		if err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("error updating votes to 0 after they were negative: %w", err)
@@ -477,22 +549,4 @@ func (r *sqliteNewsRepository) VoteFakeNews(ctx context.Context, siteId int, tit
 		return 0, fmt.Errorf("error commiting votes tx: %w", err)
 	}
 	return updatedVotes, nil
-}
-
-// DBTags returns a comma-separated string of "db" tags
-func DBTags(v interface{}) string {
-	t := reflect.TypeOf(v)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem() // Get the element type if it's a pointer
-	}
-
-	var tags []string
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		dbTag := field.Tag.Get("db")
-		if dbTag != "" {
-			tags = append(tags, dbTag)
-		}
-	}
-	return strings.Join(tags, ", ")
 }

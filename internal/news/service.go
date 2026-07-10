@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/md5"
+	"database/sql"
 	"fmt"
 	"io"
 	"log"
@@ -20,7 +21,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/storage"
 	"github.com/bjarke-xyz/rasende2/pkg"
-	"github.com/jmoiron/sqlx"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/mmcdole/gofeed"
 	"github.com/prometheus/client_golang/prometheus"
@@ -561,7 +561,7 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 	return nil
 }
 
-func processBatch(ctx context.Context, client *s3.Client, db *sqlx.DB, bucket string, batch []string) error {
+func processBatch(ctx context.Context, client *s3.Client, db *sql.DB, bucket string, batch []string) error {
 	// Prepare the SQL query
 	placeholders := strings.Repeat("?,", len(batch))
 	placeholders = placeholders[:len(placeholders)-1] // Remove the trailing comma
@@ -589,6 +589,9 @@ func processBatch(ctx context.Context, client *s3.Client, db *sqlx.DB, bucket st
 			return fmt.Errorf("failed to scan url: %w", err)
 		}
 		existingURLs[url] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to read img urls: %w", err)
 	}
 
 	// Identify and delete orphaned S3 objects

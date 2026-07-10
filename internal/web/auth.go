@@ -12,7 +12,6 @@ import (
 
 	"github.com/bjarke-xyz/rasende2/internal/mail"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
-	"github.com/bjarke-xyz/rasende2/internal/repository/db/dao"
 	"github.com/bjarke-xyz/rasende2/internal/web/auth"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
 	"github.com/bjarke-xyz/rasende2/pkg"
@@ -29,19 +28,6 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 		Email:      email,
 		ReturnPath: returnPath,
 	}))
-}
-
-func (w *web) notifyUserCreated(user dao.User) {
-	msg := fmt.Sprintf("rasende: new user created: %v (%v)", user.Email, user.ID)
-	err := w.appContext.Infra.Mail.Send(mail.SendMailRequest{
-		Receiver: w.appContext.Config.AdminEmail,
-		Type:     "new_user",
-		Subject:  msg,
-		Message:  msg,
-	})
-	if err != nil {
-		log.Printf("failed to send mail: %v", err)
-	}
 }
 
 func (w *web) HandlePostLogin(c *gin.Context) {
@@ -137,12 +123,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 			return
 		}
 		expiresAt := time.Now().Add(15 * time.Minute)
-		db.CreateMagicLink(ctx, dao.CreateMagicLinkParams{
-			UserID:    user.ID,
-			OtpHash:   otpHash,
-			LinkCode:  linkCode,
-			ExpiresAt: expiresAt,
-		})
+		db.CreateMagicLink(ctx, user.ID, otpHash, linkCode, expiresAt)
 		// TODO: check if user exists before sending mail
 		// TODO: reutrn path query param
 		w.appContext.Infra.Mail.SendAuthLink(mail.SendAuthLinkRequest{

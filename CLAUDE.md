@@ -27,8 +27,7 @@ The application follows a layered architecture:
   - Manages fake news generation and voting
 
 - **internal/repository/** - Data persistence layer
-  - Local SQLite database file, accessed with `jmoiron/sqlx` over the pure-Go `modernc.org/sqlite` driver
-  - Uses `sqlc` for type-safe SQL query generation
+  - Local SQLite database file, accessed with plain `database/sql` over the pure-Go `modernc.org/sqlite` driver
   - SQLite FTS5 (`rss_items_fts`) for full-text search
 
 - **internal/web/** - HTTP handlers and templates
@@ -42,7 +41,7 @@ The application follows a layered architecture:
 ### Key Technologies
 
 - **Backend**: Go 1.23, Gin web framework
-- **Database**: local SQLite file (`modernc.org/sqlite`, cgo-free), with sqlc for queries
+- **Database**: local SQLite file (`modernc.org/sqlite`, cgo-free), queried with plain `database/sql`
 - **Search**: SQLite FTS5 + a Danish analyzer in `internal/search`
 - **Templates**: templ (type-safe HTML templates)
 - **Frontend**: HTMX, TailwindCSS, Chart.js
@@ -51,9 +50,9 @@ The application follows a layered architecture:
 
 ### Database Management
 
-- SQL migrations in `internal/repository/db/migrations/`
-- SQL queries in `internal/repository/db/queries/`
-- Generated DAO code in `internal/repository/db/dao/` (via sqlc)
+- SQL migrations in `internal/repository/db/migrations/` (goose, embedded, run at startup)
+- Queries are hand-written: `internal/repository/sqlite_news.go` for news and fake news,
+  `internal/repository/db/users.go` for the magic-link login
 - Database file path configured via the `DB_CONN_STR` environment variable
 
 ### Search Implementation
@@ -92,7 +91,7 @@ make build
 # Development mode with hot reload
 make dev
 
-# Run code generation only (templ, sqlc, tailwind)
+# Run code generation only (templ, tailwind)
 make generate
 
 # Run tests
@@ -130,10 +129,12 @@ go test ./internal/repository
 
 ### Code Generation
 
-When modifying database schemas or queries:
+When modifying database schemas:
 
-1. Update SQL files in `internal/repository/db/migrations/` or `internal/repository/db/queries/`
-2. Run `sqlc generate` (included in `make generate`)
+1. Add a goose migration in `internal/repository/db/migrations/`
+2. Update the matching hand-written query and its `Scan` call. Column-list constants live
+   next to the scan helpers at the top of `internal/repository/sqlite_news.go`; the scan
+   order must match the column order.
 
 When modifying templates:
 

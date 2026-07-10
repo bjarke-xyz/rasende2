@@ -2,6 +2,7 @@ package news
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/search"
-	"github.com/jmoiron/sqlx"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -110,7 +110,7 @@ func (s *RssSearch) Search(ctx context.Context, query string, searchContent bool
 	args = append([]any{expr}, args...)
 	args = append(args, limit, offset)
 
-	rows, err := dbConn.QueryxContext(ctx, sqlQuery, args...)
+	rows, err := dbConn.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return results, fmt.Errorf("error searching: %w", err)
 	}
@@ -148,7 +148,7 @@ func (s *RssSearch) CountByDay(ctx context.Context, query string, searchContent 
 		" GROUP BY day ORDER BY day ASC"
 	args = append([]any{expr}, args...)
 
-	rows, err := dbConn.QueryxContext(ctx, sqlQuery, args...)
+	rows, err := dbConn.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return counts, fmt.Errorf("error counting by day: %w", err)
 	}
@@ -182,7 +182,7 @@ func (s *RssSearch) CountBySite(ctx context.Context, query string, searchContent
 	}
 	sqlQuery := "SELECT i.site_id, count(*) AS count" + searchFrom + " GROUP BY i.site_id"
 
-	rows, err := dbConn.QueryxContext(ctx, sqlQuery, expr)
+	rows, err := dbConn.QueryContext(ctx, sqlQuery, expr)
 	if err != nil {
 		return counts, fmt.Errorf("error counting by site: %w", err)
 	}
@@ -236,8 +236,8 @@ func (s *RssSearch) Rebuild(ctx context.Context) error {
 
 // indexBatch indexes up to rebuildBatchSize rows with id > afterId, keyset
 // paginated so the scan cost does not grow with the offset.
-func (s *RssSearch) indexBatch(ctx context.Context, dbConn *sqlx.DB, afterId int64) (int, int64, error) {
-	rows, err := dbConn.QueryxContext(ctx,
+func (s *RssSearch) indexBatch(ctx context.Context, dbConn *sql.DB, afterId int64) (int, int64, error) {
+	rows, err := dbConn.QueryContext(ctx,
 		"SELECT id, title, content FROM rss_items WHERE id > ? ORDER BY id ASC LIMIT ?", afterId, rebuildBatchSize)
 	if err != nil {
 		return 0, afterId, fmt.Errorf("error reading items to index: %w", err)
@@ -268,7 +268,7 @@ func (s *RssSearch) indexBatch(ctx context.Context, dbConn *sqlx.DB, afterId int
 		return 0, afterId, nil
 	}
 
-	tx, err := dbConn.Beginx()
+	tx, err := dbConn.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, afterId, fmt.Errorf("failed to begin index tx: %w", err)
 	}
@@ -292,7 +292,7 @@ func (s *RssSearch) IsEmpty(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	var count int
-	if err := dbConn.GetContext(ctx, &count, "SELECT count(*) FROM rss_items_fts"); err != nil {
+	if err := dbConn.QueryRowContext(ctx, "SELECT count(*) FROM rss_items_fts").Scan(&count); err != nil {
 		return false, fmt.Errorf("error counting search index: %w", err)
 	}
 	return count == 0, nil

@@ -1,11 +1,10 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
 
-	"github.com/bjarke-xyz/rasende2/internal/repository/db/dao"
-	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
 
@@ -13,17 +12,17 @@ type ConnectionStringer interface {
 	ConnectionString() string
 }
 
-var connections map[string]*sqlx.DB = make(map[string]*sqlx.DB)
+var connections map[string]*sql.DB = make(map[string]*sql.DB)
 var lock sync.RWMutex
 
-func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
+func Open(connStringer ConnectionStringer) (*sql.DB, error) {
 	lock.Lock()
 	defer lock.Unlock()
 	existingDb, ok := connections[connStringer.ConnectionString()]
 	if ok {
 		return existingDb, nil
 	} else {
-		db, err := sqlx.Open("sqlite", connStringer.ConnectionString())
+		db, err := sql.Open("sqlite", connStringer.ConnectionString())
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to db: %w", err)
 		}
@@ -32,10 +31,10 @@ func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
 	}
 }
 
-func OpenQueries(connStringer ConnectionStringer) (*dao.Queries, error) {
+func OpenQueries(connStringer ConnectionStringer) (*Queries, error) {
 	db, err := Open(connStringer)
 	if err != nil {
 		return nil, err
 	}
-	return dao.New(db), nil
+	return NewQueries(db), nil
 }

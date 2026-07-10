@@ -24,7 +24,7 @@ func newTestSearch(t *testing.T, items []core.RssItemDto) *RssSearch {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if err := db.Migrate("up", conn.DB); err != nil {
+	if err := db.Migrate("up", conn); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	appContext := &core.AppContext{Config: cfg}

@@ -45,7 +45,7 @@ func main() {
 		log.Printf("error opening db: %v", err)
 	}
 	if dbConn != nil {
-		err = db.Migrate("up", dbConn.DB)
+		err = db.Migrate("up", dbConn)
 		if err != nil {
 			log.Printf("failed to migrate: %v", err)
 		}

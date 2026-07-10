@@ -19,10 +19,7 @@ RUN go mod download
 COPY . ./
 
 # Install templ binary
-RUN go install github.com/a-h/templ/cmd/templ@latest 
-
-# Install sqlc binary
-RUN go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+RUN go install github.com/a-h/templ/cmd/templ@latest
 
 # Build the binary.
 RUN make build

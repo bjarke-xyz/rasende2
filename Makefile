@@ -25,7 +25,6 @@ dev: npm-build-dev generate
 
 generate:
 	templ generate
-	sqlc generate
 	npx tailwindcss build -i internal/web/static/css/style.css -o internal/web/static/css/tailwind.css -m
 
 test:

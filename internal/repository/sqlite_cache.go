@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -69,15 +71,15 @@ func (c *cacheRepo) Get(key string) (string, error) {
 			}
 		}
 	}
-	value := []string{}
-	err = db.Select(&value, "SELECT v FROM cache WHERE k = ? AND expires_at > ? LIMIT 1", key, now)
+	var value string
+	err = db.QueryRow("SELECT v FROM cache WHERE k = ? AND expires_at > ? LIMIT 1", key, now).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
 	if err != nil {
 		return "", fmt.Errorf("error getting from cache, key=%v: %w", key, err)
 	}
-	if len(value) == 0 {
-		return "", nil
-	}
-	return value[0], nil
+	return value, nil
 }
 
 func (c *cacheRepo) DeleteExpired() error {

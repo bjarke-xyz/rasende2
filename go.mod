@@ -54,7 +54,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/matoous/go-nanoid/v2 v2.1.0
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.46.0 // indirect
@@ -93,7 +92,6 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/gin-gonic/gin v1.9.1
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/jmoiron/sqlx v1.3.5
 	github.com/joho/godotenv v1.5.1
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.26
