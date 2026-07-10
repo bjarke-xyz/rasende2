@@ -14,7 +14,8 @@ function handleCharts() {
             ctx.restore();
         },
     };
-    const makeOptions = (title) => {
+    const makeOptions = (title, type) => {
+        const isCartesian = type !== "doughnut" && type !== "pie";
         return {
             responsive: true,
 
@@ -27,6 +28,13 @@ function handleCharts() {
                     text: title,
                 },
             },
+            ...(isCartesian && {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                    },
+                },
+            }),
         };
     };
     const colors = [
@@ -77,7 +85,7 @@ function handleCharts() {
             labels: chart.labels
         }
         chart.options = {
-            ...makeOptions(chart.title),
+            ...makeOptions(chart.title, chart.type),
         }
         chart.plugins = [plugin]
         chartPlaceholder.innerHTML = '';
