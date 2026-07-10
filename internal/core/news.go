@@ -36,7 +36,7 @@ type NewsRepository interface {
 type NewsService interface {
 	Initialise(ctx context.Context)
 	Dispose()
-	GetIndexPageData(ctx context.Context, nocache bool) (*IndexPageData, error)
+	GetIndexPageData(ctx context.Context) (*IndexPageData, error)
 	GetChartData(ctx context.Context, query string) (ChartsResult, error)
 	GetSiteNames(ctx context.Context) ([]string, error)
 	GetSiteInfos(ctx context.Context) ([]NewsSite, error)

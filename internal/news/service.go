@@ -59,28 +59,14 @@ func NewRssService(context *core.AppContext, repository core.NewsRepository, sea
 	}
 }
 
-const CacheKeyIndexPage = "PAGE:INDEX"
-
-func (r *RssService) cacheKeyIndexPage() string {
-	return CacheKeyIndexPage + ":" + r.context.Config.AppEnv
-}
-
-func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*core.IndexPageData, error) {
+func (r *RssService) GetIndexPageData(ctx context.Context) (*core.IndexPageData, error) {
 	query := "rasende"
 	offset := 0
 	limit := 10
 	searchContent := false
 	orderBy := "-published"
 
-	cacheKey := r.cacheKeyIndexPage()
 	indexPageData := &core.IndexPageData{}
-	if !nocache {
-		fromCache, _ := r.context.Infra.Cache.GetObj(cacheKey, indexPageData)
-		if fromCache {
-			log.Printf("got %v from cache", cacheKey)
-			return indexPageData, nil
-		}
-	}
 
 	chartsPromise := pkg.NewPromise(func() (core.ChartsResult, error) {
 		chartData, err := r.GetChartData(ctx, query)
@@ -106,8 +92,6 @@ func (r *RssService) GetIndexPageData(ctx context.Context, nocache bool) (*core.
 	}
 	indexPageData.SearchResult = &searchResults
 	indexPageData.ChartsResult = &chartsData
-	go r.context.Infra.Cache.InsertObj(cacheKey, indexPageData, 120)
-	log.Printf("key %v missed cache", cacheKey)
 	return indexPageData, nil
 }
 
@@ -364,8 +348,6 @@ func (r *RssService) FetchAndSaveNewItems(ctx context.Context) error {
 	wg.Wait()
 	// No index reconciliation needed: InsertItems indexes each new row in the same
 	// transaction that inserts it.
-	go r.context.Infra.Cache.DeleteExpired()
-	go r.context.Infra.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
 	return nil
 }
 

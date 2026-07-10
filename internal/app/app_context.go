@@ -12,14 +12,12 @@ import (
 )
 
 func AppContext(cfg *config.Config) *core.AppContext {
-	cache := repository.NewCacheService(repository.NewCacheRepo(cfg, true))
 	mailService := mail.NewMail(cfg)
 
 	appContext := &core.AppContext{
 		Config: cfg,
 		Infra: &core.AppInfra{
-			Cache: cache,
-			Mail:  mailService,
+			Mail: mailService,
 		},
 		Deps: &core.AppDeps{},
 	}

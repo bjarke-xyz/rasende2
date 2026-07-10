@@ -20,7 +20,6 @@ type BaseViewModel struct {
 	FlashInfo     []string
 	FlashWarn     []string
 	FlashError    []string
-	NoCache       bool
 
 	UserId          int64
 	IsAdmin         bool

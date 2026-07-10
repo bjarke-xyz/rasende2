@@ -12,7 +12,7 @@ func (w *web) HandleGetIndex(c *gin.Context) {
 		Base: w.getBaseModel(c, "Raseri i de danske medier"),
 	}
 	ctx := c.Request.Context()
-	indexPageData, err := w.appContext.Deps.Service.GetIndexPageData(ctx, indexModel.Base.NoCache)
+	indexPageData, err := w.appContext.Deps.Service.GetIndexPageData(ctx)
 	if err != nil {
 		w.renderError(c, http.StatusInternalServerError, err)
 		return

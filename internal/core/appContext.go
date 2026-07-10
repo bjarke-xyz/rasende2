@@ -12,8 +12,7 @@ type AppContext struct {
 }
 
 type AppInfra struct {
-	Cache Cache
-	Mail  *mail.MailService
+	Mail *mail.MailService
 }
 
 type AppDeps struct {

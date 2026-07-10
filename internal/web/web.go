@@ -90,7 +90,6 @@ func (w *web) getBaseModel(c *gin.Context, title string) components.BaseViewMode
 		FlashInfo:       GetFlashes(c, core.FlashTypeInfo),
 		FlashWarn:       GetFlashes(c, core.FlashTypeWarn),
 		FlashError:      GetFlashes(c, core.FlashTypeError),
-		NoCache:         c.Request.URL.Query().Get("nocache") == "true",
 		UserId:          userId,
 		IsAnonymousUser: !ok,
 		IsAdmin:         auth.IsAdmin(c),
