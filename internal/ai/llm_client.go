@@ -27,7 +27,8 @@ type llmClient struct {
 	useFake    bool
 }
 
-const chatModel = "google/gemini-2.5-flash"
+const chatModel = "deepseek/deepseek-v4-flash"
+const imageModel = "google/gemini-3.1-flash-image"
 
 func NewLLMClient(appContext *core.AppContext) core.AiClient {
 	config := openai.DefaultConfig(appContext.Config.LLMAPIKey)
@@ -105,9 +106,9 @@ func (o *llmClient) GenerateImage(ctx context.Context, siteName string, siteDesc
 
 	// Gemini image generation requires custom request with modalities
 	type imageGenRequest struct {
-		Model      string                            `json:"model"`
-		Messages   []map[string]interface{}          `json:"messages"`
-		Modalities []string                          `json:"modalities"`
+		Model      string                   `json:"model"`
+		Messages   []map[string]interface{} `json:"messages"`
+		Modalities []string                 `json:"modalities"`
 	}
 
 	type imageURL struct {
@@ -133,7 +134,7 @@ func (o *llmClient) GenerateImage(ctx context.Context, siteName string, siteDesc
 	}
 
 	reqBody := imageGenRequest{
-		Model: "google/gemini-2.5-flash-image",
+		Model: imageModel,
 		Messages: []map[string]interface{}{
 			{
 				"role":    "user",
