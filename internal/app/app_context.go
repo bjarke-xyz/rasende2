@@ -25,7 +25,7 @@ func AppContext(cfg *config.Config) *core.AppContext {
 	}
 
 	rssRepository := repository.NewSqliteNews(appContext)
-	rssSearch := news.NewRssSearch(cfg.SearchIndexPath)
+	rssSearch := news.NewRssSearch(appContext)
 	appContext.Deps.Service = news.NewRssService(appContext, rssRepository, rssSearch)
 	appContext.Deps.AiClient = ai.NewLLMClient(appContext)
 

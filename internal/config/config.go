@@ -11,16 +11,9 @@ import (
 )
 
 type Config struct {
-	Port             int
-	DbConnStr        string
-	BackupDbPath     string
-	TursoDatabaseUrl string
-	TursoAuthToken   string
-
-	S3BackupUrl             string
-	S3BackupBucket          string
-	S3BackupAccessKeyId     string
-	S3BackupSecretAccessKey string
+	Port int
+	// DbConnStr is the path to the local sqlite database file.
+	DbConnStr string
 
 	S3ImagePublicBaseUrl   string
 	S3ImageUrl             string
@@ -35,15 +28,11 @@ type Config struct {
 	SmtpSender   string
 	SmtpTest     bool
 
-	SearchIndexPath string
-
 	JobKey string
 
 	LLMAPIKey string
 
 	AppEnv string
-
-	NtfyTopic string
 
 	AdminPassword string
 	AdminEmail    string
@@ -62,9 +51,17 @@ const (
 	AppEnvProduction  = "production"
 )
 
+// ConnectionString returns a modernc.org/sqlite DSN for the local database file.
+//
+// WAL lets the RSS fetcher write while requests read; busy_timeout absorbs the
+// brief contention that remains, since SQLite still allows only one writer.
+//
+// _time_format=sqlite is required, not cosmetic: without it the driver binds
+// time.Time using Go's default layout ("2006-01-02 15:04:05 -0700 MST"), which
+// SQLite's date()/datetime() cannot parse. It writes "2006-01-02 15:04:05-07:00"
+// instead, matching the timestamps already in the database.
 func (c *Config) ConnectionString() string {
-	// return c.DbConnStr
-	return fmt.Sprintf("%s?authToken=%s", c.TursoDatabaseUrl, c.TursoAuthToken)
+	return fmt.Sprintf("file:%s?_time_format=sqlite&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", c.DbConnStr)
 }
 
 func NewConfig() (*Config, error) {
@@ -87,36 +84,27 @@ func NewConfig() (*Config, error) {
 		buildTime = &_buildTime
 	}
 	return &Config{
-		Port:                    pkg.MustAtoi(os.Getenv("PORT")),
-		DbConnStr:               os.Getenv("DB_CONN_STR"),
-		BackupDbPath:            os.Getenv("BACKUP_DB_PATH"),
-		TursoDatabaseUrl:        os.Getenv("TURSO_DATABASE_URL"),
-		TursoAuthToken:          os.Getenv("TURSO_AUTH_TOKEN"),
-		S3BackupUrl:             os.Getenv("S3_BACKUP_URL"),
-		S3BackupBucket:          os.Getenv("S3_BACKUP_BUCKET"),
-		S3BackupAccessKeyId:     os.Getenv("S3_BACKUP_ACCESS_KEY_ID"),
-		S3BackupSecretAccessKey: os.Getenv("S3_BACKUP_SECRET_ACCESS_KEY"),
-		S3ImagePublicBaseUrl:    os.Getenv("S3_IMAGE_PUBLIC_BASE_URL"),
-		S3ImageUrl:              os.Getenv("S3_IMAGE_URL"),
-		S3ImageBucket:           os.Getenv("S3_IMAGE_BUCKET"),
-		S3ImageAccessKeyId:      os.Getenv("S3_IMAGE_ACCESS_KEY_ID"),
-		S3ImageSecretAccessKey:  os.Getenv("S3_IMAGE_SECRET_ACCESS_KEY"),
-		SmtpHost:                os.Getenv("SMTP_HOST"),
-		SmtpUsername:            os.Getenv("SMTP_USERNAME"),
-		SmtpPassword:            os.Getenv("SMTP_PASSWORD"),
-		SmtpPort:                os.Getenv("SMTP_PORT"),
-		SmtpSender:              os.Getenv("SMTP_SENDER"),
-		SmtpTest:                os.Getenv("SMTP_TEST") == "true",
-		JobKey:                  os.Getenv("JOB_KEY"),
-		LLMAPIKey:               os.Getenv("LLM_API_KEY"),
-		AppEnv:                  os.Getenv("APP_ENV"),
-		SearchIndexPath:         os.Getenv("SEARCH_INDEX_PATH"),
-		NtfyTopic:               os.Getenv("NTFY_TOPIC_BACKUP"),
-		AdminPassword:           os.Getenv("ADMIN_PASSWORD"),
-		AdminEmail:              os.Getenv("ADMIN_EMAIL"),
-		BuildTime:               buildTime,
-		UseFakeLLM:              os.Getenv("USE_FAKE_LLM") == "true",
-		CookieSecret:            os.Getenv("COOKIE_SECRET"),
-		BaseUrl:                 os.Getenv("BASE_URL"),
+		Port:                   pkg.MustAtoi(os.Getenv("PORT")),
+		DbConnStr:              os.Getenv("DB_CONN_STR"),
+		S3ImagePublicBaseUrl:   os.Getenv("S3_IMAGE_PUBLIC_BASE_URL"),
+		S3ImageUrl:             os.Getenv("S3_IMAGE_URL"),
+		S3ImageBucket:          os.Getenv("S3_IMAGE_BUCKET"),
+		S3ImageAccessKeyId:     os.Getenv("S3_IMAGE_ACCESS_KEY_ID"),
+		S3ImageSecretAccessKey: os.Getenv("S3_IMAGE_SECRET_ACCESS_KEY"),
+		SmtpHost:               os.Getenv("SMTP_HOST"),
+		SmtpUsername:           os.Getenv("SMTP_USERNAME"),
+		SmtpPassword:           os.Getenv("SMTP_PASSWORD"),
+		SmtpPort:               os.Getenv("SMTP_PORT"),
+		SmtpSender:             os.Getenv("SMTP_SENDER"),
+		SmtpTest:               os.Getenv("SMTP_TEST") == "true",
+		JobKey:                 os.Getenv("JOB_KEY"),
+		LLMAPIKey:              os.Getenv("LLM_API_KEY"),
+		AppEnv:                 os.Getenv("APP_ENV"),
+		AdminPassword:          os.Getenv("ADMIN_PASSWORD"),
+		AdminEmail:             os.Getenv("ADMIN_EMAIL"),
+		BuildTime:              buildTime,
+		UseFakeLLM:             os.Getenv("USE_FAKE_LLM") == "true",
+		CookieSecret:           os.Getenv("COOKIE_SECRET"),
+		BaseUrl:                os.Getenv("BASE_URL"),
 	}, nil
 }

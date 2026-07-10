@@ -4,221 +4,305 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
-	"github.com/blevesearch/bleve/v2"
-	"github.com/blevesearch/bleve/v2/analysis/lang/da"
-	"github.com/blevesearch/bleve/v2/mapping"
-	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/bjarke-xyz/rasende2/internal/repository/db"
+	"github.com/bjarke-xyz/rasende2/internal/search"
+	"github.com/jmoiron/sqlx"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// RssSearch queries the rss_items_fts index. Rows are written to that index by
+// the repository, inside the same transaction as the rss_items insert, so the
+// two can never drift apart.
 type RssSearch struct {
-	indexPath string
-	index     bleve.Index
+	context *core.AppContext
 }
 
-func NewRssSearch(indexPath string) *RssSearch {
-	return &RssSearch{
-		indexPath: indexPath,
-	}
+func NewRssSearch(context *core.AppContext) *RssSearch {
+	return &RssSearch{context: context}
 }
 
-func buildIndexMapping() *mapping.IndexMappingImpl {
-	indexMapping := bleve.NewIndexMapping()
-	indexMapping.DefaultAnalyzer = da.AnalyzerName
-	rssItemMapping := bleve.NewDocumentMapping()
-
-	titleFieldMapping := bleve.NewTextFieldMapping()
-	titleFieldMapping.Analyzer = da.AnalyzerName
-	rssItemMapping.AddFieldMappingsAt("title", titleFieldMapping)
-
-	contentFieldMapping := bleve.NewTextFieldMapping()
-	contentFieldMapping.Analyzer = da.AnalyzerName
-	rssItemMapping.AddFieldMappingsAt("content", contentFieldMapping)
-
-	publishedFieldMapping := bleve.NewDateTimeFieldMapping()
-	rssItemMapping.AddFieldMappingsAt("published", publishedFieldMapping)
-
-	// Using text field mapping here as it is "lighter" compared to numeric, and we don't need to do numeric operations on the id (TODO: find GitHub issue comment that said this)
-	siteIdFieldMapping := bleve.NewTextFieldMapping()
-	rssItemMapping.AddFieldMappingsAt("siteId", siteIdFieldMapping)
-
-	linkFieldMapping := bleve.NewTextFieldMapping()
-	linkFieldMapping.Index = false
-	linkFieldMapping.Store = true
-	rssItemMapping.AddFieldMappingsAt("link", linkFieldMapping)
-	return indexMapping
-}
-
-func (s *RssSearch) createIndex() (bleve.Index, error) {
-	indexMapping := buildIndexMapping()
-
-	index, err := bleve.NewUsing(s.indexPath, indexMapping, "scorch", "scorch", nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating index: %w", err)
-	}
-	return index, nil
-}
-
-func (s *RssSearch) CloseIndex() error {
-	if s.index != nil {
-		err := s.index.Close()
-		if err != nil {
-			log.Printf("error closing index: %v", err)
-			return fmt.Errorf("error closing index: %w", err)
-		}
-	}
-	return nil
-}
-
-func (s *RssSearch) OpenAndCreateIndexIfNotExists() (bool, error) {
-	indexCreated := false
-	index, err := bleve.Open(s.indexPath)
-	if err != nil {
-		if err == bleve.ErrorIndexPathDoesNotExist {
-			index, err = s.createIndex()
-			if err != nil {
-				return indexCreated, err
-			}
-			indexCreated = true
-		} else {
-			return indexCreated, fmt.Errorf("error opening index at %s: %w", s.indexPath, err)
-		}
-	}
-	s.index = index
-	return indexCreated, nil
-}
-
-var indexSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
-	Name: "rasende2_index_size_bytes",
-	Help: "Size in bytes of rasende2 search index",
+var dbSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "rasende2_db_size_bytes",
+	Help: "Size in bytes of the rasende2 sqlite database, which includes the search index",
 })
 
-func (s *RssSearch) Index(items []core.RssItemDto) error {
-	batchSize := 5000
-	batchCount := 0
-	count := 0
-	startTime := time.Now()
-	log.Printf("Indexing...")
-	batch := s.index.NewBatch()
-	for _, item := range items {
-		batch.Index(item.ItemId, item)
-		batchCount++
-		if batchCount >= batchSize {
-			err := s.index.Batch(batch)
-			if err != nil {
-				return err
-			}
-			batch = s.index.NewBatch()
-			batchCount = 0
-		}
+// orderByClauses whitelists the sort values the web layer may pass through.
+// bm25() returns increasingly negative scores for better matches, so ascending
+// bm25 is descending relevance.
+var orderByClauses = map[string]string{
+	"-published": "i.published DESC",
+	"published":  "i.published ASC",
+	"-_score":    "bm25(rss_items_fts) ASC",
+	"_score":     "bm25(rss_items_fts) DESC",
+}
 
-		count++
-		if count%1000 == 0 {
-			indexDuration := time.Since(startTime)
-			indexDurationSeconds := float64(indexDuration) / float64(time.Second)
-			timePerDoc := float64(indexDuration) / float64(count)
-			log.Printf("Indexed %d documents, in %.2fs (average %.2fms/doc)", count, indexDurationSeconds, timePerDoc/float64(time.Millisecond))
-		}
+func orderByClause(orderBy string) string {
+	if clause, ok := orderByClauses[orderBy]; ok {
+		return clause
 	}
-	// flush the last batch
-	if batchCount > 0 {
-		err := s.index.Batch(batch)
+	return "i.published DESC"
+}
+
+// matchExpr renders a user query as an FTS5 MATCH expression over the
+// Danish-stemmed tokens held in the index. Tokens are quoted so that FTS5
+// operators appearing in user input are treated as literal text.
+//
+// Reports false when the query carries no searchable terms — for example a
+// query of nothing but stop words. Callers must return no results in that case;
+// an empty MATCH expression is a syntax error.
+func matchExpr(query string, searchContent bool) (string, bool) {
+	tokens := search.Analyze(query)
+	if len(tokens) == 0 {
+		return "", false
+	}
+	quoted := make([]string, len(tokens))
+	for i, token := range tokens {
+		quoted[i] = `"` + strings.ReplaceAll(token, `"`, `""`) + `"`
+	}
+	expr := "(" + strings.Join(quoted, " OR ") + ")"
+	if searchContent {
+		// Unqualified: matches either column.
+		return expr, true
+	}
+	return "{title} : " + expr, true
+}
+
+// publishedBetween appends the optional date range. published is TEXT with a
+// varying number of fractional-second digits, so it is normalised by datetime()
+// rather than compared lexically.
+func publishedBetween(start *time.Time, end *time.Time) (string, []any) {
+	clause := strings.Builder{}
+	args := []any{}
+	if start != nil {
+		clause.WriteString(" AND datetime(i.published) >= datetime(?)")
+		args = append(args, start.UTC().Format(time.RFC3339))
+	}
+	if end != nil {
+		clause.WriteString(" AND datetime(i.published) <= datetime(?)")
+		args = append(args, end.UTC().Format(time.RFC3339))
+	}
+	return clause.String(), args
+}
+
+// Note: FTS5 auxiliary functions such as bm25() must name the table directly,
+// so rss_items_fts is never aliased. rss_items is aliased as i.
+const searchFrom = " FROM rss_items_fts JOIN rss_items i ON i.id = rss_items_fts.rowid WHERE rss_items_fts MATCH ?"
+
+func (s *RssSearch) Search(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string, limit int, offset int) ([]core.RssSearchResult, error) {
+	results := []core.RssSearchResult{}
+	expr, ok := matchExpr(query, searchContent)
+	if !ok {
+		return results, nil
+	}
+	dbConn, err := db.Open(s.context.Config)
+	if err != nil {
+		return results, err
+	}
+	rangeClause, args := publishedBetween(start, end)
+	sqlQuery := "SELECT i.item_id, i.title, i.content, i.link, i.published, i.site_id" + searchFrom + rangeClause +
+		" ORDER BY " + orderByClause(orderBy) + " LIMIT ? OFFSET ?"
+	args = append([]any{expr}, args...)
+	args = append(args, limit, offset)
+
+	rows, err := dbConn.QueryxContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return results, fmt.Errorf("error searching: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var result core.RssSearchResult
+		var content, link *string
+		if err := rows.Scan(&result.ItemId, &result.Title, &content, &link, &result.Published, &result.SiteId); err != nil {
+			return results, fmt.Errorf("error scanning search result: %w", err)
+		}
+		if content != nil {
+			result.Content = *content
+		}
+		if link != nil {
+			result.Link = *link
+		}
+		results = append(results, result)
+	}
+	return results, rows.Err()
+}
+
+// CountByDay returns the number of matches per calendar day, oldest first.
+func (s *RssSearch) CountByDay(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time) ([]core.SearchQueryCount, error) {
+	counts := []core.SearchQueryCount{}
+	expr, ok := matchExpr(query, searchContent)
+	if !ok {
+		return counts, nil
+	}
+	dbConn, err := db.Open(s.context.Config)
+	if err != nil {
+		return counts, err
+	}
+	rangeClause, args := publishedBetween(start, end)
+	sqlQuery := "SELECT date(i.published) AS day, count(*) AS count" + searchFrom + rangeClause +
+		" GROUP BY day ORDER BY day ASC"
+	args = append([]any{expr}, args...)
+
+	rows, err := dbConn.QueryxContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return counts, fmt.Errorf("error counting by day: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var day string
+		var count int
+		if err := rows.Scan(&day, &count); err != nil {
+			return counts, fmt.Errorf("error scanning day count: %w", err)
+		}
+		timestamp, err := time.Parse(time.DateOnly, day)
+		if err != nil {
+			log.Printf("error parsing day %v: %v", day, err)
+			continue
+		}
+		counts = append(counts, core.SearchQueryCount{Timestamp: timestamp, Count: count})
+	}
+	return counts, rows.Err()
+}
+
+// CountBySite returns the number of matches per site.
+func (s *RssSearch) CountBySite(ctx context.Context, query string, searchContent bool) ([]core.SiteCount, error) {
+	counts := []core.SiteCount{}
+	expr, ok := matchExpr(query, searchContent)
+	if !ok {
+		return counts, nil
+	}
+	dbConn, err := db.Open(s.context.Config)
+	if err != nil {
+		return counts, err
+	}
+	sqlQuery := "SELECT i.site_id, count(*) AS count" + searchFrom + " GROUP BY i.site_id"
+
+	rows, err := dbConn.QueryxContext(ctx, sqlQuery, expr)
+	if err != nil {
+		return counts, fmt.Errorf("error counting by site: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var siteCount core.SiteCount
+		if err := rows.Scan(&siteCount.SiteId, &siteCount.Count); err != nil {
+			return counts, fmt.Errorf("error scanning site count: %w", err)
+		}
+		counts = append(counts, siteCount)
+	}
+	return counts, rows.Err()
+}
+
+const rebuildBatchSize = 5000
+
+// Rebuild discards the index and reindexes every rss_item. It is the recovery
+// path after an analyzer change, since the stemmed tokens on disk are only
+// meaningful relative to the analyzer that produced them.
+func (s *RssSearch) Rebuild(ctx context.Context) error {
+	dbConn, err := db.Open(s.context.Config)
+	if err != nil {
+		return err
+	}
+	startTime := time.Now()
+	log.Printf("rebuilding search index...")
+
+	// 'delete-all' is the FTS5 command for emptying a contentless table.
+	if _, err := dbConn.ExecContext(ctx, "INSERT INTO rss_items_fts(rss_items_fts) VALUES('delete-all')"); err != nil {
+		return fmt.Errorf("error clearing search index: %w", err)
+	}
+
+	count := 0
+	lastId := int64(0)
+	for {
+		indexed, nextId, err := s.indexBatch(ctx, dbConn, lastId)
 		if err != nil {
 			return err
 		}
+		if indexed == 0 {
+			break
+		}
+		count += indexed
+		lastId = nextId
+		log.Printf("indexed %d documents in %.2fs", count, time.Since(startTime).Seconds())
 	}
-	indexDuration := time.Since(startTime)
-	indexDurationSeconds := float64(indexDuration) / float64(time.Second)
-	timePerDoc := float64(indexDuration) / float64(count)
-	log.Printf("Indexed %d documents, in %.2fs (average %.2fms/doc)", count, indexDurationSeconds, timePerDoc/float64(time.Millisecond))
-	statsMap := s.index.StatsMap()
-	totalSize := getTotalSize(statsMap)
-	indexSizeGauge.Set(float64(totalSize))
+	log.Printf("rebuilt search index with %d documents in %.2fs", count, time.Since(startTime).Seconds())
+	s.RefreshMetrics()
 	return nil
 }
 
-func getTotalSize(statsMap map[string]interface{}) uint64 {
-	totalSize := uint64(0)
-	indexMap, ok := statsMap["index"].(map[string]interface{})
-	if ok {
-		if val, ok := indexMap["CurOnDiskBytes"]; ok {
-			totalSize += val.(uint64)
+// indexBatch indexes up to rebuildBatchSize rows with id > afterId, keyset
+// paginated so the scan cost does not grow with the offset.
+func (s *RssSearch) indexBatch(ctx context.Context, dbConn *sqlx.DB, afterId int64) (int, int64, error) {
+	rows, err := dbConn.QueryxContext(ctx,
+		"SELECT id, title, content FROM rss_items WHERE id > ? ORDER BY id ASC LIMIT ?", afterId, rebuildBatchSize)
+	if err != nil {
+		return 0, afterId, fmt.Errorf("error reading items to index: %w", err)
+	}
+	type doc struct {
+		id      int64
+		title   string
+		content string
+	}
+	docs := []doc{}
+	for rows.Next() {
+		var d doc
+		var content *string
+		if err := rows.Scan(&d.id, &d.title, &content); err != nil {
+			rows.Close()
+			return 0, afterId, fmt.Errorf("error scanning item to index: %w", err)
+		}
+		if content != nil {
+			d.content = *content
+		}
+		docs = append(docs, d)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, afterId, err
+	}
+	if len(docs) == 0 {
+		return 0, afterId, nil
+	}
+
+	tx, err := dbConn.Beginx()
+	if err != nil {
+		return 0, afterId, fmt.Errorf("failed to begin index tx: %w", err)
+	}
+	for _, d := range docs {
+		if _, err := tx.ExecContext(ctx, search.InsertFtsSQL, d.id, search.StemText(d.title), search.StemText(d.content)); err != nil {
+			tx.Rollback()
+			return 0, afterId, fmt.Errorf("error indexing item %d: %w", d.id, err)
 		}
 	}
-	return totalSize
+	if err := tx.Commit(); err != nil {
+		return 0, afterId, fmt.Errorf("failed to commit index tx: %w", err)
+	}
+	return len(docs), docs[len(docs)-1].id, nil
+}
+
+// IsEmpty reports whether the index holds no documents, which is the signal to
+// backfill it on startup.
+func (s *RssSearch) IsEmpty(ctx context.Context) (bool, error) {
+	dbConn, err := db.Open(s.context.Config)
+	if err != nil {
+		return false, err
+	}
+	var count int
+	if err := dbConn.GetContext(ctx, &count, "SELECT count(*) FROM rss_items_fts"); err != nil {
+		return false, fmt.Errorf("error counting search index: %w", err)
+	}
+	return count == 0, nil
 }
 
 func (s *RssSearch) RefreshMetrics() {
-	if s.index == nil {
+	stat, err := os.Stat(s.context.Config.DbConnStr)
+	if err != nil {
+		log.Printf("error stat'ing database %v: %v", s.context.Config.DbConnStr, err)
 		return
 	}
-	statsMap := s.index.StatsMap()
-	size := getTotalSize(statsMap)
-	indexSizeGauge.Set(float64(size))
-}
-
-func (s *RssSearch) HasItem(ctx context.Context, itemId string) (bool, error) {
-	doc, err := s.index.Document(itemId)
-	if err != nil {
-		return false, fmt.Errorf("error getting document: %w", err)
-	}
-	return doc != nil, nil
-}
-
-func (s *RssSearch) HasItems(ctx context.Context, itemIds []string) (map[string]any, error) {
-	result := make(map[string]any, 0)
-	if len(itemIds) == 0 {
-		return result, nil
-	}
-	for _, itemId := range itemIds {
-		doc, err := s.index.Document(itemId)
-		if err != nil {
-			return result, fmt.Errorf("error getting document, id=%v: %w", itemId, err)
-		}
-		if doc != nil {
-			result[itemId] = struct{}{}
-		}
-	}
-	return result, nil
-}
-
-func (s *RssSearch) Search(ctx context.Context, searchQuery string, size int, from int, start *time.Time, end *time.Time, orderBy string, searchContent bool, returnFields []string) (*bleve.SearchResult, error) {
-	titleQuery := bleve.NewMatchQuery(searchQuery)
-	titleQuery.SetField("title")
-	var bleveQuery query.Query = titleQuery
-	if searchContent {
-		contentQuery := bleve.NewMatchQuery(searchQuery)
-		contentQuery.SetField("content")
-		disjunctionQuery := query.NewDisjunctionQuery([]query.Query{titleQuery, contentQuery})
-		disjunctionQuery.Min = 1 // match at least one, either title or content
-		bleveQuery = disjunctionQuery
-	}
-	if start != nil || end != nil {
-		bleveStart := time.Time{}
-		if start != nil {
-			bleveStart = *start
-		}
-		bleveEnd := time.Time{}
-		if end != nil {
-			bleveEnd = *end
-		}
-		dateRangeQuery := bleve.NewDateRangeQuery(bleveStart, bleveEnd)
-		dateRangeQuery.SetField("published")
-		conjunctionQuery := query.NewConjunctionQuery([]query.Query{bleveQuery, dateRangeQuery})
-		bleveQuery = conjunctionQuery
-	}
-	searchReq := bleve.NewSearchRequestOptions(bleveQuery, size, from, false)
-	searchReq.SortBy([]string{orderBy})
-	if returnFields != nil {
-		searchReq.Fields = returnFields
-	}
-	searchResult, err := s.index.Search(searchReq)
-	if err != nil {
-		return nil, err
-	}
-	return searchResult, nil
+	dbSizeGauge.Set(float64(stat.Size()))
 }

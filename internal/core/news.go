@@ -15,9 +15,6 @@ type NewsRepository interface {
 	GetSites(ctx context.Context) ([]NewsSite, error)
 	GetSiteNames(ctx context.Context) ([]string, error)
 	GetRecentItems(ctx context.Context, siteId int, limit int, insertAtOffset *time.Time) ([]RssItemDto, error)
-	GetRecentItemIds(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time, maxLookBack *time.Time) ([]string, *time.Time, error)
-	GetItemsByIds(ctx context.Context, itemIds []string) ([]RssItemDto, error)
-	GetSiteCountByItemIds(ctx context.Context, allItemIds []string) ([]SiteCount, error)
 	GetExistingItemsByIds(ctx context.Context, itemIds []string) (map[string]any, error)
 	GetArticleCounts(ctx context.Context) (map[int]int, error)
 	InsertItems(ctx context.Context, newsSite NewsSite, items []RssItemDto) (int, error)
@@ -50,7 +47,7 @@ type NewsService interface {
 	GetSiteCountForSearchQuery(ctx context.Context, query string, searchContent bool) ([]SiteCount, error)
 	GetRecentTitles(ctx context.Context, siteInfo NewsSite, limit int, shuffle bool) ([]string, error)
 	GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]RssItemDto, error)
-	AddMissingItemsToSearchIndexAndLogError(ctx context.Context, maxLookBack *time.Time)
+	RebuildSearchIndexAndLogError(ctx context.Context)
 
 	GetPopularFakeNews(ctx context.Context, limit int, publishedAfter *time.Time, votes int) ([]FakeNewsDto, error)
 	GetRecentFakeNews(ctx context.Context, limit int, publishedAfter *time.Time) ([]FakeNewsDto, error)
@@ -67,9 +64,6 @@ type NewsService interface {
 
 	FetchAndSaveNewItems(ctx context.Context) error
 	RefreshMetrics(ctx context.Context) error
-	BackupDbAndLogError(ctx context.Context) error
-	NotifyBackupDbError(ctx context.Context, err error) error
-	BackupDb(ctx context.Context) error
 }
 
 type IndexPageData struct {

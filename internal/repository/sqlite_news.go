@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"cmp"
 	"context"
 	"database/sql"
 	"embed"
@@ -10,15 +9,14 @@ import (
 	"fmt"
 	"log"
 	"reflect"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
+	"github.com/bjarke-xyz/rasende2/internal/search"
 	"github.com/bjarke-xyz/rasende2/pkg"
 	"github.com/jmoiron/sqlx"
-	"github.com/samber/lo"
 )
 
 type sqliteNewsRepository struct {
@@ -79,122 +77,6 @@ func (r *sqliteNewsRepository) GetRecentItems(ctx context.Context, siteId int, l
 	r.EnrichWithSiteNames(ctx, rssItems)
 	return rssItems, nil
 }
-func (r *sqliteNewsRepository) GetRecentItemIds(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time, maxLookBack *time.Time) ([]string, *time.Time, error) {
-	db, err := db.Open(r.appContext.Config)
-	if err != nil {
-		return nil, nil, err
-	}
-	args := []interface{}{siteId, limit}
-	offsetWhere := ""
-	if insertedAtOffset != nil {
-		offsetWhere = " AND inserted_at < ? "
-		args = []interface{}{siteId, insertedAtOffset, limit}
-	}
-	maxLookBackWhere := ""
-	if maxLookBack != nil {
-		maxLookBackWhere = " AND inserted_at > ? "
-		// TODO: find better way of doing this...
-		if offsetWhere != "" {
-			args = []interface{}{siteId, insertedAtOffset, maxLookBack, limit}
-		} else {
-			args = []interface{}{siteId, maxLookBack, limit}
-		}
-	}
-	var rssItems []core.RssItemDto
-	sql := "SELECT item_id, inserted_at FROM rss_items WHERE site_id = ? " + offsetWhere + maxLookBackWhere + " ORDER BY inserted_at DESC LIMIT ?"
-	log.Println(sql, args)
-	err = db.Select(&rssItems, sql, args...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error getting item ids for site %v: %w", siteId, err)
-	}
-	itemIds := make([]string, len(rssItems))
-	var lastInsertedAt *time.Time
-	for i, rssItem := range rssItems {
-		itemIds[i] = rssItem.ItemId
-		if i == len(rssItems)-1 {
-			lastInsertedAt = rssItem.InsertedAt
-		}
-	}
-	return itemIds, lastInsertedAt, nil
-}
-
-func (r *sqliteNewsRepository) GetItemsByIds(ctx context.Context, itemIds []string) ([]core.RssItemDto, error) {
-	var rssItems []core.RssItemDto
-	if len(itemIds) == 0 {
-		return rssItems, nil
-	}
-	db, err := db.Open(r.appContext.Config)
-	if err != nil {
-		return nil, err
-	}
-	db = db.Unsafe()
-	inArgs := []interface{}{itemIds}
-	query, args, err := sqlx.In("SELECT item_id, title, content, link, published, inserted_at, site_id FROM rss_items WHERE item_id IN (?)", inArgs...)
-	if err != nil {
-		return nil, fmt.Errorf("error doing sqlx in: %w", err)
-	}
-	query = db.Rebind(query)
-	err = db.Select(&rssItems, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("error getting items by id: %w", err)
-	}
-	r.EnrichWithSiteNames(ctx, rssItems)
-	return rssItems, nil
-}
-
-func (r *sqliteNewsRepository) GetSiteCountByItemIds(ctx context.Context, allItemIds []string) ([]core.SiteCount, error) {
-	if len(allItemIds) == 0 {
-		return make([]core.SiteCount, 0), nil
-	}
-	siteCountMap := make(map[int]int, 0)
-	log.Printf("GetSiteCountByItemIds allItemIds=%v", len(allItemIds))
-	itemIdsChunks := lo.Chunk(allItemIds, 4000)
-	db, err := db.Open(r.appContext.Config)
-	if err != nil {
-		return nil, err
-	}
-	db = db.Unsafe()
-	for _, itemIds := range itemIdsChunks {
-		inArgs := []interface{}{itemIds}
-		query, args, err := sqlx.In("select site_id, count(*) as site_count from rss_items where item_id IN (?) group by site_id", inArgs...)
-		if err != nil {
-			return nil, fmt.Errorf("error doing sqlx in for site count: %w", err)
-		}
-		query = db.Rebind(query)
-		rows, err := db.Query(query, args...)
-		if err != nil {
-			return nil, fmt.Errorf("error getting items by id with order: %w", err)
-		}
-		for rows.Next() {
-			var siteId int
-			var siteCount int
-			err = rows.Scan(&siteId, &siteCount)
-			if err != nil {
-				return nil, fmt.Errorf("error scanning site count: %w", err)
-			}
-			currentCount, ok := siteCountMap[siteId]
-			if ok {
-				siteCountMap[siteId] = currentCount + siteCount
-			} else {
-				siteCountMap[siteId] = siteCount
-			}
-		}
-	}
-
-	result := make([]core.SiteCount, len(siteCountMap))
-	siteCountMapIndex := 0
-	for k, v := range siteCountMap {
-		siteCount := core.SiteCount{SiteId: k, Count: v}
-		result[siteCountMapIndex] = siteCount
-		siteCountMapIndex++
-	}
-	r.EnrichSiteCountWithSiteNames(ctx, result)
-	slices.SortFunc(result, func(i, j core.SiteCount) int {
-		return cmp.Compare(i.SiteName, j.SiteName)
-	})
-	return result, nil
-}
-
 func (r *sqliteNewsRepository) EnrichOneFakeNewsWithSiteNames(ctx context.Context, fn *core.FakeNewsDto) {
 	if fn == nil {
 		return
@@ -350,11 +232,35 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin tx: %w", err)
 	}
-	_, err = tx.NamedExec("INSERT INTO rss_items (item_id, site_name, title, content, link, published, inserted_at, site_id) "+
-		"values (:item_id, '', :title, :content, :link, :published, :inserted_at, :site_id) on conflict do nothing", items)
-	if err != nil {
-		tx.Rollback()
-		return 0, fmt.Errorf("failed to insert: %w", err)
+	// Insert one row at a time so that RowsAffected tells us which items were new:
+	// "on conflict do nothing" makes a batch insert unable to report that. Each new
+	// row is indexed in this same transaction, which is what keeps rss_items_fts
+	// from ever drifting out of step with rss_items.
+	for _, item := range items {
+		result, err := tx.ExecContext(ctx, "INSERT INTO rss_items (item_id, site_name, title, content, link, published, inserted_at, site_id) "+
+			"values (?, '', ?, ?, ?, ?, ?, ?) on conflict do nothing",
+			item.ItemId, item.Title, item.Content, item.Link, item.Published, item.InsertedAt, item.SiteId)
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to insert: %w", err)
+		}
+		inserted, err := result.RowsAffected()
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to get rows affected: %w", err)
+		}
+		if inserted == 0 {
+			continue
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to get inserted id: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, search.InsertFtsSQL, id, search.StemText(item.Title), search.StemText(item.Content)); err != nil {
+			tx.Rollback()
+			return 0, fmt.Errorf("failed to index item %v: %w", item.ItemId, err)
+		}
 	}
 	now := time.Now().UTC()
 	_, err = tx.Exec("INSERT INTO site_count (site_id, article_count, updated_at) VALUES (?, ?, ?) on conflict do update set article_count = article_count + excluded.article_count, updated_at = excluded.updated_at", rssUrl.Id, len(items), now)

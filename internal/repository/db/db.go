@@ -6,7 +6,7 @@ import (
 
 	"github.com/bjarke-xyz/rasende2/internal/repository/db/dao"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/tursodatabase/libsql-client-go/libsql"
+	_ "modernc.org/sqlite"
 )
 
 type ConnectionStringer interface {
@@ -23,7 +23,7 @@ func Open(connStringer ConnectionStringer) (*sqlx.DB, error) {
 	if ok {
 		return existingDb, nil
 	} else {
-		db, err := sqlx.Open("libsql", connStringer.ConnectionString())
+		db, err := sqlx.Open("sqlite", connStringer.ConnectionString())
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to db: %w", err)
 		}

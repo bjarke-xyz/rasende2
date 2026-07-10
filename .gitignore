@@ -18,3 +18,7 @@ node_modules
 
 # binary file
 rasende2
+
+rasende2.db
+rasende2.db-wal
+rasende2.db-shm

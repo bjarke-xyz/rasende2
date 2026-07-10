@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"math/rand"
 	"net/http"
 	"slices"
@@ -26,7 +25,6 @@ import (
 	"github.com/mmcdole/gofeed"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/samber/lo"
 )
 
 type RssService struct {
@@ -153,12 +151,13 @@ func (r *RssService) GetChartData(ctx context.Context, query string) (core.Chart
 }
 
 func (r *RssService) Initialise(ctx context.Context) {
-	indexCreated, err := r.search.OpenAndCreateIndexIfNotExists()
+	// The migration creates rss_items_fts empty. Backfill it once, in the
+	// background, so a fresh database becomes searchable without operator action.
+	indexEmpty, err := r.search.IsEmpty(ctx)
 	if err != nil {
-		log.Printf("failed to open/create index: %v", err)
-	}
-	if indexCreated {
-		go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), nil)
+		log.Printf("failed to check search index: %v", err)
+	} else if indexEmpty {
+		go r.RebuildSearchIndexAndLogError(context.Background())
 	}
 
 	err = r.RefreshMetrics(ctx)
@@ -168,7 +167,12 @@ func (r *RssService) Initialise(ctx context.Context) {
 }
 
 func (r *RssService) Dispose() {
-	r.search.CloseIndex()
+}
+
+func (r *RssService) RebuildSearchIndexAndLogError(ctx context.Context) {
+	if err := r.search.Rebuild(ctx); err != nil {
+		log.Printf("error rebuilding search index: %v", err)
+	}
 }
 
 func (r *RssService) RefreshMetrics(ctx context.Context) error {
@@ -252,43 +256,12 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	searchResult, err := r.search.Search(ctx, query, limit, offset, nil, nil, orderBy, searchContent, []string{"title", "content", "published", "siteId", "link"})
+	items, err := r.search.Search(ctx, query, searchContent, nil, nil, orderBy, limit, offset)
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}
-	// itemIds := make([]string, len(searchResult.Hits))
-	items = make([]core.RssSearchResult, searchResult.Total)
-	for i, doc := range searchResult.Hits {
-		item := core.RssSearchResult{
-			ItemId: doc.ID,
-		}
-		for k, field := range doc.Fields {
-			switch field := field.(type) {
-			case string:
-				switch k {
-				case "title":
-					item.Title = field
-				case "content":
-					item.Content = field
-				case "link":
-					item.Link = field
-				case "published":
-					_published, err := time.Parse(time.RFC3339, field)
-					if err != nil {
-						return items, fmt.Errorf("error parsing published '%s' to time: %w", field, err)
-					}
-					item.Published = _published
-				default:
-					log.Println("default case for field", k, field)
-				}
-			case float64:
-				item.SiteId = int(field)
-			}
-			items[i] = item
-		}
-	}
 	r.repository.EnrichRssSearchResultWithSiteNames(ctx, items)
-	return items, err
+	return items, nil
 }
 
 func (r *RssService) GetItemCountForSearchQuery(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]core.SearchQueryCount, error) {
@@ -296,74 +269,21 @@ func (r *RssService) GetItemCountForSearchQuery(ctx context.Context, query strin
 	if len(query) > 50 || len(query) <= 2 {
 		return searchQueryCounts, nil
 	}
-
-	searchQueryCountMap := make(map[time.Time]int, 0)
-	searchResult, err := r.search.Search(ctx, query, math.MaxInt, 0, start, end, orderBy, searchContent, []string{"published"})
+	searchQueryCounts, err := r.search.CountByDay(ctx, query, searchContent, start, end)
 	if err != nil {
 		return searchQueryCounts, fmt.Errorf("failed to search: %w", err)
 	}
-	for _, doc := range searchResult.Hits {
-		timestampInterface := doc.Fields["published"]
-		timestampStr, ok := timestampInterface.(string)
-		if !ok {
-			continue
-		}
-		timestamp, err := time.Parse(time.RFC3339, timestampStr)
-		if err != nil {
-			log.Printf("error parsing date %v: %v", timestampStr, err)
-			continue
-		}
-		dayTimestamp := timestamp.Truncate(24 * time.Hour)
-		currentCount, ok := searchQueryCountMap[dayTimestamp]
-		if ok {
-			searchQueryCountMap[dayTimestamp] = currentCount + 1
-		} else {
-			searchQueryCountMap[dayTimestamp] = 1
-		}
-	}
-
-	for k, v := range searchQueryCountMap {
-		searchQueryCount := core.SearchQueryCount{Timestamp: k, Count: v}
-		searchQueryCounts = append(searchQueryCounts, searchQueryCount)
-	}
-	slices.SortFunc(searchQueryCounts, func(a, b core.SearchQueryCount) int {
-		return cmp.Compare(a.Timestamp.Unix(), b.Timestamp.Unix())
-	})
-
 	return searchQueryCounts, nil
 }
 
 func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query string, searchContent bool) ([]core.SiteCount, error) {
-
 	var items []core.SiteCount = []core.SiteCount{}
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	searchResult, err := r.search.Search(ctx, query, math.MaxInt, 0, nil, nil, "_score", searchContent, []string{"siteId"})
+	items, err := r.search.CountBySite(ctx, query, searchContent)
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
-	}
-	countMap := make(map[int]int, 0)
-	for _, doc := range searchResult.Hits {
-		siteIdInterface, ok := doc.Fields["siteId"]
-		if !ok {
-			continue
-		}
-		siteIdFloat, ok := siteIdInterface.(float64)
-		if !ok {
-			continue
-		}
-		siteId := int(siteIdFloat)
-		currentCount, ok := countMap[siteId]
-		if ok {
-			countMap[siteId] = currentCount + 1
-		} else {
-			countMap[siteId] = 1
-		}
-	}
-	for k, v := range countMap {
-		siteCount := core.SiteCount{SiteId: k, Count: v}
-		items = append(items, siteCount)
 	}
 	r.repository.EnrichSiteCountWithSiteNames(ctx, items)
 	slices.SortFunc(items, func(a, b core.SiteCount) int {
@@ -405,13 +325,10 @@ func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl cor
 	}
 
 	log.Printf("FetchAndSaveNewItems: %v inserted %v new items. Took %v", rssUrl.Name, len(toInsert), time.Since(dbNow))
+	// InsertItems indexes each new row into rss_items_fts in the same transaction.
 	articleCount, err := r.repository.InsertItems(ctx, rssUrl, toInsert)
 	if err != nil {
 		return fmt.Errorf("failed to insert items for %v: %w", rssUrl.Name, err)
-	}
-	err = r.search.Index(toInsert)
-	if err != nil {
-		log.Printf("failed to index items: %v", err)
 	}
 	if articleCount > 0 {
 		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(articleCount))
@@ -445,9 +362,8 @@ func (r *RssService) FetchAndSaveNewItems(ctx context.Context) error {
 		}()
 	}
 	wg.Wait()
-	now := time.Now()
-	oneMonthAgo := now.Add(-time.Hour * 24 * 31)
-	go r.AddMissingItemsToSearchIndexAndLogError(context.Background(), &oneMonthAgo)
+	// No index reconciliation needed: InsertItems indexes each new row in the same
+	// transaction that inserts it.
 	go r.context.Infra.Cache.DeleteExpired()
 	go r.context.Infra.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
 	return nil
@@ -570,200 +486,6 @@ func (r *RssService) ResetFakeNewsContent(ctx context.Context, siteId int, title
 }
 func (r *RssService) VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error) {
 	return r.repository.VoteFakeNews(ctx, siteId, title, votes)
-}
-
-func (r *RssService) BackupDbAndLogError(ctx context.Context) error {
-	err := r.BackupDb(ctx)
-	if err != nil {
-		log.Printf("failed to backup db: %v", err)
-		err = r.NotifyBackupDbError(ctx, err)
-		if err != nil {
-			log.Printf("failed to send notification about err: %v", err)
-		}
-	}
-	return nil
-}
-
-func (r *RssService) NotifyBackupDbError(ctx context.Context, err error) error {
-	if err == nil {
-		return nil
-	}
-	msg := "rasende2 failed to backup: " + err.Error()
-	reader := strings.NewReader(msg)
-	resp, err := http.Post("https://ntfy.sh/"+r.context.Config.NtfyTopic, "text/plain", reader)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("got non-200 status code from ntfy: %v", resp.StatusCode)
-	}
-	return nil
-}
-
-// var dbSizeGauge = promauto.NewGauge(prometheus.GaugeOpts{
-// 	Name: "rasende2_db_size_bytes",
-// 	Help: "Size in bytes of rasende2 db (measured at backup time)",
-// })
-
-func (r *RssService) BackupDb(ctx context.Context) error {
-	return fmt.Errorf("not implemented")
-	// err := r.repository.BackupDb(ctx)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to backup db: %w", err)
-	// }
-	// dbBackupFile, err := os.Open(r.context.Config.BackupDbPath)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to open backup db file: %w", err)
-	// }
-	// dbBackupFileStat, err := dbBackupFile.Stat()
-	// if err != nil {
-	// 	return fmt.Errorf("failed to stat db backup file: %w", err)
-	// }
-	// dbSizeGauge.Set(float64(dbBackupFileStat.Size()))
-	// r2Resolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-	// 	return aws.Endpoint{
-	// 		URL: r.context.Config.S3BackupUrl,
-	// 	}, nil
-	// })
-	// cfg, err := config.LoadDefaultConfig(ctx,
-	// 	config.WithEndpointResolverWithOptions(r2Resolver),
-	// 	config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(r.context.Config.S3BackupAccessKeyId, r.context.Config.S3BackupSecretAccessKey, "")),
-	// 	config.WithRegion("auto"),
-	// )
-	// if err != nil {
-	// 	return fmt.Errorf("failed to load r2 config")
-	// }
-
-	// client := s3.NewFromConfig(cfg)
-
-	// bucket := r.context.Config.S3BackupBucket
-	// key := "rasende2/db-backup.db"
-
-	// objects, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-	// 	Bucket: &bucket,
-	// })
-	// if err != nil {
-	// 	return fmt.Errorf("failed to list r2 objects: %w", err)
-	// }
-	// if len(objects.Contents) > 0 {
-	// 	existingObject := objects.Contents[0]
-	// 	objFound := false
-	// 	for _, obj := range objects.Contents {
-	// 		if obj.Key != nil && *obj.Key == key {
-	// 			existingObject = obj
-	// 			objFound = true
-	// 			break
-	// 		}
-	// 	}
-	// 	// do not attempt to over-write a larger file with a smaller file
-	// 	if objFound && existingObject.Size != nil && *existingObject.Size > dbBackupFileStat.Size() {
-	// 		return fmt.Errorf("attemping to over-write large file (%v) in r2, with small local file (%v)", *existingObject.Size, dbBackupFileStat.Size())
-	// 	}
-	// }
-
-	// _, err = client.PutObject(ctx, &s3.PutObjectInput{
-	// 	Bucket: &bucket,
-	// 	Key:    &key,
-	// 	Body:   dbBackupFile,
-	// })
-	// if err != nil {
-	// 	return fmt.Errorf("failed to upload db backup file: %w", err)
-	// }
-
-	// err = dbBackupFile.Close()
-	// if err != nil {
-	// 	return fmt.Errorf("failed to close db backup file: %w", err)
-	// }
-
-	// err = os.Remove(r.context.Config.BackupDbPath)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to remove local db backup file: %w", err)
-	// }
-
-	// return nil
-}
-
-func (r *RssService) AddMissingItemsToSearchIndexAndLogError(ctx context.Context, maxLookBack *time.Time) {
-	err := r.addMissingItemsToSearchIndex(ctx, maxLookBack)
-	if err != nil {
-		log.Printf("failed to add missing items to search index: %v", err)
-	}
-	go r.context.Infra.Cache.DeleteExpired()
-	go r.context.Infra.Cache.DeleteByPrefix(r.cacheKeyIndexPage())
-}
-
-func (r *RssService) addMissingItemsToSearchIndex(ctx context.Context, maxLookBack *time.Time) error {
-	rssUrls, err := r.repository.GetSites(ctx)
-	if err != nil {
-		return fmt.Errorf("error getting rss urls: %w", err)
-	}
-	for _, rssUrl := range rssUrls {
-		log.Printf("adding missing items to search from site %v", rssUrl.Name)
-		err = r.addMissingItemsToSearchIndexForSite(ctx, rssUrl, maxLookBack)
-		if err != nil {
-			return fmt.Errorf("error adding missing items to search index for site %v: %w", rssUrl.Name, err)
-		}
-	}
-	return nil
-}
-
-func (r *RssService) addMissingItemsToSearchIndexForSite(ctx context.Context, rssUrl core.NewsSite, maxLookBack *time.Time) error {
-	chunkSize := 10000
-	limit := chunkSize
-	var insertedAtOffset *time.Time
-	getMore := true
-	for getMore {
-		rssItemIds, lastInsertedAt, err := r.repository.GetRecentItemIds(ctx, rssUrl.Id, limit, insertedAtOffset, maxLookBack)
-		if err != nil {
-			return fmt.Errorf("error getting recent item ids for site %v: %w", rssUrl.Id, err)
-		}
-		if len(rssItemIds) < chunkSize {
-			getMore = false
-		} else {
-			insertedAtOffset = lastInsertedAt
-		}
-		rssItemIdsToIndex := make([]string, 0)
-		itemsInIndex, err := r.search.HasItems(ctx, rssItemIds)
-		if err != nil {
-			return fmt.Errorf("error checking if search index has items, site %v: %w", rssUrl.Id, err)
-		}
-		for _, itemId := range rssItemIds {
-			_, ok := itemsInIndex[itemId]
-			if !ok {
-				rssItemIdsToIndex = append(rssItemIdsToIndex, itemId)
-			}
-		}
-		log.Printf("Out of %v db items, %v were not in search index", len(rssItemIds), len(rssItemIdsToIndex))
-		if len(rssItemIdsToIndex) > 0 {
-			err = r.indexItemIds(ctx, rssItemIdsToIndex, rssUrl)
-			if err != nil {
-				return fmt.Errorf("error indexing item ids: %w", err)
-			}
-		}
-	}
-	return nil
-}
-
-func (r *RssService) indexItemIds(ctx context.Context, allItemIds []string, rssUrl core.NewsSite) error {
-	if len(allItemIds) == 0 {
-		return nil
-	}
-	chunkSize := 3000
-	if rssUrl.ArticleHasContent {
-		chunkSize = 100
-	}
-	itemIdChunks := lo.Chunk(allItemIds, chunkSize)
-	for _, itemIds := range itemIdChunks {
-		items, err := r.repository.GetItemsByIds(ctx, itemIds)
-		if err != nil {
-			return fmt.Errorf("error getting items: %w", err)
-		}
-		err = r.search.Index(items)
-		if err != nil {
-			return fmt.Errorf("error indexing: %w", err)
-		}
-	}
-	return nil
 }
 
 func (r *RssService) CleanUpFakeNewsAndLogError(ctx context.Context) {

@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/pkg"
@@ -26,7 +25,6 @@ func NewAPI(appContext *core.AppContext) *api {
 func (a *api) Route(r *gin.Engine) {
 	apiGroup := r.Group("/api")
 	apiGroup.POST("/job", a.RunJob())
-	apiGroup.POST("/backup-db", a.BackupDb())
 	apiGroup.POST("/admin/rebuild-index", a.RebuildIndex())
 	apiGroup.POST("/admin/auto-generate-fake-news", a.AutoGenerateFakeNews())
 	apiGroup.POST("/admin/clean-fake-news", a.CleanUpFakeNews())
@@ -82,28 +80,6 @@ func (a *api) RunJob() gin.HandlerFunc {
 	}
 }
 
-func (a *api) BackupDb() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
-			c.AbortWithStatus(401)
-			return
-		}
-		fireAndForget := c.Query("fireAndForget") == "true"
-		if fireAndForget {
-			go a.appContext.Deps.Service.BackupDbAndLogError(context.Background())
-		} else {
-			ctx := c.Request.Context()
-			err := a.appContext.Deps.Service.BackupDbAndLogError(ctx)
-			if err != nil {
-				c.String(http.StatusInternalServerError, "backup failed: %v", err)
-				return
-			}
-			log.Printf("backup success")
-		}
-		c.Status(http.StatusOK)
-	}
-}
-
 func (a *api) CleanUpFakeNews() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
@@ -126,24 +102,15 @@ func (a *api) CleanUpFakeNews() gin.HandlerFunc {
 	}
 }
 
+// RebuildIndex discards rss_items_fts and reindexes every item. Ordinary indexing
+// happens transactionally on insert, so this is only needed after an analyzer change.
 func (a *api) RebuildIndex() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.GetHeader("Authorization") != a.appContext.Config.JobKey {
 			c.AbortWithStatus(401)
 			return
 		}
-		var maxLookBack *time.Time
-		maxLookBackStr := c.Query("maxLookBack")
-		if maxLookBackStr != "" {
-			_maxLookBack, err := time.Parse(time.RFC3339, maxLookBackStr)
-			if err != nil {
-				log.Printf("error parsing max lookback str %v: %v", maxLookBackStr, err)
-				c.AbortWithError(http.StatusBadRequest, err)
-				return
-			}
-			maxLookBack = &_maxLookBack
-		}
-		go a.appContext.Deps.Service.AddMissingItemsToSearchIndexAndLogError(context.Background(), maxLookBack)
+		go a.appContext.Deps.Service.RebuildSearchIndexAndLogError(context.Background())
 		c.Status(http.StatusOK)
 	}
 }
