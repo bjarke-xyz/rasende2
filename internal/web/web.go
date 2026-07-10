@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -19,12 +20,33 @@ var static embed.FS
 
 type web struct {
 	appContext *core.AppContext
+	renderer   *Renderer
 }
 
-func NewWeb(appContext *core.AppContext) *web {
+func NewWeb(appContext *core.AppContext) (*web, error) {
+	renderer, err := NewRenderer(appContext.Config)
+	if err != nil {
+		return nil, fmt.Errorf("parsing templates: %w", err)
+	}
 	return &web{
 		appContext: appContext,
-	}
+		renderer:   renderer,
+	}, nil
+}
+
+// renderError renders the error page, wrapped in the layout for a normal
+// request and bare for an htmx one.
+func (w *web) renderError(c *gin.Context, status int, err error) {
+	base := w.getBaseModel(c, "Fejl | Rasende")
+	w.renderer.Page(c, status, "error", base, components.ErrorModel{Base: base, Err: err})
+}
+
+// renderErrorFragment renders the error page without the layout, for endpoints
+// whose response is always swapped into an existing page. htmx's SSE extension
+// does not set the HX-Request header, so those handlers cannot rely on
+// getBaseModel to work it out.
+func (w *web) renderErrorFragment(c *gin.Context, status int, err error) {
+	w.renderer.Partial(c, status, "error", components.ErrorModel{Err: err})
 }
 
 func (w *web) Route(r *gin.Engine) {
@@ -59,7 +81,6 @@ func (w *web) getBaseModel(c *gin.Context, title string) components.BaseViewMode
 	}
 	hxRequest := c.Request.Header.Get("HX-Request")
 	includeLayout := hxRequest == "" || hxRequest == "false"
-	log.Println("hxRequest", hxRequest, "includeLayout", includeLayout)
 	userId, ok := auth.GetUserId(c)
 	model := components.BaseViewModel{
 		Path:            c.Request.URL.Path,

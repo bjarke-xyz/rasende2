@@ -1,0 +1,88 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="da">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{{.Title}}</title>
+		<link href="/static/css/style.css?v={{.UnixBuildTime}}" rel="stylesheet" />
+		<script src="/static/js/ready.js?v={{.UnixBuildTime}}"></script>
+		<script src="/static/js/vendor/chart.umd.js?v={{.UnixBuildTime}}" defer></script>
+		<script src="/static/js/vendor/htmx.min.js?v={{.UnixBuildTime}}" defer></script>
+		<script src="/static/js/vendor/sse.js?v={{.UnixBuildTime}}" defer></script>
+		<script src="/static/js/main.js?v={{.UnixBuildTime}}" defer></script>
+		<script>
+			window.goatcounter = {
+				// The passed value is the default.
+				path: function (p) {
+					// Don't track email query param
+					if (p.includes("?")) {
+						const questionMarkIndex = p.indexOf("?")
+						const queryParams = p.substring(questionMarkIndex)
+						const urlSearchParams = new URLSearchParams(queryParams);
+						if (urlSearchParams.has("email")) {
+							urlSearchParams.set("email", "[REDACTED]")
+							const noQueryP = p.substring(0, questionMarkIndex)
+							const newP = noQueryP + "?" + urlSearchParams.toString();
+							return newP;
+						}
+					}
+					return p;
+				},
+			}
+		</script>
+		<script data-goatcounter="https://rasende2.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+		{{with .OpenGraph}}{{template "openGraph" .}}{{end}}
+	</head>
+	<body>
+		<div class="page">
+			{{template "header" .}}
+			<main class="page-body">
+				{{range .Flashes}}{{template "flash" .}}{{end}}
+				{{.Content}}
+			</main>
+			{{template "footer" .}}
+		</div>
+	</body>
+</html>
+{{end}}
+
+{{define "openGraph"}}
+<meta property="og:title" content="{{.Title}}" />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="{{.Image}}" />
+<meta property="og:url" content="{{.Url}}" />
+<meta property="og:description" content="{{.Description}}" />
+{{end}}
+
+{{define "header"}}
+<header class="site-header">
+	<nav>
+		{{template "headerLink" (headerLink .Path "/" "Rasende")}}
+		{{template "headerLink" (headerLink .Path "/search" "Søg")}}
+		{{template "headerLink" (headerLink .Path "/fake-news" "Fake News")}}
+	</nav>
+</header>
+{{end}}
+
+{{define "headerLink"}}
+<a href="{{.Path}}" {{if .Current}}class="current" aria-current="page"{{end}}>{{.Text}}</a>
+{{end}}
+
+{{define "footer"}}
+<footer class="site-footer">
+	{{if .IsAnonymousUser}}
+		<a href="/login">Login</a>
+	{{else}}
+		<form method="POST" action="/logout">
+			<button class="btn-primary">Logout</button>
+		</form>
+	{{end}}
+</footer>
+{{end}}
+
+{{define "flash"}}
+<div class="flash flash-{{lower .Kind}}">
+	<button type="button" class="flash-close" onclick="dismissFlash(this)" aria-label="Luk">&times;</button>
+	{{range .Msgs}}<p>{{.}}</p>{{end}}
+</div>
+{{end}}

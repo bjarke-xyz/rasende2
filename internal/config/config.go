@@ -99,7 +99,7 @@ func NewConfig() (*Config, error) {
 		SmtpTest:               os.Getenv("SMTP_TEST") == "true",
 		JobKey:                 os.Getenv("JOB_KEY"),
 		LLMAPIKey:              os.Getenv("LLM_API_KEY"),
-		AppEnv:                 os.Getenv("APP_ENV"),
+		AppEnv:                 appEnv,
 		AdminPassword:          os.Getenv("ADMIN_PASSWORD"),
 		AdminEmail:             os.Getenv("ADMIN_EMAIL"),
 		BuildTime:              buildTime,

@@ -1,0 +1,49 @@
+{{define "fakeNews"}}
+<div class="container" id="fake_news_page">
+	<form>
+		<input
+			type="hidden"
+			hx-get="/fake-news"
+			hx-include="select[name='sorting']"
+			hx-push-url="true"
+			hx-trigger="change from:select[name='sorting'], rasende-focus, from:body throttle:1s"
+			hx-target="#fake_news_page"
+			hx-swap="outerHTML"
+		/>
+	</form>
+	<div class="fake-news-header">
+		<h2>Falske Nyheder</h2>
+		<div class="fake-news-controls">
+			<a class="btn-primary" href="/title-generator">Opret en falsk nyhed</a>
+			<div class="field">
+				<label for="fake-news-sorting">Sortering</label>
+				<select id="fake-news-sorting" name="sorting" class="select">
+					<option value="popular" {{if eq .Sorting "popular"}}selected{{end}}>Mest populære</option>
+					<option value="latest" {{if eq .Sorting "latest"}}selected{{end}}>Nyeste</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div class="article-grid">{{template "fakeNewsGrid" .}}</div>
+</div>
+{{end}}
+
+{{/* Also rendered on its own, appended to the grid by "Vis mere". */}}
+{{define "fakeNewsGrid"}}
+{{range .Items}}{{template "articleCard" .}}{{end}}
+<div id="fake-news-button-container" class="grid-more">
+	<form>
+		<input type="hidden" name="only-grid" value="true" />
+		<input type="hidden" name="cursor" value="{{.Cursor}}" />
+		{{if .Cursor}}
+			<button
+				class="btn-primary"
+				hx-get="/fake-news"
+				hx-include="select[name='sorting'], input[name='only-grid'], input[name='cursor']"
+				hx-target="#fake-news-button-container"
+				hx-swap="outerHTML"
+			>Vis mere</button>
+		{{end}}
+	</form>
+</div>
+{{end}}

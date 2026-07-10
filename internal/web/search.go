@@ -57,7 +57,7 @@ func (w *web) HandleGetSearch(c *gin.Context) {
 	searchViewModel := components.SearchViewModel{
 		Base: w.getBaseModel(c, "Søg | Rasende"),
 	}
-	c.HTML(http.StatusOK, "", components.Search(searchViewModel))
+	w.renderer.Page(c, http.StatusOK, "search", searchViewModel.Base, searchViewModel)
 }
 
 func (w *web) HandlePostSearch(c *gin.Context) {
@@ -87,7 +87,7 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 	results, err := w.appContext.Deps.Service.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if len(results) > limit {
@@ -96,7 +96,7 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 	chartsResult, err := chartsPromise.Get()
 	if err != nil {
 		log.Printf("failed to get charts with query %v: %v", query, err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	searchResultsModel := components.SearchResultsViewModel{
@@ -109,6 +109,5 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 		Search:        query,
 		IncludeCharts: includeCharts,
 	}
-	c.HTML(http.StatusOK, "", components.SearchResults(searchResultsModel))
-
+	w.renderer.Partial(c, http.StatusOK, "searchResults", searchResultsModel)
 }

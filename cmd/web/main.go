@@ -16,7 +16,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/web"
-	"github.com/bjarke-xyz/rasende2/internal/web/renderer"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -57,7 +56,10 @@ func main() {
 
 	runMetricsServer()
 
-	srv := Server(appContext)
+	srv, err := Server(appContext)
+	if err != nil {
+		log.Fatalf("failed to create server: %v", err)
+	}
 	go func() {
 		log.Printf("Starting server on http://localhost%v", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -91,22 +93,29 @@ func runMetricsServer() {
 	}()
 }
 
-func Server(appContext *core.AppContext) *http.Server {
+func Server(appContext *core.AppContext) (*http.Server, error) {
+	handler, err := routes(appContext)
+	if err != nil {
+		return nil, err
+	}
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", appContext.Config.Port),
-		Handler: routes(appContext),
-	}
+		Handler: handler,
+	}, nil
 }
 
-func routes(appContext *core.AppContext) http.Handler {
+func routes(appContext *core.AppContext) (http.Handler, error) {
 	r := ginRouter(appContext.Config)
 
 	apiHandlers := api.NewAPI(appContext)
 	apiHandlers.Route(r)
 
-	webHandlers := web.NewWeb(appContext)
+	webHandlers, err := web.NewWeb(appContext)
+	if err != nil {
+		return nil, err
+	}
 	webHandlers.Route(r)
-	return r
+	return r, nil
 }
 
 func ginRouter(cfg *config.Config) *gin.Engine {
@@ -121,8 +130,6 @@ func ginRouter(cfg *config.Config) *gin.Engine {
 	if cfg.AppEnv == config.AppEnvProduction {
 		r.TrustedPlatform = gin.PlatformCloudflare
 	}
-	ginHtmlRenderer := r.HTMLRender
-	r.HTMLRender = &renderer.HTMLTemplRenderer{FallbackHtmlRenderer: ginHtmlRenderer}
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",

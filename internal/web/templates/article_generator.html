@@ -1,0 +1,29 @@
+{{define "articleGenerator"}}
+<div class="container">
+	<article class="prose">
+		<p>{{template "badge" .Site.Name}}</p>
+		<h1>{{.Article.Title}}</h1>
+		<div
+			id="article-sse-container"
+			hx-ext="sse"
+			sse-connect="/generate-article?siteId={{.Site.Id}}&title={{queryEscape .Article.Title}}"
+			sse-close="sse-close"
+		>
+			<div sse-swap="image">
+				<img class="pulse" height="512" width="512" src="{{.ImagePlaceholder}}" alt="" />
+			</div>
+			<div>
+				<p sse-swap="content" hx-swap="beforeend"></p>
+				<span class="pulse" id="sse-article-content-indicator">...</span>
+			</div>
+		</div>
+		{{if not .Article.Highlighted}}
+			<form method="POST" action="/publish-fake-news">
+				<input type="hidden" name="siteId" value="{{.Site.Id}}" />
+				<input type="hidden" name="title" value="{{.Article.Title}}" />
+				<button class="btn-primary" id="publish-btn" type="submit" disabled>Udgiv falsk nyhed</button>
+			</form>
+		{{end}}
+	</article>
+</div>
+{{end}}

@@ -60,38 +60,28 @@ func (w *web) HandleGetFakeNews(c *gin.Context) {
 	}
 	if err != nil {
 		log.Printf("error getting highlighted fake news: %v", err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
-	if len(fakeNews) == 0 {
-		model := components.FakeNewsViewModel{
-			Base:     w.getBaseModel(c, title),
-			FakeNews: []core.FakeNewsDto{},
-			OnlyGrid: onlyGrid,
-		}
-		c.HTML(http.StatusOK, "", components.FakeNews(model))
-		return
-	}
-	lastFakeNews := fakeNews[len(fakeNews)-1]
-	cursor := fmt.Sprintf("%v¤%v", lastFakeNews.Published.Format(time.RFC3339Nano), lastFakeNews.Votes)
+	cursor := ""
 	// If returned items is less than limit, return blank cursor so we dont request an empty list on next request
-	if len(fakeNews) < limit {
-		cursor = ""
+	if len(fakeNews) > 0 && len(fakeNews) == limit {
+		lastFakeNews := fakeNews[len(fakeNews)-1]
+		cursor = fmt.Sprintf("%v¤%v", lastFakeNews.Published.Format(time.RFC3339Nano), lastFakeNews.Votes)
 	}
-	alreadyVoted := getAlreadyVoted(c)
 	model := components.FakeNewsViewModel{
 		Base:         w.getBaseModel(c, title),
 		FakeNews:     fakeNews,
 		Cursor:       cursor,
 		Sorting:      sorting,
-		OnlyGrid:     onlyGrid,
-		AlreadyVoted: alreadyVoted,
-		Funcs: components.ArticleFuncsModel{
-			TimeDifference: getTimeDifference,
-			TruncateText:   truncateText,
-		},
+		AlreadyVoted: getAlreadyVoted(c),
 	}
-	c.HTML(http.StatusOK, "", components.FakeNews(model))
+	// "Vis mere" asks for the grid alone, to append to the one already on screen.
+	if onlyGrid {
+		w.renderer.Partial(c, http.StatusOK, "fakeNewsGrid", model)
+		return
+	}
+	w.renderer.Page(c, http.StatusOK, "fakeNews", model.Base, model)
 }
 
 func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
@@ -100,19 +90,19 @@ func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 	externalId, _, err := parseArticleSlugV2(querySlug)
 	if err != nil {
 		log.Printf("error parsing slug '%v': %v", querySlug, err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		w.renderError(c, http.StatusInternalServerError, err)
 		return
 	}
 	fakeNewsDto, err := w.appContext.Deps.Service.GetFakeNews(ctx, externalId)
 	if err != nil {
 		log.Printf("error getting fake news: %v", err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		w.renderError(c, http.StatusInternalServerError, err)
 		return
 	}
 	if fakeNewsDto == nil {
 		err = fmt.Errorf("fake news not found")
 		log.Printf("error getting fake news: %v", err)
-		c.HTML(http.StatusNotFound, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		w.renderError(c, http.StatusNotFound, err)
 		return
 	}
 	if fakeNewsDto.Slug() != querySlug {
@@ -122,7 +112,7 @@ func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 	// if fakeNewsDto.Published.Format(time.DateOnly) != date.Format(time.DateOnly) {
 	// 	err = fmt.Errorf("invalid date. Got=%v, expected=%v", date, fakeNewsDto.Published)
 	// 	log.Printf("returned error because of dates: %v", err)
-	// 	c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+	// 	w.renderError(c, http.StatusInternalServerError, err)
 	// 	return
 	// }
 	fakeNewsArticleViewModel := components.FakeNewsArticleViewModel{
@@ -136,7 +126,7 @@ func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 		Url:         url,
 		Description: truncateText(fakeNewsDto.Content, 100),
 	}
-	c.HTML(http.StatusOK, "", components.FakeNewsArticle(fakeNewsArticleViewModel))
+	w.renderer.Page(c, http.StatusOK, "fakeNewsArticle", fakeNewsArticleViewModel.Base, fakeNewsArticleViewModel)
 }
 
 func (w *web) HandleGetTitleGenerator(c *gin.Context) {
@@ -147,7 +137,7 @@ func (w *web) HandleGetTitleGenerator(c *gin.Context) {
 	sites, err := w.appContext.Deps.Service.GetSiteInfos(ctx)
 	if err != nil {
 		log.Printf("error getting sites: %v", err)
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		w.renderError(c, http.StatusInternalServerError, err)
 		return
 	}
 	var selectedSite core.NewsSite
@@ -158,19 +148,20 @@ func (w *web) HandleGetTitleGenerator(c *gin.Context) {
 		}
 	}
 
-	c.HTML(http.StatusOK, "", components.TitleGenerator(components.TitleGeneratorViewModel{
+	model := components.TitleGeneratorViewModel{
 		Base:           w.getBaseModel(c, title),
 		Sites:          sites,
 		SelectedSiteId: selectedSiteId,
 		SelectedSite:   selectedSite,
-	}))
+	}
+	w.renderer.Page(c, http.StatusOK, "titleGenerator", model.Base, model)
 }
 
 func (w *web) HandleGetSseTitles(c *gin.Context) {
 	ctx := c.Request.Context()
 	siteId := IntQuery(c, "siteId", 0)
 	if siteId == 0 {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
 		return
 	}
 	defaultLimit := 10
@@ -188,17 +179,17 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 	log.Println("insertedAtOffset", insertedAtOffset)
 	siteInfo, err := w.appContext.Deps.Service.GetSiteInfoById(ctx, siteId)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if siteInfo == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("site not found"))
 		return
 	}
 
 	items, err := w.appContext.Deps.Service.GetRecentItems(ctx, siteId, limit, insertedAtOffset)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	log.Println("items", items[len(items)-1])
@@ -215,9 +206,9 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
-			c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("try again later"), DoNotIncludeLayout: true}))
+			w.renderErrorFragment(c, http.StatusInternalServerError, fmt.Errorf("try again later"))
 		} else {
-			c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+			w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		}
 		return
 	}
@@ -246,7 +237,7 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 						}
 					}
 				}
-				c.SSEvent("button", RenderToStringCtx(ctx, components.ShowMoreTitlesButton(siteInfo.Id, cursor)))
+				c.SSEvent("button", w.renderer.String("showMoreTitlesButton", components.ShowMoreTitlesModel{SiteId: siteInfo.Id, Cursor: cursor}))
 				c.SSEvent("sse-close", "sse-close")
 				c.Writer.Flush()
 				return false
@@ -261,7 +252,7 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 					title := strings.TrimSpace(currentTitle.String())
 					titles = append(titles, title)
 
-					c.SSEvent("title", RenderToStringCtx(ctx, components.GeneratedTitleLink(siteInfo.Id, title)))
+					c.SSEvent("title", w.renderer.String("generatedTitleLink", components.GeneratedTitleModel{SiteId: siteInfo.Id, Title: title}))
 					c.Writer.Flush()
 					currentTitle.Reset()
 				} else {
@@ -275,11 +266,11 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 func (w *web) HandleGetTitleGeneratorSse(c *gin.Context) {
 	siteId := IntQuery(c, "siteId", 0)
 	if siteId == 0 {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
 		return
 	}
 	cursor := StringQuery(c, "cursor", "")
-	c.HTML(http.StatusOK, "", components.TitlesSse(siteId, cursor, false))
+	w.renderer.Partial(c, http.StatusOK, "titlesSse", components.TitlesSseModel{SiteId: siteId, Cursor: cursor})
 }
 
 func (w *web) HandleGetArticleGenerator(c *gin.Context) {
@@ -288,31 +279,31 @@ func (w *web) HandleGetArticleGenerator(c *gin.Context) {
 	pageTitle := "Article Generator | Fake News"
 	siteId := IntQuery(c, "siteId", 0)
 	if siteId == 0 {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId")}))
+		w.renderError(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
 		return
 	}
 	site, err := w.appContext.Deps.Service.GetSiteInfoById(ctx, siteId)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		w.renderError(c, http.StatusInternalServerError, err)
 		return
 	}
 	if site == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId)}))
+		w.renderError(c, http.StatusBadRequest, fmt.Errorf("site not found for id %v", siteId))
 		return
 	}
 	articleTitle := StringQuery(c, "title", "")
 	if articleTitle == "" {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title")}))
+		w.renderError(c, http.StatusBadRequest, fmt.Errorf("missing title"))
 		return
 	}
 
 	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err}))
+		w.renderError(c, http.StatusInternalServerError, err)
 		return
 	}
 	if article == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle)}))
+		w.renderError(c, http.StatusBadRequest, fmt.Errorf("article not found for title %v", articleTitle))
 		return
 	}
 
@@ -322,38 +313,38 @@ func (w *web) HandleGetArticleGenerator(c *gin.Context) {
 		Article:          *article,
 		ImagePlaceholder: config.PlaceholderImgUrl,
 	}
-	c.HTML(http.StatusOK, "", components.ArticleGenerator(model))
+	w.renderer.Page(c, http.StatusOK, "articleGenerator", model.Base, model)
 }
 
 func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 	ctx := c.Request.Context()
 	siteId := IntQuery(c, "siteId", 0)
 	if siteId == 0 {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
 		return
 	}
 	site, err := w.appContext.Deps.Service.GetSiteInfoById(ctx, siteId)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if site == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("site not found for id %v", siteId))
 		return
 	}
 	articleTitle := StringQuery(c, "title", "")
 	if articleTitle == "" {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("missing title"))
 		return
 	}
 
 	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if article == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("article not found for title %v", articleTitle))
 		return
 	}
 
@@ -364,9 +355,9 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 		c.Writer.Header().Set("Connection", "close")
 		c.Writer.Header().Set("Transfer-Encoding", "chunked")
 		if article.ImageUrl != nil && *article.ImageUrl != "" {
-			c.SSEvent("image", RenderToString(c, components.ArticleImg(*article.ImageUrl, article.Title)))
+			c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: *article.ImageUrl, Alt: article.Title}))
 		} else {
-			c.SSEvent("image", RenderToString(c, components.ArticleImg(config.PlaceholderImgUrl, article.Title)))
+			c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: config.PlaceholderImgUrl, Alt: article.Title}))
 		}
 		c.Stream(func(w io.Writer) bool {
 			sseContent := strings.ReplaceAll(article.Content, "\n", "<br />")
@@ -395,9 +386,9 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 		log.Printf("LLM failed: %v", err)
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
-			c.HTML(http.StatusTooManyRequests, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+			w.renderErrorFragment(c, http.StatusTooManyRequests, err)
 		} else {
-			c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+			w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		}
 		return
 	}
@@ -424,7 +415,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 						log.Printf("error getting LLM img: %v", err)
 					}
 					if imgUrl != "" {
-						c.SSEvent("image", RenderToString(c, components.ArticleImg(imgUrl, article.Title)))
+						c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
 						imgUrlSent = true
 					}
 				}
@@ -449,7 +440,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 						log.Printf("error getting LLM img: %v", err)
 					}
 					if imgUrl != "" {
-						c.SSEvent("image", RenderToString(c, components.ArticleImg(imgUrl, article.Title)))
+						c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
 						imgUrlSent = true
 					}
 				}
@@ -465,31 +456,31 @@ func (w *web) HandlePostPublishFakeNews(c *gin.Context) {
 	siteId := IntForm(c, "siteId", 0)
 	// TODO: instead of returning html with error, do redirect with flash error
 	if siteId == 0 {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
 		return
 	}
 	site, err := w.appContext.Deps.Service.GetSiteInfoById(ctx, siteId)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if site == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("site not found for id %v", siteId))
 		return
 	}
 	articleTitle := StringForm(c, "title", "")
 	if articleTitle == "" {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("missing title"))
 		return
 	}
 
 	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if article == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("article not found for title %v", articleTitle))
 		return
 	}
 
@@ -502,7 +493,7 @@ func (w *web) HandlePostPublishFakeNews(c *gin.Context) {
 	}
 	err = w.appContext.Deps.Service.SetFakeNewsHighlighted(ctx, site.Id, article.Title, newHighlighted)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	article.Highlighted = newHighlighted
@@ -544,37 +535,37 @@ func (w *web) HandlePostArticleVote(c *gin.Context) {
 	siteId := IntForm(c, "siteId", 0)
 	// TODO: instead of returning html with error, do redirect with error query
 	if siteId == 0 {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid siteId"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
 		return
 	}
 	site, err := w.appContext.Deps.Service.GetSiteInfoById(ctx, siteId)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if site == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("site not found for id %v", siteId), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("site not found for id %v", siteId))
 		return
 	}
 	articleTitle := StringForm(c, "title", "")
 	if articleTitle == "" {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("missing title"), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("missing title"))
 		return
 	}
 
 	article, err := w.appContext.Deps.Service.GetFakeNewsByTitle(ctx, site.Id, articleTitle)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: err, DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
 	if article == nil {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("article not found for title %v", articleTitle), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("article not found for title %v", articleTitle))
 		return
 	}
 
 	direction := c.Request.FormValue("direction")
 	if direction != "up" && direction != "down" {
-		c.HTML(http.StatusBadRequest, "", components.Error(components.ErrorModel{Base: w.getBaseModel(c, ""), Err: fmt.Errorf("invalid vote %v", direction), DoNotIncludeLayout: true}))
+		w.renderErrorFragment(c, http.StatusBadRequest, fmt.Errorf("invalid vote %v", direction))
 	}
 	up := direction == "up"
 	vote := -1
@@ -592,7 +583,7 @@ func (w *web) HandlePostArticleVote(c *gin.Context) {
 	c.SetCookie(fmt.Sprintf("VOTED.%v", article.Identifier()), direction, 3600*24, "/", "", true, true)
 	alreadyVoted := getAlreadyVoted(c)
 	alreadyVoted[article.Identifier()] = direction
-	c.HTML(http.StatusOK, "", components.FakeNewsVotes(*article, alreadyVoted))
+	w.renderer.Partial(c, http.StatusOK, "fakeNewsVotes", components.FakeNewsItemModel{FakeNews: *article, AlreadyVoted: alreadyVoted})
 }
 
 func getAlreadyVoted(c *gin.Context) map[string]string {

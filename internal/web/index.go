@@ -14,10 +14,10 @@ func (w *web) HandleGetIndex(c *gin.Context) {
 	ctx := c.Request.Context()
 	indexPageData, err := w.appContext.Deps.Service.GetIndexPageData(ctx, indexModel.Base.NoCache)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "", components.Error(components.ErrorModel{Base: indexModel.Base, Err: err}))
+		w.renderError(c, http.StatusInternalServerError, err)
 		return
 	}
 	indexModel.SearchResults = *indexPageData.SearchResult
 	indexModel.ChartsResult = *indexPageData.ChartsResult
-	c.HTML(http.StatusOK, "", components.Index(indexModel))
+	w.renderer.Page(c, http.StatusOK, "index", indexModel.Base, indexModel)
 }

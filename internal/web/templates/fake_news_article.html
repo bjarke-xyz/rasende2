@@ -1,0 +1,27 @@
+{{define "fakeNewsArticle"}}
+<div class="container">
+	<article class="prose">
+		{{if .Base.IsAdmin}}
+			<div class="admin-bar">
+				<form method="POST" action="/publish-fake-news">
+					<input type="hidden" name="siteId" value="{{.FakeNews.SiteId}}" />
+					<input type="hidden" name="title" value="{{.FakeNews.Title}}" />
+					<button class="btn-primary">Toggle featured</button>
+				</form>
+				<form method="POST" action="/reset-article-content">
+					<input type="hidden" name="siteId" value="{{.FakeNews.SiteId}}" />
+					<input type="hidden" name="title" value="{{.FakeNews.Title}}" />
+					<button class="btn-primary">Reset content</button>
+				</form>
+				<a href="{{articleGeneratorUrl .FakeNews.SiteId .FakeNews.Title}}">Article generator</a>
+			</div>
+		{{end}}
+		<p>{{template "badge" .FakeNews.SiteName}}</p>
+		<h1>{{.FakeNews.Title}}</h1>
+		{{with .FakeNews.ImageUrl}}
+			<img src="{{.}}" width="512" height="512" alt="" />
+		{{end}}
+		{{range paragraphs .FakeNews.Content}}<p>{{.}}</p>{{end}}
+	</article>
+</div>
+{{end}}

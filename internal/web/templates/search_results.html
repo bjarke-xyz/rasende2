@@ -1,0 +1,17 @@
+{{define "searchResults"}}
+<div id="search-result-items">
+	{{range .SearchResults.Items}}<div>{{template "itemLink" .}}</div>{{end}}
+	<div id="replaceMe">
+		<form>
+			<input type="hidden" name="offset" value="{{.NextOffset}}" />
+			<input type="hidden" name="search" value="{{.Search}}" />
+			<button class="btn-primary" hx-post="/search" hx-target="#replaceMe" hx-swap="outerHTML">
+				Hent flere
+			</button>
+		</form>
+	</div>
+</div>
+{{if .IncludeCharts}}
+	<section class="charts-section">{{template "charts" .ChartsResult}}</section>
+{{end}}
+{{end}}

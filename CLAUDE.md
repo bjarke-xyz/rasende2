@@ -32,9 +32,9 @@ The application follows a layered architecture:
 
 - **internal/web/** - HTTP handlers and templates
   - Gin web framework for routing
-  - `a-h/templ` for HTML templating (generates `*_templ.go` files from `*.templ` files)
+  - `html/template` files in `internal/web/templates/`, embedded with `go:embed`
   - HTMX for dynamic UI updates
-  - Components in `internal/web/components/`
+  - View models in `internal/web/components/models.go`
 
 - **internal/api/** - API endpoints (separate from web handlers)
 
@@ -43,8 +43,8 @@ The application follows a layered architecture:
 - **Backend**: Go 1.23, Gin web framework
 - **Database**: local SQLite file (`modernc.org/sqlite`, cgo-free), queried with plain `database/sql`
 - **Search**: SQLite FTS5 + a Danish analyzer in `internal/search`
-- **Templates**: templ (type-safe HTML templates)
-- **Frontend**: HTMX, TailwindCSS, Chart.js
+- **Templates**: standard-library `html/template`
+- **Frontend**: HTMX, hand-written CSS, Chart.js
 - **AI**: OpenRouter API for fake news generation (uses OpenAI-compatible interface)
 - **Metrics**: Prometheus client for metrics collection (exposed on :9091/metrics)
 
@@ -85,14 +85,11 @@ Consequences worth knowing:
 ### Build and Run
 
 ```bash
-# Full production build (generates templates, builds CSS, compiles binary)
+# Vendor the frontend JS and compile the binary
 make build
 
-# Development mode with hot reload
+# Development server; templates reload from disk on refresh
 make dev
-
-# Run code generation only (templ, tailwind)
-make generate
 
 # Run tests
 make test
@@ -127,25 +124,21 @@ go test ./internal/core
 go test ./internal/repository
 ```
 
-### Code Generation
-
-When modifying database schemas:
+### Changing database schemas
 
 1. Add a goose migration in `internal/repository/db/migrations/`
 2. Update the matching hand-written query and its `Scan` call. Column-list constants live
    next to the scan helpers at the top of `internal/repository/sqlite_news.go`; the scan
    order must match the column order.
 
-When modifying templates:
+### Changing templates or CSS
 
-1. Edit `*.templ` files in `internal/web/components/`
-2. Run `templ generate` (included in `make generate`)
-3. Generated Go code will appear in `*_templ.go` files
-
-When modifying TailwindCSS:
-
-1. Edit `internal/web/static/css/style.css` or add Tailwind classes in `*.templ` files
-2. Run `npx tailwindcss build -i internal/web/static/css/style.css -o internal/web/static/css/tailwind.css -m`
+Neither has a build step. Edit `internal/web/templates/*.html` or
+`internal/web/static/css/style.css` and refresh; outside `APP_ENV=production` the renderer
+re-reads templates from disk on every request. Add a case to `TestTemplatesExecute` in
+`internal/web/render_test.go` for any new template or conditional branch — `html/template`
+resolves names and fields at execute time, so an untested branch fails in production, not
+at build.
 
 ## Configuration
 
@@ -166,7 +159,7 @@ See `.env.example` for all configuration options.
 1. `cmd/web/main.go` loads config from environment
 2. Opens database connection and runs migrations
 3. Creates `AppContext` with config, infrastructure, and dependencies
-4. Initializes Gin router with CORS, sessions, and custom templ renderer
+4. Initializes Gin router with CORS and sessions, and parses the templates
 5. Registers API and web routes
 6. Starts metrics server on :9091
 7. Starts main HTTP server with graceful shutdown
@@ -202,7 +195,22 @@ repo snapshots `/opt/data/rasende2/db.db` to Cloudflare R2 on a cron schedule.
 
 ### Template Rendering
 
-Templates use `a-h/templ` for type-safe rendering. The custom renderer in `internal/web/renderer/gin_templ_renderer.go` integrates templ with Gin.
+`internal/web/render.go` parses every file in `internal/web/templates/` into **one** template
+set, so each `{{define}}` name must be unique across all files. Handlers call one of:
+
+- `renderer.Page(c, status, name, base, data)` — renders the page into a buffer, then hands
+  it to `"layout"` as pre-rendered `Content`. This is how the layout gets a content slot:
+  `{{template}}` needs a constant name, so the layout cannot dispatch on the page. When
+  `base.IncludeLayout` is false (the request came from htmx) the page body is served bare.
+- `renderer.Partial(c, status, name, data)` — one template, never wrapped.
+- `renderer.String(name, data)` — renders to a string for `c.SSEvent`.
+
+Everything renders through a buffer first, so a template error cannot emit a half-written
+page under an already-sent 200.
+
+Danish formatting, URL building and the `hasVoted`-style predicates live in the `FuncMap` at
+the bottom of `render.go`, or as methods on the view models in `components/models.go`.
+Prefer a method: it is type-checked, a `FuncMap` entry is not.
 
 ## Testing Notes
 

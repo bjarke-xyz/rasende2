@@ -1,13 +1,10 @@
 package web
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 
-	"github.com/a-h/templ"
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -63,15 +60,6 @@ func StringForm(c *gin.Context, name string, defaultVal string) string {
 		return defaultVal
 	}
 	return val
-}
-
-func RenderToStringCtx(ctx context.Context, component templ.Component) string {
-	buffer := &strings.Builder{}
-	component.Render(ctx, buffer)
-	return buffer.String()
-}
-func RenderToString(c *gin.Context, component templ.Component) string {
-	return RenderToStringCtx(c.Request.Context(), component)
 }
 
 func AddFlash(c *gin.Context, flashType string, msg string) {

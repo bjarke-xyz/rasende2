@@ -1,0 +1,25 @@
+{{define "search"}}
+<div class="container">
+	<div class="centered">
+		<form class="search-form">
+			<input
+				value="rasende"
+				type="search"
+				name="search"
+				hx-post="/search"
+				hx-trigger="change from:[name='content'], load, input changed delay:300ms, search"
+				hx-target="#search-results"
+				hx-indicator=".htmx-indicator"
+				hx-include="[name='content']"
+			/>
+			{{template "barsSvg"}}
+			<div class="search-options">
+				<input name="include-charts" type="hidden" value="on" />
+				<input name="content" type="checkbox" id="checkbox" />
+				<label for="checkbox">Søg i artikel indhold</label>
+			</div>
+		</form>
+	</div>
+	<div id="search-results" class="search-results"></div>
+</div>
+{{end}}

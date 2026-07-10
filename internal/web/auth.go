@@ -22,12 +22,13 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 	showOtp := c.Query("otp") == "true"
 	email := c.Query("email")
 	returnPath := c.Query("returnpath")
-	c.HTML(http.StatusOK, "", components.Login(components.LoginViewModel{
+	model := components.LoginViewModel{
 		Base:       w.getBaseModel(c, "Login | Rasende"),
 		OTP:        showOtp,
 		Email:      email,
 		ReturnPath: returnPath,
-	}))
+	}
+	w.renderer.Page(c, http.StatusOK, "login", model.Base, model)
 }
 
 func (w *web) HandlePostLogin(c *gin.Context) {

@@ -1,0 +1,138 @@
+{{define "badge"}}<span class="badge">{{.}}</span>{{end}}
+
+{{define "itemLink"}}
+<a href="{{.Link}}" target="_blank" rel="noreferrer" class="item-link">
+	{{template "badge" .SiteName}}
+	<span>{{.Title}}</span>
+</a>
+{{end}}
+
+{{define "charts"}}
+<div class="charts">
+	{{range .Charts}}
+		<div class="chart-placeholder" data-chart-json="{{jsonAttr .}}"></div>
+	{{end}}
+</div>
+<script>
+	ready(() => {
+		handleCharts();
+	})
+</script>
+{{end}}
+
+{{define "articleImg"}}<img height="512" width="512" src="{{.Src}}" alt="{{.Alt}}" />{{end}}
+
+{{/* Takes a FakeNewsItemModel. */}}
+{{define "articleCard"}}
+{{$url := articleUrl .FakeNews}}
+<article class="article-card">
+	<a href="{{$url}}" target="_blank" rel="noopener noreferrer">
+		<img class="article-card-img" src="{{orDefault .FakeNews.ImageUrl (placeholderImg)}}" alt="{{.FakeNews.Title}}" />
+	</a>
+	<div class="article-card-body">
+		<div class="article-card-meta">
+			{{template "badge" .FakeNews.SiteName}}
+			<time title="{{rfc3339 .FakeNews.Published}}">{{timeAgo .FakeNews.Published}}</time>
+		</div>
+		<h2 class="article-card-title">
+			<a href="{{$url}}" target="_blank" rel="noopener noreferrer">{{.FakeNews.Title}}</a>
+		</h2>
+		<p class="article-card-excerpt">{{truncate .FakeNews.Content 160}}</p>
+		<div class="article-card-footer">
+			<a href="{{$url}}" target="_blank" rel="noopener noreferrer">Læs mere</a>
+			{{template "fakeNewsVotes" .}}
+		</div>
+	</div>
+</article>
+{{end}}
+
+{{/* Takes a FakeNewsItemModel. Swapped in on its own after a vote, so the
+     hidden inputs that hx-include reads must live inside this fragment. */}}
+{{define "fakeNewsVotes"}}
+{{$id := .Identifier}}
+<div id="fn-votes-{{$id}}" class="votes">
+	<input type="hidden" name="siteId" value="{{.FakeNews.SiteId}}" />
+	<input type="hidden" name="title" value="{{.FakeNews.Title}}" />
+	<form>
+		<input type="hidden" name="direction" value="up" />
+		<button
+			class="vote vote-up{{if .HasVotedUp}} voted{{end}}"
+			{{if .HasVotedUp}}disabled{{end}}
+			hx-post="/vote-article"
+			hx-include="div#fn-votes-{{$id}} > input[name='siteId'], div#fn-votes-{{$id}} > input[name='title']"
+			hx-target="#fn-votes-{{$id}}"
+			aria-label="Stem op"
+		>▲</button>
+	</form>
+	<span class="vote-count">{{.FakeNews.Votes}}</span>
+	<form>
+		<input type="hidden" name="direction" value="down" />
+		<button
+			class="vote vote-down{{if .HasVotedDown}} voted{{end}}"
+			{{if .HasVotedDown}}disabled{{end}}
+			hx-post="/vote-article"
+			hx-include="div#fn-votes-{{$id}} > input[name='siteId'], div#fn-votes-{{$id}} > input[name='title']"
+			hx-target="#fn-votes-{{$id}}"
+			aria-label="Stem ned"
+		>▼</button>
+	</form>
+</div>
+{{end}}
+
+{{/* Takes a GeneratedTitleModel. */}}
+{{define "generatedTitleLink"}}
+<p><a target="_blank" href="{{articleGeneratorUrl .SiteId .Title}}">{{.Title}}</a></p>
+{{end}}
+
+{{/* Takes a ShowMoreTitlesModel. */}}
+{{define "showMoreTitlesButton"}}
+<button
+	class="btn-primary"
+	id="title-show-more-btn"
+	onclick="this.disabled = true;"
+	data-cursor="{{.Cursor}}"
+	hx-get="/generate-titles-sse?siteId={{.SiteId}}&cursor={{.Cursor}}"
+	hx-target="#title-sse-container-wrapper"
+>Vis mere</button>
+{{end}}
+
+{{/* Takes a TitlesSseModel. */}}
+{{define "titlesSse"}}
+<div
+	id="title-sse-container"
+	hx-ext="sse"
+	hx-swap="beforeend"
+	sse-connect="/generate-titles?siteId={{.SiteId}}&cursor={{.Cursor}}"
+	sse-close="sse-close"
+>
+	<div sse-swap="title">
+		{{if .Placeholder}}<p id="title-placeholder">Finder på overskrifter...</p>{{end}}
+	</div>
+	<div sse-swap="button"></div>
+</div>
+{{end}}
+
+{{define "barsSvg"}}
+<svg width="32" height="32" viewBox="0 0 135 140" xmlns="http://www.w3.org/2000/svg" class="htmx-indicator bars" aria-hidden="true">
+	<rect y="10" width="15" height="120" rx="6">
+		<animate attributeName="height" begin="0.5s" dur="1s" values="120;110;100;90;80;70;60;50;40;140;120" calcMode="linear" repeatCount="indefinite"></animate>
+		<animate attributeName="y" begin="0.5s" dur="1s" values="10;15;20;25;30;35;40;45;50;0;10" calcMode="linear" repeatCount="indefinite"></animate>
+	</rect>
+	<rect x="30" y="10" width="15" height="120" rx="6">
+		<animate attributeName="height" begin="0.25s" dur="1s" values="120;110;100;90;80;70;60;50;40;140;120" calcMode="linear" repeatCount="indefinite"></animate>
+		<animate attributeName="y" begin="0.25s" dur="1s" values="10;15;20;25;30;35;40;45;50;0;10" calcMode="linear" repeatCount="indefinite"></animate>
+	</rect>
+	<rect x="60" width="15" height="140" rx="6">
+		<animate attributeName="height" begin="0s" dur="1s" values="120;110;100;90;80;70;60;50;40;140;120" calcMode="linear" repeatCount="indefinite"></animate>
+		<animate attributeName="y" begin="0s" dur="1s" values="10;15;20;25;30;35;40;45;50;0;10" calcMode="linear" repeatCount="indefinite"></animate>
+	</rect>
+	<rect x="90" y="10" width="15" height="120" rx="6">
+		<animate attributeName="height" begin="0.25s" dur="1s" values="120;110;100;90;80;70;60;50;40;140;120" calcMode="linear" repeatCount="indefinite"></animate>
+		<animate attributeName="y" begin="0.25s" dur="1s" values="10;15;20;25;30;35;40;45;50;0;10" calcMode="linear" repeatCount="indefinite"></animate>
+	</rect>
+	<rect x="120" y="10" width="15" height="120" rx="6">
+		<animate attributeName="height" begin="0.5s" dur="1s" values="120;110;100;90;80;70;60;50;40;140;120" calcMode="linear" repeatCount="indefinite"></animate>
+		<animate attributeName="y" begin="0.5s" dur="1s" values="10;15;20;25;30;35;40;45;50;0;10" calcMode="linear" repeatCount="indefinite"></animate>
+	</rect>
+</svg>
+{{end}}

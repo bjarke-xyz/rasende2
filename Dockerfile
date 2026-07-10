@@ -18,9 +18,6 @@ RUN go mod download
 # Copy local code to the container image.
 COPY . ./
 
-# Install templ binary
-RUN go install github.com/a-h/templ/cmd/templ@latest
-
 # Build the binary.
 RUN make build
 

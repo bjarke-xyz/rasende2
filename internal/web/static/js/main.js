@@ -104,9 +104,43 @@ function visibilityChangeListener() {
     }
 }
 
+function dismissFlash(button) {
+    button.parentElement?.remove();
+}
+
+// The generator pages stream their results over SSE. Both disable their
+// "more" button while a stream is open, and clear the placeholder once the
+// first message lands.
+function sseListeners() {
+    document.addEventListener('htmx:sseOpen', () => {
+        const btn = document.querySelector('#title-show-more-btn');
+        if (btn) {
+            btn.disabled = true;
+        }
+    });
+
+    document.addEventListener('htmx:sseBeforeMessage', () => {
+        document.querySelector('#title-placeholder')?.remove();
+        document.querySelector('#title-show-more-btn')?.remove();
+    });
+
+    document.addEventListener('htmx:sseClose', () => {
+        const titleBtn = document.querySelector('#title-show-more-btn');
+        if (titleBtn) {
+            titleBtn.disabled = false;
+        }
+        document.querySelector('#sse-article-content-indicator')?.remove();
+        const publishBtn = document.querySelector('#publish-btn');
+        if (publishBtn) {
+            publishBtn.disabled = false;
+        }
+    });
+}
+
 async function main() {
     ready(() => {
         visibilityChangeListener();
+        sseListeners();
     })
 }
 
