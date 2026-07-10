@@ -8,3 +8,6 @@ fly.toml
 data/**
 node_modules
 rasende2
+rasende2.db
+rasende2.db-wal
+rasende2.db-shm
