@@ -40,7 +40,7 @@ The application follows a layered architecture:
 
 ### Key Technologies
 
-- **Backend**: Go 1.23, Gin web framework
+- **Backend**: Go 1.25, Gin web framework
 - **Database**: local SQLite file (`modernc.org/sqlite`, cgo-free), queried with plain `database/sql`
 - **Search**: SQLite FTS5 + a Danish analyzer in `internal/search`
 - **Templates**: standard-library `html/template`
