@@ -499,6 +499,7 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 		return err
 	}
 	bucket := r.context.Config.S3ImageBucket
+	publicBaseUrl := r.context.Config.S3ImagePublicBaseUrl
 	var continuationToken *string = nil
 
 	_, err = db.ExecContext(ctx, "DELETE FROM fake_news WHERE highlighted = 0")
@@ -519,11 +520,13 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 			return fmt.Errorf("failed to list object: %w", err)
 		}
 
-		var batch []string
+		var batch []imageObject
 
 		for _, item := range resp.Contents {
-			imgUrl := "https://static.bjarke.xyz/" + *item.Key
-			batch = append(batch, imgUrl)
+			batch = append(batch, imageObject{
+				key: *item.Key,
+				url: publicBaseUrl + "/" + *item.Key,
+			})
 
 			// If batch size is reached, process the batch
 			if len(batch) >= batchSize {
@@ -554,7 +557,17 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 	return nil
 }
 
-func processBatch(ctx context.Context, client *s3.Client, db *sql.DB, bucket string, batch []string) error {
+// imageObject pairs the S3 key an object is stored under with the public URL
+// fake_news.img_url holds it as. The two are not interchangeable: the row is
+// matched by URL, but the delete must address the key. Passing the URL as the
+// key deletes nothing and still succeeds, because S3 treats a delete of an
+// absent key as a no-op.
+type imageObject struct {
+	key string
+	url string
+}
+
+func processBatch(ctx context.Context, client *s3.Client, db *sql.DB, bucket string, batch []imageObject) error {
 	// Prepare the SQL query
 	placeholders := strings.Repeat("?,", len(batch))
 	placeholders = placeholders[:len(placeholders)-1] // Remove the trailing comma
@@ -564,7 +577,7 @@ func processBatch(ctx context.Context, client *s3.Client, db *sql.DB, bucket str
 	// Convert batch to a slice of interfaces{} for the query
 	args := make([]interface{}, len(batch))
 	for i, v := range batch {
-		args[i] = v
+		args[i] = v.url
 	}
 
 	// Execute the query
@@ -588,16 +601,16 @@ func processBatch(ctx context.Context, client *s3.Client, db *sql.DB, bucket str
 	}
 
 	// Identify and delete orphaned S3 objects
-	for _, key := range batch {
-		if _, ok := existingURLs[key]; !ok {
+	for _, obj := range batch {
+		if _, ok := existingURLs[obj.url]; !ok {
 			_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
 				Bucket: aws.String(bucket),
-				Key:    aws.String(key),
+				Key:    aws.String(obj.key),
 			})
 			if err != nil {
-				log.Println("Failed to delete", key, ":", err)
+				log.Println("Failed to delete", obj.key, ":", err)
 			} else {
-				log.Println("Deleted", key)
+				log.Println("Deleted", obj.key)
 			}
 		}
 	}
