@@ -17,9 +17,9 @@ import (
 
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/httpx"
 	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
-	"github.com/gin-gonic/gin"
 )
 
 //go:embed templates/*.html
@@ -136,8 +136,8 @@ func (r *Renderer) execute(l lang.Lang, name string, data any) ([]byte, error) {
 }
 
 // String renders a template to a string, for embedding in an SSE event.
-func (r *Renderer) String(c *gin.Context, name string, data any) string {
-	b, err := r.execute(LangOf(c), name, data)
+func (r *Renderer) String(req *http.Request, name string, data any) string {
+	b, err := r.execute(LangOf(req), name, data)
 	if err != nil {
 		log.Printf("render: %v", err)
 		return ""
@@ -145,50 +145,50 @@ func (r *Renderer) String(c *gin.Context, name string, data any) string {
 	return string(b)
 }
 
-func (r *Renderer) write(c *gin.Context, status int, body []byte) {
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.Status(status)
-	if _, err := c.Writer.Write(body); err != nil {
+func (r *Renderer) write(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
 		log.Printf("render: writing response: %v", err)
 	}
 }
 
 // Page renders a page template, wrapped in the layout unless the request came
 // from htmx and only wants the fragment.
-func (r *Renderer) Page(c *gin.Context, status int, name string, base components.BaseViewModel, data any) {
-	l := LangOf(c)
+func (r *Renderer) Page(w http.ResponseWriter, req *http.Request, status int, name string, base components.BaseViewModel, data any) {
+	l := LangOf(req)
 	body, err := r.execute(l, name, data)
 	if err != nil {
-		r.fail(c, err)
+		r.fail(w, err)
 		return
 	}
 	if !base.IncludeLayout {
-		r.write(c, status, body)
+		r.write(w, status, body)
 		return
 	}
 	body, err = r.execute(l, "layout", layoutData{BaseViewModel: base, Content: template.HTML(body)})
 	if err != nil {
-		r.fail(c, err)
+		r.fail(w, err)
 		return
 	}
-	r.write(c, status, body)
+	r.write(w, status, body)
 }
 
 // Partial renders a single template, never wrapped in the layout.
-func (r *Renderer) Partial(c *gin.Context, status int, name string, data any) {
-	body, err := r.execute(LangOf(c), name, data)
+func (r *Renderer) Partial(w http.ResponseWriter, req *http.Request, status int, name string, data any) {
+	body, err := r.execute(LangOf(req), name, data)
 	if err != nil {
-		r.fail(c, err)
+		r.fail(w, err)
 		return
 	}
-	r.write(c, status, body)
+	r.write(w, status, body)
 }
 
 // fail is the last resort when a template itself is broken; rendering the error
 // page would likely fail the same way.
-func (r *Renderer) fail(c *gin.Context, err error) {
+func (r *Renderer) fail(w http.ResponseWriter, err error) {
 	log.Printf("render: %v", err)
-	c.String(http.StatusInternalServerError, "template error")
+	httpx.String(w, http.StatusInternalServerError, "template error")
 }
 
 // templateFuncs is the FuncMap for one edition. Only "t", "ago" and

@@ -10,16 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bjarke-xyz/rasende2/internal/api"
 	"github.com/bjarke-xyz/rasende2/internal/app"
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
-	"github.com/bjarke-xyz/rasende2/internal/web"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
-	"github.com/gin-gonic/gin"
+	"github.com/bjarke-xyz/rasende2/internal/server"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -94,46 +89,17 @@ func runMetricsServer() {
 }
 
 func Server(appContext *core.AppContext) (*http.Server, error) {
-	handler, err := routes(appContext)
+	handler, err := server.New(appContext)
 	if err != nil {
 		return nil, err
 	}
 	return &http.Server{
 		Addr:    fmt.Sprintf(":%d", appContext.Config.Port),
 		Handler: handler,
+
+		// No WriteTimeout: it is a deadline on the whole response, and the
+		// title/article generators stream for as long as the model takes.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}, nil
-}
-
-func routes(appContext *core.AppContext) (http.Handler, error) {
-	r := ginRouter(appContext.Config)
-
-	apiHandlers := api.NewAPI(appContext)
-	apiHandlers.Route(r)
-
-	webHandlers, err := web.NewWeb(appContext)
-	if err != nil {
-		return nil, err
-	}
-	webHandlers.Route(r)
-	return r, nil
-}
-
-func ginRouter(cfg *config.Config) *gin.Engine {
-	if cfg.AppEnv == config.AppEnvProduction {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	r := gin.Default()
-	store := cookie.NewStore([]byte(cfg.CookieSecret))
-	r.Use(sessions.Sessions("mysession", store))
-	r.Use(cors.Default())
-	r.SetTrustedProxies(nil)
-	if cfg.AppEnv == config.AppEnvProduction {
-		r.TrustedPlatform = gin.PlatformCloudflare
-	}
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-		})
-	})
-	return r
 }

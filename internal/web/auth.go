@@ -10,74 +10,74 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bjarke-xyz/rasende2/internal/httpx"
 	"github.com/bjarke-xyz/rasende2/internal/mail"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
-	"github.com/bjarke-xyz/rasende2/internal/web/auth"
+	"github.com/bjarke-xyz/rasende2/internal/session"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
 	"github.com/bjarke-xyz/rasende2/pkg"
-	"github.com/gin-gonic/gin"
 )
 
-func (w *web) HandleGetLogin(c *gin.Context) {
-	showOtp := c.Query("otp") == "true"
-	email := c.Query("email")
-	returnPath := c.Query("returnpath")
+func (h *web) HandleGetLogin(w http.ResponseWriter, r *http.Request) {
+	showOtp := r.URL.Query().Get("otp") == "true"
+	email := r.URL.Query().Get("email")
+	returnPath := r.URL.Query().Get("returnpath")
 	model := components.LoginViewModel{
-		Base:       w.getBaseModel(c, LangOf(c).T("page.login")),
+		Base:       h.getBaseModel(w, r, LangOf(r).T("page.login")),
 		OTP:        showOtp,
 		Email:      email,
 		ReturnPath: returnPath,
 	}
-	w.renderer.Page(c, http.StatusOK, "login", model.Base, model)
+	h.renderer.Page(w, r, http.StatusOK, "login", model.Base, model)
 }
 
-func (w *web) HandlePostLogin(c *gin.Context) {
-	ctx := c.Request.Context()
-	successPath := StringForm(c, "returnPath", editionRoot(c))
-	redirectPath := RefererOrDefault(c, w.appContext.Config.BaseUrl+editionRoot(c)+"/login")
+func (h *web) HandlePostLogin(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	successPath := httpx.StringForm(r, "returnPath", editionRoot(r))
+	redirectPath := httpx.RefererOrDefault(r, h.appContext.Config.BaseUrl+editionRoot(r)+"/login")
 	redirectPathUrl, err := url.Parse(redirectPath)
 	if err != nil {
-		AddFlashError(c, err)
-		c.Redirect(http.StatusSeeOther, redirectPath)
+		session.AddFlashError(w, r, err)
+		http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 		return
 	}
-	email := c.Request.FormValue("email")
+	email := r.FormValue("email")
 	if !strings.Contains(email, "@") {
-		AddFlashWarn(c, LangOf(c).T("auth.invalidEmail"))
-		c.Redirect(http.StatusSeeOther, redirectPath)
+		session.AddFlashWarn(w, r, LangOf(r).T("auth.invalidEmail"))
+		http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 		return
 	}
-	db, err := db.OpenQueries(w.appContext.Config)
+	db, err := db.OpenQueries(h.appContext.Config)
 	if err != nil {
-		AddFlashError(c, err)
-		c.Redirect(http.StatusSeeOther, redirectPath)
+		session.AddFlashError(w, r, err)
+		http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 		return
 	}
 	user, err := db.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			AddFlashWarn(c, LangOf(c).T("auth.userNotFound"))
-			c.Redirect(http.StatusSeeOther, redirectPath)
+			session.AddFlashWarn(w, r, LangOf(r).T("auth.userNotFound"))
+			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 			return
 		} else {
-			AddFlashError(c, err)
-			c.Redirect(http.StatusSeeOther, redirectPath)
+			session.AddFlashError(w, r, err)
+			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 			return
 		}
 	}
 	// TODO: support password login
-	// password := c.Request.FormValue("password")
-	formOtp := strings.TrimSpace(strings.ReplaceAll(c.Request.FormValue("otp"), "-", ""))
+	// password := r.FormValue("password")
+	formOtp := strings.TrimSpace(strings.ReplaceAll(r.FormValue("otp"), "-", ""))
 	if formOtp != "" {
 		magicLinks, err := db.GetLinksByUserId(ctx, user.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				AddFlashWarn(c, LangOf(c).T("auth.badCode"))
-				c.Redirect(http.StatusSeeOther, redirectPath)
+				session.AddFlashWarn(w, r, LangOf(r).T("auth.badCode"))
+				http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 				return
 			}
-			AddFlashError(c, err)
-			c.Redirect(http.StatusSeeOther, redirectPath)
+			session.AddFlashError(w, r, err)
+			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 			return
 		}
 		for _, magicLink := range magicLinks {
@@ -89,38 +89,38 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 				}
 				user, err := db.GetUser(ctx, magicLink.UserID)
 				if err != nil {
-					AddFlashError(c, fmt.Errorf("%v", LangOf(c).T("auth.genericError")))
+					session.AddFlashError(w, r, fmt.Errorf("%v", LangOf(r).T("auth.genericError")))
 					log.Printf("failed to get user by id %v: %v", magicLink.UserID, err)
-					c.Redirect(http.StatusSeeOther, redirectPath)
+					http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 					return
 				}
-				auth.SetUserId(c, user.ID, user.IsAdmin)
-				AddFlashInfo(c, LangOf(c).T("auth.loggedIn"))
-				c.Redirect(http.StatusSeeOther, successPath)
+				session.SetUserID(w, r, user.ID, user.IsAdmin)
+				session.AddFlashInfo(w, r, LangOf(r).T("auth.loggedIn"))
+				http.Redirect(w, r, successPath, http.StatusSeeOther)
 				return
 			}
 		}
-		AddFlashWarn(c, LangOf(c).T("auth.badCode"))
-		c.Redirect(http.StatusSeeOther, redirectPath)
+		session.AddFlashWarn(w, r, LangOf(r).T("auth.badCode"))
+		http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 		return
 	} else {
 		// login link
 		otp, err := pkg.GenerateOTP()
 		if err != nil {
-			AddFlashError(c, err)
-			c.Redirect(http.StatusSeeOther, redirectPath)
+			session.AddFlashError(w, r, err)
+			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 			return
 		}
 		otpHash, err := pkg.HashPassword(otp)
 		if err != nil {
-			AddFlashError(c, err)
-			c.Redirect(http.StatusSeeOther, redirectPath)
+			session.AddFlashError(w, r, err)
+			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 			return
 		}
 		linkCode, err := pkg.GenerateSecureToken()
 		if err != nil {
-			AddFlashError(c, err)
-			c.Redirect(http.StatusSeeOther, redirectPath)
+			session.AddFlashError(w, r, err)
+			http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 			return
 		}
 		expiresAt := time.Now().Add(15 * time.Minute)
@@ -129,47 +129,47 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 		// TODO: reutrn path query param
 		// The link has to come back into the edition the visitor left from, or
 		// they finish signing in on the wrong side of the site.
-		l := LangOf(c)
-		w.appContext.Infra.Mail.SendAuthLink(mail.SendAuthLinkRequest{
+		l := LangOf(r)
+		h.appContext.Infra.Mail.SendAuthLink(mail.SendAuthLinkRequest{
 			Receiver:            email,
 			CodePath:            fmt.Sprintf("/%v/login-link?code=%v&returnpath=%v", l.Code, linkCode, url.QueryEscape(successPath)),
 			OTP:                 otp,
 			ExpirationTimestamp: expiresAt,
 			Lang:                l,
 		})
-		AddFlashInfo(c, LangOf(c).T("auth.checkMail"))
+		session.AddFlashInfo(w, r, LangOf(r).T("auth.checkMail"))
 		redirectQuery := redirectPathUrl.Query()
 		redirectQuery.Set("otp", "true")
 		redirectQuery.Set("email", email)
 		redirectPathUrl.RawQuery = redirectQuery.Encode()
-		c.Redirect(http.StatusSeeOther, redirectPathUrl.String())
+		http.Redirect(w, r, redirectPathUrl.String(), http.StatusSeeOther)
 	}
 }
 
-func (w *web) HandleGetLoginLink(c *gin.Context) {
-	ctx := c.Request.Context()
-	code := c.Query("code")
-	successPath := StringQuery(c, "returnpath", editionRoot(c))
-	failurePath := editionRoot(c)
+func (h *web) HandleGetLoginLink(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	code := r.URL.Query().Get("code")
+	successPath := httpx.StringQuery(r, "returnpath", editionRoot(r))
+	failurePath := editionRoot(r)
 	if code == "" {
-		c.Redirect(http.StatusSeeOther, failurePath)
+		http.Redirect(w, r, failurePath, http.StatusSeeOther)
 		return
 	}
-	db, err := db.OpenQueries(w.appContext.Config)
+	db, err := db.OpenQueries(h.appContext.Config)
 	if err != nil {
-		AddFlashError(c, err)
-		c.Redirect(http.StatusSeeOther, failurePath)
+		session.AddFlashError(w, r, err)
+		http.Redirect(w, r, failurePath, http.StatusSeeOther)
 		return
 	}
 	magicLink, err := db.GetLinkByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			AddFlashWarn(c, LangOf(c).T("auth.badLink"))
-			c.Redirect(http.StatusSeeOther, failurePath)
+			session.AddFlashWarn(w, r, LangOf(r).T("auth.badLink"))
+			http.Redirect(w, r, failurePath, http.StatusSeeOther)
 			return
 		}
-		AddFlashError(c, err)
-		c.Redirect(http.StatusSeeOther, failurePath)
+		session.AddFlashError(w, r, err)
+		http.Redirect(w, r, failurePath, http.StatusSeeOther)
 		return
 	}
 
@@ -185,23 +185,23 @@ func (w *web) HandleGetLoginLink(c *gin.Context) {
 
 	user, err := db.GetUser(ctx, magicLink.UserID)
 	if err != nil {
-		AddFlashError(c, fmt.Errorf("%v", LangOf(c).T("auth.genericError")))
+		session.AddFlashError(w, r, fmt.Errorf("%v", LangOf(r).T("auth.genericError")))
 		log.Printf("failed to get user by id %v: %v", magicLink.UserID, err)
-		c.Redirect(http.StatusSeeOther, failurePath)
+		http.Redirect(w, r, failurePath, http.StatusSeeOther)
 		return
 	}
 
-	AddFlashInfo(c, LangOf(c).T("auth.loggedIn"))
-	auth.SetUserId(c, user.ID, user.IsAdmin)
-	c.Redirect(http.StatusSeeOther, successPath)
+	session.AddFlashInfo(w, r, LangOf(r).T("auth.loggedIn"))
+	session.SetUserID(w, r, user.ID, user.IsAdmin)
+	http.Redirect(w, r, successPath, http.StatusSeeOther)
 }
 
-func (w *web) HandlePostLogout(c *gin.Context) {
-	redirectPath := c.Request.Header.Get("Referer")
+func (h *web) HandlePostLogout(w http.ResponseWriter, r *http.Request) {
+	redirectPath := r.Header.Get("Referer")
 	if redirectPath == "" {
-		redirectPath = editionRoot(c)
+		redirectPath = editionRoot(r)
 	}
-	auth.ClearUserId(c)
-	AddFlashInfo(c, LangOf(c).T("auth.loggedOut"))
-	c.Redirect(http.StatusSeeOther, redirectPath)
+	session.ClearUserID(w, r)
+	session.AddFlashInfo(w, r, LangOf(r).T("auth.loggedOut"))
+	http.Redirect(w, r, redirectPath, http.StatusSeeOther)
 }
