@@ -1,11 +1,11 @@
 {{define "titleGenerator"}}
 <div class="container" id="title-generator-container">
 	<div class="centered">
-		<form hx-get="/title-generator" hx-target="#title-generator-container" hx-trigger="change from:select[name='siteId']" hx-push-url="true">
+		<form hx-get="title-generator" hx-target="#title-generator-container" hx-trigger="change from:select[name='siteId']" hx-push-url="true">
 			<div class="field">
-				<label for="site">Nyhedsmedie</label>
+				<label for="site">{{t "titleGenerator.site"}}</label>
 				<select id="site" class="select" name="siteId">
-					<option value="" disabled selected>Vælg</option>
+					<option value="" disabled selected>{{t "titleGenerator.choose"}}</option>
 					{{$selected := .SelectedSiteId}}
 					{{range .Sites}}
 						<option value="{{.Id}}" {{if eq $selected .Id}}selected{{end}}>{{.Name}}</option>

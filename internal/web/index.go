@@ -8,11 +8,12 @@ import (
 )
 
 func (w *web) HandleGetIndex(c *gin.Context) {
-	indexModel := components.IndexModel{
-		Base: w.getBaseModel(c, "Raseri i de danske medier"),
-	}
+	l := LangOf(c)
+	base := w.getBaseModel(c, l.T("page.index"))
+	base.ShowCredit = true
+	indexModel := components.IndexModel{Base: base}
 	ctx := c.Request.Context()
-	indexPageData, err := w.appContext.Deps.Service.GetIndexPageData(ctx)
+	indexPageData, err := w.appContext.Deps.Service.GetIndexPageData(ctx, l)
 	if err != nil {
 		w.renderError(c, http.StatusInternalServerError, err)
 		return

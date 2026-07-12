@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/config"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -35,6 +36,10 @@ type SendAuthLinkRequest struct {
 	CodePath            string
 	OTP                 string
 	ExpirationTimestamp time.Time
+
+	// Lang is the edition the visitor started signing in from. The link in the
+	// mail leads back into it, so the mail is written in it too.
+	Lang lang.Lang
 }
 
 func (m *MailService) SendAuthLink(req SendAuthLinkRequest) error {
@@ -46,23 +51,8 @@ func (m *MailService) SendAuthLink(req SendAuthLinkRequest) error {
 	sendMailReq := SendMailRequest{
 		Type:     "auth_link",
 		Receiver: req.Receiver,
-		Subject:  "Your link to sign in",
-		Message: fmt.Sprintf(`
-Hey %v,
-
-Click here to sign in:
-
-%v
-
-This link expires in %v minutes.
-
-Or enter this One-Time-Password (OTP):
-
-%v
-
-If you didn't ask for this, just ignore it.
-
--  Rasende`, name, codeUrl, expiresInMinutes, formattedOtp),
+		Subject:  req.Lang.T("mail.signIn.subject"),
+		Message:  req.Lang.T("mail.signIn.body", name, codeUrl, expiresInMinutes, formattedOtp),
 	}
 	return m.Send(sendMailReq)
 }

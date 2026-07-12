@@ -117,9 +117,13 @@ h2 {
 	font-weight: 700;
 }
 
+/* The footer holds the login control and the language switcher, so its items
+   need separating; before there were editions it only ever had one child. */
 .site-footer {
 	display: flex;
 	justify-content: flex-end;
+	align-items: center;
+	gap: 1rem;
 	padding: 0.75rem;
 	border-top: 1px solid var(--border);
 	font-size: 0.875rem;
@@ -225,8 +229,10 @@ select:focus-visible {
 	font-weight: 700;
 }
 
+/* The credit sits in the footer, pushed to the left edge; the auto margin is what
+   holds the login control and the language switcher over on the right. */
 .credit {
-	margin-top: 2rem;
+	margin-right: auto;
 	color: var(--text-muted);
 }
 

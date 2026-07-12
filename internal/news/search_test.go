@@ -12,7 +12,11 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 )
 
-var testSite = core.NewsSite{Id: 1, Name: "Testmedie"}
+// testSite and englishSite are real ids from rss.json: the site filter resolves
+// ids through the repository, so a made-up id would belong to no edition and be
+// filtered out of every search.
+var testSite = core.NewsSite{Id: 1, Name: "Arbejderen", Language: "da"}
+var englishSite = core.NewsSite{Id: 23, Name: "BBC News", Language: "en"}
 
 // newTestSearch builds a migrated, populated database in a temp dir and returns a
 // RssSearch over it. Items are inserted through the repository, so this also
@@ -32,7 +36,7 @@ func newTestSearch(t *testing.T, items []core.RssItemDto) *RssSearch {
 	if _, err := repo.InsertItems(context.Background(), testSite, items); err != nil {
 		t.Fatalf("insert items: %v", err)
 	}
-	return NewRssSearch(appContext)
+	return NewRssSearch(appContext, repo)
 }
 
 func mustTime(t *testing.T, value string) time.Time {
@@ -95,7 +99,7 @@ func TestSearchMatchesDanishInflections(t *testing.T) {
 	ctx := context.Background()
 
 	for _, query := range []string{"raser", "rasende", "rase"} {
-		results, err := rssSearch.Search(ctx, query, false, nil, nil, "published", 10, 0)
+		results, err := rssSearch.Search(ctx, "da", query, false, nil, nil, "published", 10, 0)
 		if err != nil {
 			t.Fatalf("search %q: %v", query, err)
 		}
@@ -110,7 +114,7 @@ func TestSearchTitleOnlyExcludesContentMatches(t *testing.T) {
 	ctx := context.Background()
 
 	// "d" matches only in content, "c" not at all.
-	titleOnly, err := rssSearch.Search(ctx, "rasende", false, nil, nil, "published", 10, 0)
+	titleOnly, err := rssSearch.Search(ctx, "da", "rasende", false, nil, nil, "published", 10, 0)
 	if err != nil {
 		t.Fatalf("title-only search: %v", err)
 	}
@@ -118,7 +122,7 @@ func TestSearchTitleOnlyExcludesContentMatches(t *testing.T) {
 		t.Errorf("title-only = %v, want %v", got, want)
 	}
 
-	withContent, err := rssSearch.Search(ctx, "rasende", true, nil, nil, "published", 10, 0)
+	withContent, err := rssSearch.Search(ctx, "da", "rasende", true, nil, nil, "published", 10, 0)
 	if err != nil {
 		t.Fatalf("content search: %v", err)
 	}
@@ -134,7 +138,7 @@ func TestSearchStopWordsOnlyReturnsEmpty(t *testing.T) {
 	rssSearch := newTestSearch(t, corpus(t))
 	ctx := context.Background()
 
-	results, err := rssSearch.Search(ctx, "og i er det", false, nil, nil, "published", 10, 0)
+	results, err := rssSearch.Search(ctx, "da", "og i er det", false, nil, nil, "published", 10, 0)
 	if err != nil {
 		t.Fatalf("stop word search returned error: %v", err)
 	}
@@ -142,7 +146,7 @@ func TestSearchStopWordsOnlyReturnsEmpty(t *testing.T) {
 		t.Errorf("stop word search = %v, want no results", itemIds(results))
 	}
 
-	counts, err := rssSearch.CountByDay(ctx, "og i er det", false, nil, nil)
+	counts, err := rssSearch.CountByDay(ctx, "da", "og i er det", false, nil, nil)
 	if err != nil {
 		t.Fatalf("stop word CountByDay returned error: %v", err)
 	}
@@ -158,7 +162,7 @@ func TestSearchDateRangeAndOrdering(t *testing.T) {
 	start := mustTime(t, "2024-02-01T00:00:00Z")
 	end := mustTime(t, "2024-12-31T00:00:00Z")
 	// "d" is published in January and must fall outside the range.
-	results, err := rssSearch.Search(ctx, "rasende", true, &start, &end, "published", 10, 0)
+	results, err := rssSearch.Search(ctx, "da", "rasende", true, &start, &end, "published", 10, 0)
 	if err != nil {
 		t.Fatalf("ranged search: %v", err)
 	}
@@ -166,7 +170,7 @@ func TestSearchDateRangeAndOrdering(t *testing.T) {
 		t.Errorf("ranged = %v, want %v", got, want)
 	}
 
-	descending, err := rssSearch.Search(ctx, "rasende", false, nil, nil, "-published", 10, 0)
+	descending, err := rssSearch.Search(ctx, "da", "rasende", false, nil, nil, "-published", 10, 0)
 	if err != nil {
 		t.Fatalf("descending search: %v", err)
 	}
@@ -175,7 +179,7 @@ func TestSearchDateRangeAndOrdering(t *testing.T) {
 	}
 
 	// Offset paginates rather than re-returning the first row.
-	page2, err := rssSearch.Search(ctx, "rasende", false, nil, nil, "published", 1, 1)
+	page2, err := rssSearch.Search(ctx, "da", "rasende", false, nil, nil, "published", 1, 1)
 	if err != nil {
 		t.Fatalf("paged search: %v", err)
 	}
@@ -188,7 +192,7 @@ func TestCountsAggregate(t *testing.T) {
 	rssSearch := newTestSearch(t, corpus(t))
 	ctx := context.Background()
 
-	byDay, err := rssSearch.CountByDay(ctx, "rasende", true, nil, nil)
+	byDay, err := rssSearch.CountByDay(ctx, "da", "rasende", true, nil, nil)
 	if err != nil {
 		t.Fatalf("CountByDay: %v", err)
 	}
@@ -205,7 +209,7 @@ func TestCountsAggregate(t *testing.T) {
 		}
 	}
 
-	bySite, err := rssSearch.CountBySite(ctx, "rasende", true)
+	bySite, err := rssSearch.CountBySite(ctx, "da", "rasende", true)
 	if err != nil {
 		t.Fatalf("CountBySite: %v", err)
 	}
@@ -226,7 +230,7 @@ func TestReinsertDoesNotDuplicateIndexRows(t *testing.T) {
 		t.Fatalf("re-insert: %v", err)
 	}
 
-	results, err := rssSearch.Search(ctx, "rasende", false, nil, nil, "published", 10, 0)
+	results, err := rssSearch.Search(ctx, "da", "rasende", false, nil, nil, "published", 10, 0)
 	if err != nil {
 		t.Fatalf("search after re-insert: %v", err)
 	}
@@ -249,11 +253,128 @@ func TestRebuildRepopulatesIndex(t *testing.T) {
 	if empty {
 		t.Fatal("index is empty after rebuild")
 	}
-	results, err := rssSearch.Search(ctx, "raser", false, nil, nil, "published", 10, 0)
+	results, err := rssSearch.Search(ctx, "da", "raser", false, nil, nil, "published", 10, 0)
 	if err != nil {
 		t.Fatalf("search after rebuild: %v", err)
 	}
 	if got, want := itemIds(results), []string{"a", "b"}; !equal(got, want) {
 		t.Errorf("after rebuild = %v, want %v", got, want)
+	}
+}
+
+// newBilingualSearch builds a database holding both Danish and English items,
+// each inserted under a site of its own language, so each is stemmed by its own
+// analyzer.
+func newBilingualSearch(t *testing.T, danish []core.RssItemDto, english []core.RssItemDto) *RssSearch {
+	t.Helper()
+	cfg := &config.Config{DbConnStr: filepath.Join(t.TempDir(), "test.db")}
+	conn, err := db.Open(cfg)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.Migrate("up", conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	appContext := &core.AppContext{Config: cfg}
+	repo := repository.NewSqliteNews(appContext)
+	if _, err := repo.InsertItems(context.Background(), testSite, danish); err != nil {
+		t.Fatalf("insert danish items: %v", err)
+	}
+	if _, err := repo.InsertItems(context.Background(), englishSite, english); err != nil {
+		t.Fatalf("insert english items: %v", err)
+	}
+	return NewRssSearch(appContext, repo)
+}
+
+func englishItem(t *testing.T, id, title, content, published string) core.RssItemDto {
+	t.Helper()
+	it := item(t, id, title, content, published)
+	it.SiteName = englishSite.Name
+	it.SiteId = englishSite.Id
+	return it
+}
+
+// The claim the whole design rests on. Both languages share one FTS5 table, and
+// the rows in it are stems, not words — so nothing about the table itself keeps
+// them apart. What keeps them apart is that a search is scoped to the sites of
+// one language. If that filter is ever dropped, this is the test that notices.
+func TestSearchIsIsolatedPerLanguage(t *testing.T) {
+	rssSearch := newBilingualSearch(t,
+		[]core.RssItemDto{
+			item(t, "da1", "Rasende politiker råber ad ministeren", "Han var vred.", "2024-03-01T10:00:00Z"),
+			item(t, "da2", "Minister raser over nye tal", "Tallene er dårlige.", "2024-03-02T10:00:00Z"),
+		},
+		[]core.RssItemDto{
+			englishItem(t, "en1", "Minister outraged over new figures", "The figures are bad.", "2024-03-03T10:00:00Z"),
+			englishItem(t, "en2", "Public outrage as prices rise", "Everyone is furious.", "2024-03-04T10:00:00Z"),
+		})
+	ctx := context.Background()
+
+	danish, err := rssSearch.Search(ctx, "da", "rasende", false, nil, nil, "published", 10, 0)
+	if err != nil {
+		t.Fatalf("danish search: %v", err)
+	}
+	if got, want := itemIds(danish), []string{"da1", "da2"}; !equal(got, want) {
+		t.Errorf("danish search = %v, want %v", got, want)
+	}
+
+	english, err := rssSearch.Search(ctx, "en", "outrage", false, nil, nil, "published", 10, 0)
+	if err != nil {
+		t.Fatalf("english search: %v", err)
+	}
+	if got, want := itemIds(english), []string{"en1", "en2"}; !equal(got, want) {
+		t.Errorf("english search = %v, want %v", got, want)
+	}
+}
+
+// The English premise word must collapse its inflections the way "rasende" does,
+// end to end and not just in the analyzer: "outraged" in a headline has to be
+// found by searching "outrage".
+func TestSearchMatchesEnglishInflections(t *testing.T) {
+	rssSearch := newBilingualSearch(t, nil, []core.RssItemDto{
+		englishItem(t, "en1", "Minister outraged over new figures", "The figures are bad.", "2024-03-03T10:00:00Z"),
+		englishItem(t, "en2", "Public outrage as prices rise", "Everyone is furious.", "2024-03-04T10:00:00Z"),
+		englishItem(t, "en3", "Happy dog finds new owner", "Nothing upsetting here.", "2024-03-05T10:00:00Z"),
+	})
+	ctx := context.Background()
+
+	for _, query := range []string{"outrage", "outraged", "outrages"} {
+		results, err := rssSearch.Search(ctx, "en", query, false, nil, nil, "published", 10, 0)
+		if err != nil {
+			t.Fatalf("search %q: %v", query, err)
+		}
+		if got, want := itemIds(results), []string{"en1", "en2"}; !equal(got, want) {
+			t.Errorf("search(%q) = %v, want %v", query, got, want)
+		}
+	}
+}
+
+// Rebuild re-stems every row from scratch. It has to consult each row's site to
+// know which analyzer to use; if it ever falls back to one language for the whole
+// table, the other edition's search silently goes empty. Nothing else would say so.
+func TestRebuildKeepsBothLanguagesSearchable(t *testing.T) {
+	rssSearch := newBilingualSearch(t,
+		[]core.RssItemDto{item(t, "da1", "Rasende politiker", "Vred.", "2024-03-01T10:00:00Z")},
+		[]core.RssItemDto{englishItem(t, "en1", "Public outrage as prices rise", "Furious.", "2024-03-04T10:00:00Z")})
+	ctx := context.Background()
+
+	if err := rssSearch.Rebuild(ctx); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	danish, err := rssSearch.Search(ctx, "da", "raser", false, nil, nil, "published", 10, 0)
+	if err != nil {
+		t.Fatalf("danish search: %v", err)
+	}
+	if got, want := itemIds(danish), []string{"da1"}; !equal(got, want) {
+		t.Errorf("after rebuild, danish search = %v, want %v", got, want)
+	}
+
+	english, err := rssSearch.Search(ctx, "en", "outraged", false, nil, nil, "published", 10, 0)
+	if err != nil {
+		t.Fatalf("english search: %v", err)
+	}
+	if got, want := itemIds(english), []string{"en1"}; !equal(got, want) {
+		t.Errorf("after rebuild, english search = %v, want %v", got, want)
 	}
 }

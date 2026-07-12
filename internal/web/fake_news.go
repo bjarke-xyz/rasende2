@@ -25,7 +25,7 @@ import (
 
 func (w *web) HandleGetFakeNews(c *gin.Context) {
 	ctx := c.Request.Context()
-	title := "Fake News | Rasende"
+	title := LangOf(c).T("page.fakeNews")
 	onlyGrid := StringForm(c, "only-grid", "false") == "true"
 	cursorQuery := c.Query("cursor")
 	var publishedOffset *time.Time
@@ -106,7 +106,7 @@ func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 		return
 	}
 	if fakeNewsDto.Slug() != querySlug {
-		c.Redirect(http.StatusFound, fmt.Sprintf("/fake-news/%v", fakeNewsDto.Slug()))
+		c.Redirect(http.StatusFound, fmt.Sprintf("/%v/fake-news/%v", LangOf(c).Code, fakeNewsDto.Slug()))
 		return
 	}
 	// if fakeNewsDto.Published.Format(time.DateOnly) != date.Format(time.DateOnly) {
@@ -131,10 +131,10 @@ func (w *web) HandleGetFakeNewsArticle(c *gin.Context) {
 
 func (w *web) HandleGetTitleGenerator(c *gin.Context) {
 	ctx := c.Request.Context()
-	title := "Title Generator | Rasende"
+	title := LangOf(c).T("page.titleGenerator")
 	selectedSiteId := IntQuery(c, "siteId", 0)
 
-	sites, err := w.appContext.Deps.Service.GetSiteInfos(ctx)
+	sites, err := w.appContext.Deps.Service.GetSiteInfos(ctx, LangOf(c))
 	if err != nil {
 		log.Printf("error getting sites: %v", err)
 		w.renderError(c, http.StatusInternalServerError, err)
@@ -176,7 +176,6 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 		_insertedAtOffset := time.Unix(cursorQuery, 0).UTC()
 		insertedAtOffset = &_insertedAtOffset
 	}
-	log.Println("insertedAtOffset", insertedAtOffset)
 	siteInfo, err := w.appContext.Deps.Service.GetSiteInfoById(ctx, siteId)
 	if err != nil {
 		w.renderErrorFragment(c, http.StatusInternalServerError, err)
@@ -192,21 +191,27 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 		w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		return
 	}
-	log.Println("items", items[len(items)-1])
-	cursor := fmt.Sprintf("%v", items[len(items)-1].InsertedAt.Unix())
-	log.Println("cursor", cursor)
+	// A site that is configured but not yet fetched has no items — every new site
+	// is in that state until the RSS job first runs. Generate from its description
+	// alone rather than refusing: the prompt carries the description too, and the
+	// previous titles only sharpen the imitation. The cursor stays empty because
+	// there is nothing to page back through.
+	cursor := ""
+	if len(items) > 0 {
+		cursor = fmt.Sprintf("%v", items[len(items)-1].InsertedAt.Unix())
+	}
 	itemTitles := make([]string, len(items))
 	for i, item := range items {
 		itemTitles[i] = item.Title
 	}
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
-	stream, err := w.appContext.Deps.AiClient.GenerateArticleTitles(c.Request.Context(), siteInfo.Name, siteInfo.DescriptionEn, itemTitles, 10, temperature)
+	stream, err := w.appContext.Deps.AiClient.GenerateArticleTitles(c.Request.Context(), *siteInfo, itemTitles, 10, temperature)
 	if err != nil {
 		log.Printf("LLM failed: %v", err)
 
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
-			w.renderErrorFragment(c, http.StatusInternalServerError, fmt.Errorf("try again later"))
+			w.renderErrorFragment(c, http.StatusInternalServerError, fmt.Errorf("%v", LangOf(c).T("error.tryAgainLater")))
 		} else {
 			w.renderErrorFragment(c, http.StatusInternalServerError, err)
 		}
@@ -219,25 +224,39 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "close")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+	// emitTitle finishes the title being accumulated and streams it to the page.
+	// A model puts blank lines between titles, and a blank line is not a title:
+	// dropping it here is what keeps the page from filling with empty links.
+	emitTitle := func() {
+		title := pkg.CleanGeneratedTitle(currentTitle.String())
+		currentTitle.Reset()
+		if title == "" {
+			return
+		}
+		titles = append(titles, title)
+		c.SSEvent("title", w.renderer.String(c, "generatedTitleLink", components.GeneratedTitleModel{SiteId: siteInfo.Id, Title: title}))
+		c.Writer.Flush()
+	}
+
 	c.Stream(func(io.Writer) bool {
 		for {
 			response, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
-				log.Println("\nStream finished")
+				// The model does not always end its last line with a newline, so the
+				// final title is still sitting in the buffer. Without this it is
+				// silently dropped.
+				emitTitle()
 				for _, title := range titles {
-					if len(title) > 0 {
-						externalId, err := pkg.NewNanoid()
-						if err != nil {
-							log.Printf("error making nanoid: %v", err)
-						} else {
-							err = w.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title, externalId)
-							if err != nil {
-								log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
-							}
-						}
+					externalId, err := pkg.NewNanoid()
+					if err != nil {
+						log.Printf("error making nanoid: %v", err)
+						continue
+					}
+					if err := w.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title, externalId); err != nil {
+						log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
 					}
 				}
-				c.SSEvent("button", w.renderer.String("showMoreTitlesButton", components.ShowMoreTitlesModel{SiteId: siteInfo.Id, Cursor: cursor}))
+				c.SSEvent("button", w.renderer.String(c, "showMoreTitlesButton", components.ShowMoreTitlesModel{SiteId: siteInfo.Id, Cursor: cursor}))
 				c.SSEvent("sse-close", "sse-close")
 				c.Writer.Flush()
 				return false
@@ -246,15 +265,9 @@ func (w *web) HandleGetSseTitles(c *gin.Context) {
 				log.Printf("\nStream error: %v\n", err)
 				return false
 			}
-			content := response.Content()
-			for _, ch := range content {
+			for _, ch := range response.Content() {
 				if ch == '\n' {
-					title := strings.TrimSpace(currentTitle.String())
-					titles = append(titles, title)
-
-					c.SSEvent("title", w.renderer.String("generatedTitleLink", components.GeneratedTitleModel{SiteId: siteInfo.Id, Title: title}))
-					c.Writer.Flush()
-					currentTitle.Reset()
+					emitTitle()
 				} else {
 					currentTitle.WriteRune(ch)
 				}
@@ -276,7 +289,7 @@ func (w *web) HandleGetTitleGeneratorSse(c *gin.Context) {
 func (w *web) HandleGetArticleGenerator(c *gin.Context) {
 	ctx := c.Request.Context()
 	log.Println(c.Request.URL.Query())
-	pageTitle := "Article Generator | Fake News"
+	pageTitle := LangOf(c).T("page.articleGenerator")
 	siteId := IntQuery(c, "siteId", 0)
 	if siteId == 0 {
 		w.renderError(c, http.StatusBadRequest, fmt.Errorf("invalid siteId"))
@@ -355,9 +368,9 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 		c.Writer.Header().Set("Connection", "close")
 		c.Writer.Header().Set("Transfer-Encoding", "chunked")
 		if article.ImageUrl != nil && *article.ImageUrl != "" {
-			c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: *article.ImageUrl, Alt: article.Title}))
+			c.SSEvent("image", w.renderer.String(c, "articleImg", components.ArticleImgModel{Src: *article.ImageUrl, Alt: article.Title}))
 		} else {
-			c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: config.PlaceholderImgUrl, Alt: article.Title}))
+			c.SSEvent("image", w.renderer.String(c, "articleImg", components.ArticleImgModel{Src: config.PlaceholderImgUrl, Alt: article.Title}))
 		}
 		c.Stream(func(w io.Writer) bool {
 			sseContent := strings.ReplaceAll(article.Content, "\n", "<br />")
@@ -370,7 +383,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 	}
 
 	articleImgPromise := pkg.NewPromise(func() (string, error) {
-		imgUrl, err := w.appContext.Deps.AiClient.GenerateImage(c.Request.Context(), site.Name, site.DescriptionEn, article.Title, true)
+		imgUrl, err := w.appContext.Deps.AiClient.GenerateImage(c.Request.Context(), *site, article.Title, true)
 		if err != nil {
 			log.Printf("error maing fake news img: %v", err)
 		}
@@ -381,7 +394,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 	})
 
 	var temperature float32 = 1.0
-	stream, err := w.appContext.Deps.AiClient.GenerateArticleContent(c.Request.Context(), site.Name, site.Description, article.Title, temperature)
+	stream, err := w.appContext.Deps.AiClient.GenerateArticleContent(c.Request.Context(), *site, article.Title, temperature)
 	if err != nil {
 		log.Printf("LLM failed: %v", err)
 		var apiError *openai.APIError
@@ -415,7 +428,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 						log.Printf("error getting LLM img: %v", err)
 					}
 					if imgUrl != "" {
-						c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
+						c.SSEvent("image", w.renderer.String(c, "articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
 						imgUrlSent = true
 					}
 				}
@@ -440,7 +453,7 @@ func (w *web) HandleGetSseArticleContent(c *gin.Context) {
 						log.Printf("error getting LLM img: %v", err)
 					}
 					if imgUrl != "" {
-						c.SSEvent("image", w.renderer.String("articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
+						c.SSEvent("image", w.renderer.String(c, "articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
 						imgUrlSent = true
 					}
 				}
@@ -497,14 +510,14 @@ func (w *web) HandlePostPublishFakeNews(c *gin.Context) {
 		return
 	}
 	article.Highlighted = newHighlighted
-	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/fake-news/%v", article.Slug()))
+	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/%v/fake-news/%v", LangOf(c).Code, article.Slug()))
 }
 
 func (w *web) HandlePostResetContent(c *gin.Context) {
 	ctx := c.Request.Context()
 	redirectPath := RefererOrDefault(c, "/")
 	if !auth.IsAdmin(c) {
-		AddFlashWarn(c, "Requires admin")
+		AddFlashWarn(c, LangOf(c).T("error.requiresAdmin"))
 		c.Redirect(http.StatusSeeOther, redirectPath)
 		return
 	}

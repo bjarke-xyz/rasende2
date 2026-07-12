@@ -1,10 +1,8 @@
 package web
 
 import (
-	"context"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
@@ -14,55 +12,17 @@ import (
 
 var allowedOrderBys = []string{"-published", "published", "-_score", "_score"}
 
-func (w *web) GetChartdata(ctx context.Context, query string) (core.ChartsResult, error) {
-	isRasende := query == "rasende"
-
-	siteCountPromise := pkg.NewPromise(func() ([]core.SiteCount, error) {
-		return w.appContext.Deps.Service.GetSiteCountForSearchQuery(ctx, query, false)
-	})
-
-	now := time.Now()
-	sevenDaysAgo := now.Add(-time.Hour * 24 * 6)
-	tomorrow := now.Add(time.Hour * 24)
-	itemCount, err := w.appContext.Deps.Service.GetItemCountForSearchQuery(ctx, query, false, &sevenDaysAgo, &tomorrow, "published")
-	if err != nil {
-		log.Printf("failed to get items with query %v: %v", query, err)
-		return core.ChartsResult{}, err
-	}
-
-	siteCount, err := siteCountPromise.Get()
-	if err != nil {
-		log.Printf("failed to get site count with query %v: %v", query, err)
-		return core.ChartsResult{}, err
-	}
-
-	lineTitle := "Den seneste uges raserier"
-	lineDatasetLabel := "Raseriudbrud"
-	doughnutTitle := "Raseri i de forskellige medier"
-	if !isRasende {
-		lineTitle = "Den seneste uges brug af '" + query + "'"
-		lineDatasetLabel = "Antal '" + query + "'"
-		doughnutTitle = "Brug af '" + query + "' i de forskellige medier"
-	}
-	chartsResult := core.ChartsResult{
-		Charts: []core.ChartResult{
-			core.MakeLineChartFromSearchQueryCount(itemCount, lineTitle, lineDatasetLabel),
-			core.MakeDoughnutChartFromSiteCount(siteCount, doughnutTitle),
-		},
-	}
-	return chartsResult, nil
-}
-
 func (w *web) HandleGetSearch(c *gin.Context) {
+	l := LangOf(c)
 	searchViewModel := components.SearchViewModel{
-		Base: w.getBaseModel(c, "Søg | Rasende"),
+		Base: w.getBaseModel(c, l.T("page.search")),
 	}
 	w.renderer.Page(c, http.StatusOK, "search", searchViewModel.Base, searchViewModel)
 }
 
 func (w *web) HandlePostSearch(c *gin.Context) {
-	// query := c.Query("q")
 	ctx := c.Request.Context()
+	l := LangOf(c)
 	query := c.Request.FormValue("search")
 	offset := IntForm(c, "offset", 0)
 	limit := IntForm(c, "limit", 100)
@@ -74,8 +34,7 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 
 	chartsPromise := pkg.NewPromise(func() (core.ChartsResult, error) {
 		if includeCharts {
-			chartData, err := w.GetChartdata(ctx, query)
-			return chartData, err
+			return w.appContext.Deps.Service.GetChartData(ctx, l, query)
 		} else {
 			return core.ChartsResult{}, nil
 		}
@@ -84,7 +43,7 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 	searchContentStr := StringForm(c, "content", "false")
 	searchContent := searchContentStr == "on"
 	orderBy := allowedOrderBys[0]
-	results, err := w.appContext.Deps.Service.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
+	results, err := w.appContext.Deps.Service.SearchItems(ctx, l, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		w.renderErrorFragment(c, http.StatusInternalServerError, err)
@@ -101,8 +60,7 @@ func (w *web) HandlePostSearch(c *gin.Context) {
 	}
 	searchResultsModel := components.SearchResultsViewModel{
 		SearchResults: core.SearchResult{
-			HighlightedWords: []string{query},
-			Items:            results,
+			Items: results,
 		},
 		ChartsResult:  chartsResult,
 		NextOffset:    offset + limit,

@@ -16,8 +16,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/metrics"
 	"github.com/bjarke-xyz/rasende2/internal/storage"
+	"github.com/bjarke-xyz/rasende2/pkg"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -41,18 +43,27 @@ func NewLLMClient(appContext *core.AppContext) core.AiClient {
 	}
 }
 
-func (o *llmClient) GenerateImage(ctx context.Context, siteName string, siteDescription string, articleTitle string, translateTitle bool) (string, error) {
+// siteLang is the edition a site belongs to, and so the language its fake news
+// must be written in. The repository rejects a site whose language has no
+// edition at startup, so this cannot miss at runtime.
+func siteLang(site core.NewsSite) lang.Lang {
+	return lang.MustGet(lang.Code(site.Language))
+}
+
+func (o *llmClient) GenerateImage(ctx context.Context, site core.NewsSite, articleTitle string, translateTitle bool) (string, error) {
 	if o.useFake {
 		return "https://placecats.com/512/512", nil
 	}
-	if translateTitle {
+	// The image model prompts in English, so a title from a non-English site has
+	// to be translated first. An English site's title already is English.
+	if translateTitle && siteLang(site).Code != lang.En {
 		req := openai.ChatCompletionRequest{
 			Model:       chatModel,
 			Temperature: 1,
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleSystem,
-					Content: "Translate the following danish text to english",
+					Content: fmt.Sprintf("Translate the following %v text to English", siteLang(site).Name),
 				},
 				{
 					Role:    openai.ChatMessageRoleUser,
@@ -90,7 +101,7 @@ func (o *llmClient) GenerateImage(ctx context.Context, siteName string, siteDesc
 		},
 		Stream: false,
 	}
-	prompt := fmt.Sprintf("Create a header image for an article titled '%v', to be used on %v. %v. **Do not include any text, such as the newspaper name, article title, or any other wording, in the image.**", articleTitle, siteName, siteDescription)
+	prompt := fmt.Sprintf("Create a header image for an article titled '%v', to be used on %v. %v. **Do not include any text, such as the newspaper name, article title, or any other wording, in the image.**", articleTitle, site.Name, site.Description)
 	promptResp, err := o.client.CreateChatCompletion(ctx, promptReq)
 	metrics.AiCounterImagePromptInc()
 	if err != nil {
@@ -144,7 +155,7 @@ func (o *llmClient) GenerateImage(ctx context.Context, siteName string, siteDesc
 		Modalities: []string{"image", "text"},
 	}
 
-	log.Printf("GenerateImage - site: %v, articleTitle: %v", siteName, articleTitle)
+	log.Printf("GenerateImage - site: %v, articleTitle: %v", site.Name, articleTitle)
 	log.Printf("GenerateImage - Prompt=%v", prompt)
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -228,8 +239,8 @@ func (o *llmClient) uploadImage(ctx context.Context, imgBase64Json string, artic
 	return url, nil
 }
 
-func (o *llmClient) GenerateArticleTitlesList(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
-	streamResp, err := o.GenerateArticleTitles(ctx, siteName, siteDescription, previousTitles, newTitlesCount, temperature)
+func (o *llmClient) GenerateArticleTitlesList(ctx context.Context, site core.NewsSite, previousTitles []string, newTitlesCount int, temperature float32) ([]string, error) {
+	streamResp, err := o.GenerateArticleTitles(ctx, site, previousTitles, newTitlesCount, temperature)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +253,7 @@ func (o *llmClient) GenerateArticleTitlesList(ctx context.Context, siteName stri
 				titlesStr := sb.String()
 				titles := strings.Split(titlesStr, "\n")
 				for _, title := range titles {
-					title := strings.TrimSpace(title)
+					title := pkg.CleanGeneratedTitle(title)
 					if len(title) > 0 {
 						titlesArr = append(titlesArr, title)
 					}
@@ -262,7 +273,7 @@ func (o *llmClient) generateArticleTitlesFake() (core.ChatCompletionStream, erro
 	return fakeChatCompletionStream, nil
 }
 
-func (o *llmClient) GenerateArticleTitles(ctx context.Context, siteName string, siteDescription string, previousTitles []string, newTitlesCount int, temperature float32) (core.ChatCompletionStream, error) {
+func (o *llmClient) GenerateArticleTitles(ctx context.Context, site core.NewsSite, previousTitles []string, newTitlesCount int, temperature float32) (core.ChatCompletionStream, error) {
 	if o.useFake {
 		return o.generateArticleTitlesFake()
 	}
@@ -273,28 +284,51 @@ func (o *llmClient) GenerateArticleTitles(ctx context.Context, siteName string, 
 		previousTitles = previousTitles[:maxTitles]
 	}
 
-	previousTitlesStr := strings.Join(previousTitles, "\n")
-	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få stillet en række tidligere overskrifter til rådighed. Find på %v nye overskrifter, der minder om de overskrifter du får. De nye overskrifter må gerne være sjove eller humoristiske, eller være satiriske i forhold til nyhedsmediet, men de skal stadig være realistiske nok, til at man kunne tro, at de er ægte. Begynd hver overskrift på en ny linje. Start hver linje med et mellemrum (' '). Returner kun overskrifter, intet andet. Lav højest %v overskrifter.", siteName, siteDescription, newTitlesCount, newTitlesCount)
-	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. You will be provided a description of the news media '%v', and a list of previous article titles from that news media. Start each title on a new line. Start each line with a space (' '). Return only titles, nothing else. Make at most %v titles. The titles MUST be danish!. The titles MUST start with a capital letter.", siteName, siteName, newTitlesCount)
-	log.Printf("GenerateArticleTitles - site: %v, previousTitles: %v", siteName, len(previousTitles))
+	// previousTitles are the site's actual recent headlines, and they are what
+	// makes the joke land: they drag the model onto this week's news, so a reader
+	// recognises the events being sent up instead of reading generic satire. They
+	// carry the site's voice too, but topicality is the point.
+	//
+	// A site that has not been fetched yet has none — every site is in that state
+	// until the RSS job first runs. Generate from the description alone rather
+	// than refusing; the result is funny but timeless, and it fixes itself on the
+	// first fetch. Say the list is absent rather than promising one and then
+	// sending an empty user message, which some APIs reject.
+	source := fmt.Sprintf("You will be provided a description of the news media '%v', and a list of its recent real article titles. Use them to ground your satire in the events currently in the news.", site.Name)
+	if len(previousTitles) == 0 {
+		source = fmt.Sprintf("You will be provided a description of the news media '%v'. No recent article titles are available, so work from the description alone.", site.Name)
+	}
+	// No instruction to prefix lines with a space: the consumers split on newlines
+	// and trim, so it bought nothing — and the model imitated the quotes in the
+	// example, emitting every title wrapped in apostrophes.
+	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. %v Start each title on a new line. Return only titles, nothing else: no numbering, no bullets, and do not wrap a title in quotation marks. Make at most %v titles. The titles MUST be written in %v!. The titles MUST start with a capital letter.", site.Name, source, newTitlesCount, siteLang(site).Name)
+	log.Printf("GenerateArticleTitles - site: %v, previousTitles: %v", site.Name, len(previousTitles))
+	// The user turn is the recent headlines. It must exist even when there are
+	// none: given only system messages the model has nothing to answer and returns
+	// an empty completion, so an unfetched site would silently generate nothing.
+	userPrompt := strings.Join(previousTitles, "\n")
+	if len(previousTitles) == 0 {
+		userPrompt = "Write the titles now."
+	}
+	messages := []openai.ChatCompletionMessage{
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: sysPrompt,
+		},
+		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: fmt.Sprintf("Description of '%v': '%v'", site.Name, site.Description),
+		},
+		{
+			Role:    openai.ChatMessageRoleUser,
+			Content: userPrompt,
+		},
+	}
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
 		Temperature: temperature,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: sysPrompt,
-			},
-			{
-				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Description of '%v': '%v'", siteName, siteDescription),
-			},
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: previousTitlesStr,
-			},
-		},
-		Stream: true,
+		Messages:    messages,
+		Stream:      true,
 	}
 	log.Printf("GenerateArticleTitles - Prompts=%+v", req.Messages)
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
@@ -305,12 +339,12 @@ func (o *llmClient) GenerateArticleTitles(ctx context.Context, siteName string, 
 	return wrapLlmChatCompletionStream(stream), err
 }
 
-func (o *llmClient) SelectBestArticleTitle(ctx context.Context, siteName string, siteDescription string, articleTitles []string) (string, error) {
+func (o *llmClient) SelectBestArticleTitle(ctx context.Context, site core.NewsSite, articleTitles []string) (string, error) {
 	if o.useFake {
 		return articleTitles[0], nil
 	}
-	log.Printf("SelectBestArticleTitle - site: %v", siteName)
-	// sysPrompt := fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", siteName, siteDescription, len(articleTitles))
+	log.Printf("SelectBestArticleTitle - site: %v", site.Name)
+	// sysPrompt := fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", site.Name, site.Description, len(articleTitles))
 	sysPrompt := fmt.Sprintf("You are the editor of a satirical news media like the Onion or Rokoko Posten. You are given %v news articles titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", len(articleTitles))
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
@@ -348,8 +382,8 @@ func (o *llmClient) SelectBestArticleTitle(ctx context.Context, siteName string,
 	}
 }
 
-func (o *llmClient) GenerateArticleContentStr(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (string, error) {
-	streamResp, err := o.GenerateArticleContent(ctx, siteName, siteDescription, articleTitle, temperature)
+func (o *llmClient) GenerateArticleContentStr(ctx context.Context, site core.NewsSite, articleTitle string, temperature float32) (string, error) {
+	streamResp, err := o.GenerateArticleContent(ctx, site, articleTitle, temperature)
 	if err != nil {
 		return "", err
 	}
@@ -373,14 +407,12 @@ func (o *llmClient) generateArticleContentFake() (core.ChatCompletionStream, err
 	return fakeChatCompletionStream, nil
 }
 
-func (o *llmClient) GenerateArticleContent(ctx context.Context, siteName string, siteDescription string, articleTitle string, temperature float32) (core.ChatCompletionStream, error) {
+func (o *llmClient) GenerateArticleContent(ctx context.Context, site core.NewsSite, articleTitle string, temperature float32) (core.ChatCompletionStream, error) {
 	if o.useFake {
 		return o.generateArticleContentFake()
 	}
-	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", siteName, articleTitle, temperature)
-	// sysPrompt := fmt.Sprintf("Du er en journalist på mediet %v. %v. \nDu vil få en overskrift, og du skal skrive en artikel der passer til den overskrift. Artiklen må IKKE starte med overskriften!", siteName, siteDescription)
-	// sysPrompt := "You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given a article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!!"
-	sysPrompt := "Du er en journalist på et satirisk nyhedsmedie, som f.eks. The Onion eller Rokoko Posten. Du vil få en overskrift, og navn og beskrivelse af et nyhedsmedia. Du skal skrive en artikel der passer til titlen, og nyhedsmediet. HUSK at artiklen skal publiceres i et satirisk nyhedsmedie som Rokoko Posten eller The Onion. Hold det kort, 2-3 afsnit. Artiklen MÅ IKKE starte med overskriften!!"
+	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", site.Name, articleTitle, temperature)
+	sysPrompt := fmt.Sprintf("You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given an article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!! The article MUST be written in %v.", siteLang(site).Name)
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
 		Temperature: temperature,
@@ -391,7 +423,7 @@ func (o *llmClient) GenerateArticleContent(ctx context.Context, siteName string,
 			},
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: fmt.Sprintf("Beskrivelse af nyhedsmediet '%v': '%v'", siteName, siteDescription),
+				Content: fmt.Sprintf("Description of the news media '%v': '%v'", site.Name, site.Description),
 			},
 			{
 				Role:    openai.ChatMessageRoleUser,

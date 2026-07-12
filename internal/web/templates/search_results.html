@@ -5,8 +5,8 @@
 		<form>
 			<input type="hidden" name="offset" value="{{.NextOffset}}" />
 			<input type="hidden" name="search" value="{{.Search}}" />
-			<button class="btn-primary" hx-post="/search" hx-target="#replaceMe" hx-swap="outerHTML">
-				Hent flere
+			<button class="btn-primary" hx-post="search" hx-target="#replaceMe" hx-swap="outerHTML">
+				{{t "search.loadMore"}}
 			</button>
 		</form>
 	</div>

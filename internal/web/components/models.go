@@ -11,8 +11,27 @@ type BaseOpenGraphModel struct {
 	Description string
 }
 
+// Edition is one entry in the language switcher: another edition of the site,
+// linking to the page the visitor is already on.
+type Edition struct {
+	Path string
+	Text string
+}
+
 type BaseViewModel struct {
-	Path          string
+	Path string
+
+	// Lang is the edition's code. It reaches the layout's <html lang> and its
+	// <base href>, which is what makes every relative path in every template
+	// resolve inside this edition.
+	Lang     string
+	Editions []Edition
+
+	// ShowCredit puts the "inspired by rasende.dk" line in the footer. Only the
+	// index sets it: the credit is for the site as a whole, and repeating it on
+	// every page would be noise.
+	ShowCredit bool
+
 	UnixBuildTime int64
 	Title         string
 	OpenGraph     *BaseOpenGraphModel
@@ -55,6 +74,11 @@ func (b BaseViewModel) Flashes() []Flash {
 type ErrorModel struct {
 	Base BaseViewModel
 	Err  error
+
+	// Unknown is what Message falls back to, already translated. The model
+	// carries it rather than calling the catalog itself, because the fragment
+	// renderer builds an ErrorModel with no Base to hang a language off.
+	Unknown string
 }
 
 // Message is the error text. ErrorModel carries an error rather than a string
@@ -62,6 +86,9 @@ type ErrorModel struct {
 // interface, so guard here.
 func (e ErrorModel) Message() string {
 	if e.Err == nil {
+		if e.Unknown != "" {
+			return e.Unknown
+		}
 		return "unknown error"
 	}
 	return e.Err.Error()

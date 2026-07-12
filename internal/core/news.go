@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/gosimple/slug"
 )
 
@@ -36,15 +37,15 @@ type NewsRepository interface {
 type NewsService interface {
 	Initialise(ctx context.Context)
 	Dispose()
-	GetIndexPageData(ctx context.Context) (*IndexPageData, error)
-	GetChartData(ctx context.Context, query string) (ChartsResult, error)
+	GetIndexPageData(ctx context.Context, l lang.Lang) (*IndexPageData, error)
+	GetChartData(ctx context.Context, l lang.Lang, query string) (ChartsResult, error)
 	GetSiteNames(ctx context.Context) ([]string, error)
-	GetSiteInfos(ctx context.Context) ([]NewsSite, error)
+	GetSiteInfos(ctx context.Context, l lang.Lang) ([]NewsSite, error)
 	GetSiteInfo(ctx context.Context, siteName string) (*NewsSite, error)
 	GetSiteInfoById(ctx context.Context, id int) (*NewsSite, error)
-	SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, orderBy string) ([]RssSearchResult, error)
-	GetItemCountForSearchQuery(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]SearchQueryCount, error)
-	GetSiteCountForSearchQuery(ctx context.Context, query string, searchContent bool) ([]SiteCount, error)
+	SearchItems(ctx context.Context, l lang.Lang, query string, searchContent bool, offset int, limit int, orderBy string) ([]RssSearchResult, error)
+	GetItemCountForSearchQuery(ctx context.Context, l lang.Lang, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]SearchQueryCount, error)
+	GetSiteCountForSearchQuery(ctx context.Context, l lang.Lang, query string, searchContent bool) ([]SiteCount, error)
 	GetRecentTitles(ctx context.Context, siteInfo NewsSite, limit int, shuffle bool) ([]string, error)
 	GetRecentItems(ctx context.Context, siteId int, limit int, insertedAtOffset *time.Time) ([]RssItemDto, error)
 	RebuildSearchIndexAndLogError(ctx context.Context)
@@ -92,10 +93,20 @@ type RssSearchResult struct {
 }
 
 type NewsSite struct {
-	Name                 string   `json:"name"`
-	Urls                 []string `json:"urls"`
-	Description          string   `json:"description"`
-	DescriptionEn        string   `json:"descriptionEn"`
+	Name string   `json:"name"`
+	Urls []string `json:"urls"`
+
+	// Description is in English whatever the site's own language, because it is
+	// only ever read into an LLM prompt, and those are English too. The output
+	// language is a prompt parameter, not a property of this text.
+	Description string `json:"description"`
+
+	// Language is the language the site publishes in, and so the language its
+	// items are stemmed and searched in. Items carry no language of their own —
+	// they inherit this one. It must have an analyzer in internal/search, which
+	// the repository checks when it loads rss.json.
+	Language string `json:"language"`
+
 	Id                   int      `json:"id"`
 	Disabled             bool     `json:"disabled"`
 	ArticleHasContent    bool     `json:"articleHasContent"`
@@ -153,8 +164,7 @@ func (fn *FakeNewsDto) Identifier() string {
 }
 
 type SearchResult struct {
-	HighlightedWords []string          `json:"highlightedWords"`
-	Items            []RssSearchResult `json:"items"`
+	Items []RssSearchResult `json:"items"`
 }
 
 type ChartDataset struct {

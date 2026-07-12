@@ -3,33 +3,28 @@
 	<form>
 		<input
 			type="hidden"
-			hx-get="/"
+			hx-get="."
 			hx-trigger="rasende-focus from:body throttle:1s"
 			hx-target="#index_page"
 			hx-swap="outerHTML"
 		/>
 	</form>
 
-	<p class="centered lead">Seneste raseri:</p>
+	<p class="centered lead">{{t "index.latest"}}</p>
 	{{with .Latest}}
 		<div class="centered headline">{{template "itemLink" .}}</div>
-		<div class="centered lead" title="{{rfc3339 .Published}}">{{danishAgo .Published}}</div>
+		<div class="centered lead" title="{{rfc3339 .Published}}">{{ago .Published}}</div>
 	{{else}}
-		<div class="centered headline"><p>Ingen raseri!</p></div>
+		<div class="centered headline"><p>{{t "index.none"}}</p></div>
 	{{end}}
 
 	{{with .Earlier}}
 		<section class="earlier">
-			<p class="section-title">Tidligere raserier:</p>
+			<p class="section-title">{{t "index.earlier"}}</p>
 			{{range .}}<div>{{template "itemLink" .}}</div>{{end}}
 		</section>
 	{{end}}
 
 	<section class="charts-section">{{template "charts" .ChartsResult}}</section>
-
-	<p class="credit">
-		Inspireret af
-		<a href="https://web.archive.org/web/20200628061846/https://rasende.dk/">https://rasende.dk/</a>
-	</p>
 </div>
 {{end}}

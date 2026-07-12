@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/pkg"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -93,11 +94,18 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 			return
 		}
 		ctx := context.Background()
-		allSites, err := a.appContext.Deps.Service.GetSiteInfos(ctx)
-		if err != nil {
-			log.Printf("error site infos: %v", err)
-			c.JSON(500, err.Error())
-			return
+		// The cron generates for every edition, not just one, so it samples across
+		// all of them. Each site carries its own language, and that is what decides
+		// the language the article comes back in.
+		allSites := make([]core.NewsSite, 0)
+		for _, l := range lang.All {
+			sites, err := a.appContext.Deps.Service.GetSiteInfos(ctx, l)
+			if err != nil {
+				log.Printf("error site infos: %v", err)
+				c.JSON(500, err.Error())
+				return
+			}
+			allSites = append(allSites, sites...)
 		}
 		latestFakeNews, err := a.appContext.Deps.Service.GetRecentFakeNews(ctx, 3, nil)
 		if err != nil {
@@ -137,14 +145,14 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 		var temperature float32 = 1
 		var generatedTitleCount = 30
-		generatedArticleTitles, err := a.appContext.Deps.AiClient.GenerateArticleTitlesList(ctx, site.Name, site.DescriptionEn, recentArticleTitles, generatedTitleCount, temperature)
+		generatedArticleTitles, err := a.appContext.Deps.AiClient.GenerateArticleTitlesList(ctx, site, recentArticleTitles, generatedTitleCount, temperature)
 		if err != nil {
 			log.Printf("error getting generated article titles: %v", err)
 			c.JSON(500, err.Error())
 			return
 		}
 		log.Printf("generated titles: %v", strings.Join(generatedArticleTitles, ", "))
-		selectedTitle, err := a.appContext.Deps.AiClient.SelectBestArticleTitle(ctx, site.Name, site.DescriptionEn, generatedArticleTitles)
+		selectedTitle, err := a.appContext.Deps.AiClient.SelectBestArticleTitle(ctx, site, generatedArticleTitles)
 		if err != nil {
 			log.Printf("error selecting best article title: %v", err)
 			c.JSON(500, err.Error())
@@ -165,7 +173,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 		}
 
 		articleImgPromise := pkg.NewPromise(func() (string, error) {
-			imgUrl, err := a.appContext.Deps.AiClient.GenerateImage(ctx, site.Name, site.DescriptionEn, selectedTitle, true)
+			imgUrl, err := a.appContext.Deps.AiClient.GenerateImage(ctx, site, selectedTitle, true)
 			if err != nil {
 				log.Printf("error making fake news img: %v", err)
 			}
@@ -175,7 +183,7 @@ func (a *api) AutoGenerateFakeNews() gin.HandlerFunc {
 			return imgUrl, err
 		})
 
-		articleContent, err := a.appContext.Deps.AiClient.GenerateArticleContentStr(ctx, site.Name, site.DescriptionEn, selectedTitle, temperature)
+		articleContent, err := a.appContext.Deps.AiClient.GenerateArticleContentStr(ctx, site, selectedTitle, temperature)
 		if err != nil {
 			log.Printf("error generating article content: %v", err)
 			c.JSON(500, err.Error())

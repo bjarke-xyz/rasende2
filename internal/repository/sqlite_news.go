@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/search"
 	"github.com/bjarke-xyz/rasende2/pkg"
@@ -94,17 +97,41 @@ func placeholders(n int) string {
 	return strings.TrimSuffix(strings.Repeat("?,", n), ",")
 }
 
-func (r *sqliteNewsRepository) GetSites(ctx context.Context) ([]core.NewsSite, error) {
+// loadSites parses the embedded rss.json. The file cannot change at runtime, and
+// GetSites is on the search hot path — every search enriches its results and its
+// site counts with site names — so parse it once.
+//
+// It also rejects a site that belongs to no edition. That has to fail here, at
+// startup, because everything downstream — the analyzer that stems its items,
+// the prompt that writes its fake news — takes the language on trust. The
+// alternative is a panic later, in a background fetch or halfway through a
+// request.
+var loadSites = sync.OnceValues(func() ([]core.NewsSite, error) {
 	jsonBytes, err := dataFs.ReadFile("sitedata/rss.json")
 	if err != nil {
 		return nil, fmt.Errorf("could not load rss.json: %w", err)
 	}
 	var newsSites []core.NewsSite
-	err = json.Unmarshal(jsonBytes, &newsSites)
+	if err := json.Unmarshal(jsonBytes, &newsSites); err != nil {
+		return nil, err
+	}
+	for _, site := range newsSites {
+		if _, ok := lang.Get(site.Language); !ok {
+			return nil, fmt.Errorf("site %q (id %v) has language %q, which is not one of the editions", site.Name, site.Id, site.Language)
+		}
+	}
+	return newsSites, nil
+})
+
+// GetSites returns the configured news sites. The slice is cloned because the
+// backing one is shared by every caller: sorting or reordering the result would
+// otherwise corrupt it for everyone.
+func (r *sqliteNewsRepository) GetSites(ctx context.Context) ([]core.NewsSite, error) {
+	sites, err := loadSites()
 	if err != nil {
 		return nil, err
 	}
-	return newsSites, nil
+	return slices.Clone(sites), nil
 }
 
 func (r *sqliteNewsRepository) GetSiteNames(ctx context.Context) ([]string, error) {
@@ -335,7 +362,10 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to get inserted id: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, search.InsertFtsSQL, id, search.StemText(item.Title), search.StemText(item.Content)); err != nil {
+		// Stemmed in the site's language: an item has no language of its own, it
+		// inherits the one of the site that published it.
+		if _, err := tx.ExecContext(ctx, search.InsertFtsSQL, id,
+			search.StemText(rssUrl.Language, item.Title), search.StemText(rssUrl.Language, item.Content)); err != nil {
 			tx.Rollback()
 			return 0, fmt.Errorf("failed to index item %v: %w", item.ItemId, err)
 		}

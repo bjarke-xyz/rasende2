@@ -1,8 +1,15 @@
 {{define "layout"}}<!DOCTYPE html>
-<html lang="da">
+<html lang="{{.Lang}}">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		{{/*
+			Every relative path in every template resolves against this, which is what
+			puts the whole page inside one edition without a URL helper on each link.
+			htmx and EventSource both honour it. Absolute paths (/static, external
+			links) are unaffected, which is why the asset links below still work.
+		*/}}
+		<base href="/{{.Lang}}/" />
 		<title>{{.Title}}</title>
 		<link href="/static/css/style.css?v={{.UnixBuildTime}}" rel="stylesheet" />
 		<script src="/static/js/ready.js?v={{.UnixBuildTime}}"></script>
@@ -54,12 +61,17 @@
 <meta property="og:description" content="{{.Description}}" />
 {{end}}
 
+{{/*
+	The nav links are absolute, because headerLink marks the current page by
+	comparing against the request path, which carries the edition prefix.
+*/}}
 {{define "header"}}
 <header class="site-header">
 	<nav>
-		{{template "headerLink" (headerLink .Path "/" "Rasende")}}
-		{{template "headerLink" (headerLink .Path "/search" "Søg")}}
-		{{template "headerLink" (headerLink .Path "/fake-news" "Fake News")}}
+		{{$prefix := printf "/%s" .Lang}}
+		{{template "headerLink" (headerLink .Path $prefix (t "brand"))}}
+		{{template "headerLink" (headerLink .Path (printf "%s/search" $prefix) (t "nav.search"))}}
+		{{template "headerLink" (headerLink .Path (printf "%s/fake-news" $prefix) (t "nav.fakeNews"))}}
 	</nav>
 </header>
 {{end}}
@@ -70,19 +82,26 @@
 
 {{define "footer"}}
 <footer class="site-footer">
+	{{if .ShowCredit}}
+		<p class="credit">
+			{{t "footer.credit"}}
+			<a href="https://web.archive.org/web/20200628061846/https://rasende.dk/">https://rasende.dk/</a>
+		</p>
+	{{end}}
 	{{if .IsAnonymousUser}}
-		<a href="/login">Login</a>
+		<a href="login">{{t "footer.login"}}</a>
 	{{else}}
-		<form method="POST" action="/logout">
-			<button class="btn-primary">Logout</button>
+		<form method="POST" action="logout">
+			<button class="btn-primary">{{t "footer.logout"}}</button>
 		</form>
 	{{end}}
+	{{range .Editions}}<a href="{{.Path}}">{{.Text}}</a>{{end}}
 </footer>
 {{end}}
 
 {{define "flash"}}
 <div class="flash flash-{{lower .Kind}}">
-	<button type="button" class="flash-close" onclick="dismissFlash(this)" aria-label="Luk">&times;</button>
+	<button type="button" class="flash-close" onclick="dismissFlash(this)" aria-label="{{t "flash.close"}}">&times;</button>
 	{{range .Msgs}}<p>{{.}}</p>{{end}}
 </div>
 {{end}}

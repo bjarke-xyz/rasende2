@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/storage"
 	"github.com/bjarke-xyz/rasende2/pkg"
@@ -59,8 +60,8 @@ func NewRssService(context *core.AppContext, repository core.NewsRepository, sea
 	}
 }
 
-func (r *RssService) GetIndexPageData(ctx context.Context) (*core.IndexPageData, error) {
-	query := "rasende"
+func (r *RssService) GetIndexPageData(ctx context.Context, l lang.Lang) (*core.IndexPageData, error) {
+	query := l.DefaultQuery
 	offset := 0
 	limit := 10
 	searchContent := false
@@ -69,11 +70,11 @@ func (r *RssService) GetIndexPageData(ctx context.Context) (*core.IndexPageData,
 	indexPageData := &core.IndexPageData{}
 
 	chartsPromise := pkg.NewPromise(func() (core.ChartsResult, error) {
-		chartData, err := r.GetChartData(ctx, query)
+		chartData, err := r.GetChartData(ctx, l, query)
 		return chartData, err
 	})
 
-	results, err := r.SearchItems(ctx, query, searchContent, offset, limit, orderBy)
+	results, err := r.SearchItems(ctx, l, query, searchContent, offset, limit, orderBy)
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		return &core.IndexPageData{}, err
@@ -82,8 +83,7 @@ func (r *RssService) GetIndexPageData(ctx context.Context) (*core.IndexPageData,
 		results = results[0:limit]
 	}
 	searchResults := core.SearchResult{
-		HighlightedWords: []string{query},
-		Items:            results,
+		Items: results,
 	}
 	chartsData, err := chartsPromise.Get()
 	if err != nil {
@@ -95,17 +95,20 @@ func (r *RssService) GetIndexPageData(ctx context.Context) (*core.IndexPageData,
 	return indexPageData, nil
 }
 
-func (r *RssService) GetChartData(ctx context.Context, query string) (core.ChartsResult, error) {
-	isRasende := query == "rasende"
+// GetChartData builds the two charts for a query. The edition's own word gets
+// the editorial titles ("Den seneste uges raserier"); anything else the visitor
+// typed gets neutral ones naming the query back to them.
+func (r *RssService) GetChartData(ctx context.Context, l lang.Lang, query string) (core.ChartsResult, error) {
+	isDefaultQuery := query == l.DefaultQuery
 
 	siteCountPromise := pkg.NewPromise(func() ([]core.SiteCount, error) {
-		return r.GetSiteCountForSearchQuery(ctx, query, false)
+		return r.GetSiteCountForSearchQuery(ctx, l, query, false)
 	})
 
 	now := time.Now()
 	sevenDaysAgo := now.Add(-time.Hour * 24 * 6)
 	tomorrow := now.Add(time.Hour * 24)
-	itemCount, err := r.GetItemCountForSearchQuery(ctx, query, false, &sevenDaysAgo, &tomorrow, "published")
+	itemCount, err := r.GetItemCountForSearchQuery(ctx, l, query, false, &sevenDaysAgo, &tomorrow, "published")
 	if err != nil {
 		log.Printf("failed to get items with query %v: %v", query, err)
 		return core.ChartsResult{}, err
@@ -117,13 +120,13 @@ func (r *RssService) GetChartData(ctx context.Context, query string) (core.Chart
 		return core.ChartsResult{}, err
 	}
 
-	lineTitle := "Den seneste uges raserier"
-	lineDatasetLabel := "Raseriudbrud"
-	doughnutTitle := "Raseri i de forskellige medier"
-	if !isRasende {
-		lineTitle = "Den seneste uges brug af '" + query + "'"
-		lineDatasetLabel = "Antal '" + query + "'"
-		doughnutTitle = "Brug af '" + query + "' i de forskellige medier"
+	lineTitle := l.T("chart.line.title")
+	lineDatasetLabel := l.T("chart.line.dataset")
+	doughnutTitle := l.T("chart.pie.title")
+	if !isDefaultQuery {
+		lineTitle = l.T("chart.line.titleQuery", query)
+		lineDatasetLabel = l.T("chart.line.datasetQuery", query)
+		doughnutTitle = l.T("chart.pie.titleQuery", query)
 	}
 	chartsResult := core.ChartsResult{
 		Charts: []core.ChartResult{
@@ -206,8 +209,16 @@ func (r *RssService) GetSiteNames(ctx context.Context) ([]string, error) {
 	return siteNames, err
 }
 
-func (r *RssService) GetSiteInfos(ctx context.Context) ([]core.NewsSite, error) {
-	return r.repository.GetSites(ctx)
+// GetSiteInfos returns the sites of one edition. An edition only ever shows its
+// own sites — they are the sites its search can reach.
+func (r *RssService) GetSiteInfos(ctx context.Context, l lang.Lang) ([]core.NewsSite, error) {
+	sites, err := r.repository.GetSites(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(sites, func(site core.NewsSite) bool {
+		return site.Language != string(l.Code)
+	}), nil
 }
 
 func (r *RssService) GetSiteInfo(ctx context.Context, siteName string) (*core.NewsSite, error) {
@@ -235,12 +246,12 @@ func (r *RssService) GetSiteInfoById(ctx context.Context, id int) (*core.NewsSit
 	return nil, nil
 }
 
-func (r *RssService) SearchItems(ctx context.Context, query string, searchContent bool, offset int, limit int, orderBy string) ([]core.RssSearchResult, error) {
+func (r *RssService) SearchItems(ctx context.Context, l lang.Lang, query string, searchContent bool, offset int, limit int, orderBy string) ([]core.RssSearchResult, error) {
 	var items []core.RssSearchResult = []core.RssSearchResult{}
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	items, err := r.search.Search(ctx, query, searchContent, nil, nil, orderBy, limit, offset)
+	items, err := r.search.Search(ctx, string(l.Code), query, searchContent, nil, nil, orderBy, limit, offset)
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}
@@ -248,24 +259,24 @@ func (r *RssService) SearchItems(ctx context.Context, query string, searchConten
 	return items, nil
 }
 
-func (r *RssService) GetItemCountForSearchQuery(ctx context.Context, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]core.SearchQueryCount, error) {
+func (r *RssService) GetItemCountForSearchQuery(ctx context.Context, l lang.Lang, query string, searchContent bool, start *time.Time, end *time.Time, orderBy string) ([]core.SearchQueryCount, error) {
 	searchQueryCounts := make([]core.SearchQueryCount, 0)
 	if len(query) > 50 || len(query) <= 2 {
 		return searchQueryCounts, nil
 	}
-	searchQueryCounts, err := r.search.CountByDay(ctx, query, searchContent, start, end)
+	searchQueryCounts, err := r.search.CountByDay(ctx, string(l.Code), query, searchContent, start, end)
 	if err != nil {
 		return searchQueryCounts, fmt.Errorf("failed to search: %w", err)
 	}
 	return searchQueryCounts, nil
 }
 
-func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, query string, searchContent bool) ([]core.SiteCount, error) {
+func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, l lang.Lang, query string, searchContent bool) ([]core.SiteCount, error) {
 	var items []core.SiteCount = []core.SiteCount{}
 	if len(query) > 50 || len(query) <= 2 {
 		return items, nil
 	}
-	items, err := r.search.CountBySite(ctx, query, searchContent)
+	items, err := r.search.CountBySite(ctx, string(l.Code), query, searchContent)
 	if err != nil {
 		return items, fmt.Errorf("failed to search: %w", err)
 	}

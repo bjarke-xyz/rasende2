@@ -3,7 +3,7 @@
 	<form>
 		<input
 			type="hidden"
-			hx-get="/fake-news"
+			hx-get="fake-news"
 			hx-include="select[name='sorting']"
 			hx-push-url="true"
 			hx-trigger="change from:select[name='sorting'], rasende-focus, from:body throttle:1s"
@@ -12,14 +12,14 @@
 		/>
 	</form>
 	<div class="fake-news-header">
-		<h2>Falske Nyheder</h2>
+		<h2>{{t "fakeNews.heading"}}</h2>
 		<div class="fake-news-controls">
-			<a class="btn-primary" href="/title-generator">Opret en falsk nyhed</a>
+			<a class="btn-primary" href="title-generator">{{t "fakeNews.create"}}</a>
 			<div class="field">
-				<label for="fake-news-sorting">Sortering</label>
+				<label for="fake-news-sorting">{{t "fakeNews.sorting"}}</label>
 				<select id="fake-news-sorting" name="sorting" class="select">
-					<option value="popular" {{if eq .Sorting "popular"}}selected{{end}}>Mest populære</option>
-					<option value="latest" {{if eq .Sorting "latest"}}selected{{end}}>Nyeste</option>
+					<option value="popular" {{if eq .Sorting "popular"}}selected{{end}}>{{t "fakeNews.popular"}}</option>
+					<option value="latest" {{if eq .Sorting "latest"}}selected{{end}}>{{t "fakeNews.newest"}}</option>
 				</select>
 			</div>
 		</div>
@@ -28,7 +28,7 @@
 </div>
 {{end}}
 
-{{/* Also rendered on its own, appended to the grid by "Vis mere". */}}
+{{/* Also rendered on its own, appended to the grid by the show-more button. */}}
 {{define "fakeNewsGrid"}}
 {{range .Items}}{{template "articleCard" .}}{{end}}
 <div id="fake-news-button-container" class="grid-more">
@@ -38,11 +38,11 @@
 		{{if .Cursor}}
 			<button
 				class="btn-primary"
-				hx-get="/fake-news"
+				hx-get="fake-news"
 				hx-include="select[name='sorting'], input[name='only-grid'], input[name='cursor']"
 				hx-target="#fake-news-button-container"
 				hx-swap="outerHTML"
-			>Vis mere</button>
+			>{{t "common.showMore"}}</button>
 		{{end}}
 	</form>
 </div>

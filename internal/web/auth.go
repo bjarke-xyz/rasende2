@@ -23,7 +23,7 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 	email := c.Query("email")
 	returnPath := c.Query("returnpath")
 	model := components.LoginViewModel{
-		Base:       w.getBaseModel(c, "Login | Rasende"),
+		Base:       w.getBaseModel(c, LangOf(c).T("page.login")),
 		OTP:        showOtp,
 		Email:      email,
 		ReturnPath: returnPath,
@@ -33,8 +33,8 @@ func (w *web) HandleGetLogin(c *gin.Context) {
 
 func (w *web) HandlePostLogin(c *gin.Context) {
 	ctx := c.Request.Context()
-	successPath := StringForm(c, "returnPath", "/")
-	redirectPath := RefererOrDefault(c, w.appContext.Config.BaseUrl+"/login")
+	successPath := StringForm(c, "returnPath", editionRoot(c))
+	redirectPath := RefererOrDefault(c, w.appContext.Config.BaseUrl+editionRoot(c)+"/login")
 	redirectPathUrl, err := url.Parse(redirectPath)
 	if err != nil {
 		AddFlashError(c, err)
@@ -43,7 +43,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 	}
 	email := c.Request.FormValue("email")
 	if !strings.Contains(email, "@") {
-		AddFlashWarn(c, "Invalid email")
+		AddFlashWarn(c, LangOf(c).T("auth.invalidEmail"))
 		c.Redirect(http.StatusSeeOther, redirectPath)
 		return
 	}
@@ -56,7 +56,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 	user, err := db.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			AddFlashWarn(c, "Bruger ikke fundet. Registrering er deaktiveret.")
+			AddFlashWarn(c, LangOf(c).T("auth.userNotFound"))
 			c.Redirect(http.StatusSeeOther, redirectPath)
 			return
 		} else {
@@ -72,7 +72,7 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 		magicLinks, err := db.GetLinksByUserId(ctx, user.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				AddFlashWarn(c, "Koden virker ikke")
+				AddFlashWarn(c, LangOf(c).T("auth.badCode"))
 				c.Redirect(http.StatusSeeOther, redirectPath)
 				return
 			}
@@ -89,18 +89,18 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 				}
 				user, err := db.GetUser(ctx, magicLink.UserID)
 				if err != nil {
-					AddFlashError(c, fmt.Errorf("der skete en fejl"))
+					AddFlashError(c, fmt.Errorf("%v", LangOf(c).T("auth.genericError")))
 					log.Printf("failed to get user by id %v: %v", magicLink.UserID, err)
 					c.Redirect(http.StatusSeeOther, redirectPath)
 					return
 				}
 				auth.SetUserId(c, user.ID, user.IsAdmin)
-				AddFlashInfo(c, "Du er nu logget ind!")
+				AddFlashInfo(c, LangOf(c).T("auth.loggedIn"))
 				c.Redirect(http.StatusSeeOther, successPath)
 				return
 			}
 		}
-		AddFlashWarn(c, "Koden virker ikke")
+		AddFlashWarn(c, LangOf(c).T("auth.badCode"))
 		c.Redirect(http.StatusSeeOther, redirectPath)
 		return
 	} else {
@@ -127,13 +127,17 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 		db.CreateMagicLink(ctx, user.ID, otpHash, linkCode, expiresAt)
 		// TODO: check if user exists before sending mail
 		// TODO: reutrn path query param
+		// The link has to come back into the edition the visitor left from, or
+		// they finish signing in on the wrong side of the site.
+		l := LangOf(c)
 		w.appContext.Infra.Mail.SendAuthLink(mail.SendAuthLinkRequest{
 			Receiver:            email,
-			CodePath:            fmt.Sprintf("/login-link?code=%v&returnpath=%v", linkCode, url.QueryEscape(successPath)),
+			CodePath:            fmt.Sprintf("/%v/login-link?code=%v&returnpath=%v", l.Code, linkCode, url.QueryEscape(successPath)),
 			OTP:                 otp,
 			ExpirationTimestamp: expiresAt,
+			Lang:                l,
 		})
-		AddFlashInfo(c, "Tjek din mail!")
+		AddFlashInfo(c, LangOf(c).T("auth.checkMail"))
 		redirectQuery := redirectPathUrl.Query()
 		redirectQuery.Set("otp", "true")
 		redirectQuery.Set("email", email)
@@ -145,8 +149,8 @@ func (w *web) HandlePostLogin(c *gin.Context) {
 func (w *web) HandleGetLoginLink(c *gin.Context) {
 	ctx := c.Request.Context()
 	code := c.Query("code")
-	successPath := StringQuery(c, "returnpath", "/")
-	failurePath := "/"
+	successPath := StringQuery(c, "returnpath", editionRoot(c))
+	failurePath := editionRoot(c)
 	if code == "" {
 		c.Redirect(http.StatusSeeOther, failurePath)
 		return
@@ -160,7 +164,7 @@ func (w *web) HandleGetLoginLink(c *gin.Context) {
 	magicLink, err := db.GetLinkByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			AddFlashWarn(c, "Linket virker ikke")
+			AddFlashWarn(c, LangOf(c).T("auth.badLink"))
 			c.Redirect(http.StatusSeeOther, failurePath)
 			return
 		}
@@ -181,13 +185,13 @@ func (w *web) HandleGetLoginLink(c *gin.Context) {
 
 	user, err := db.GetUser(ctx, magicLink.UserID)
 	if err != nil {
-		AddFlashError(c, fmt.Errorf("der skete en fejl"))
+		AddFlashError(c, fmt.Errorf("%v", LangOf(c).T("auth.genericError")))
 		log.Printf("failed to get user by id %v: %v", magicLink.UserID, err)
 		c.Redirect(http.StatusSeeOther, failurePath)
 		return
 	}
 
-	AddFlashInfo(c, "Du er nu logget ind!")
+	AddFlashInfo(c, LangOf(c).T("auth.loggedIn"))
 	auth.SetUserId(c, user.ID, user.IsAdmin)
 	c.Redirect(http.StatusSeeOther, successPath)
 }
@@ -195,9 +199,9 @@ func (w *web) HandleGetLoginLink(c *gin.Context) {
 func (w *web) HandlePostLogout(c *gin.Context) {
 	redirectPath := c.Request.Header.Get("Referer")
 	if redirectPath == "" {
-		redirectPath = "/"
+		redirectPath = editionRoot(c)
 	}
 	auth.ClearUserId(c)
-	AddFlashInfo(c, "Du er nu logget ud!")
+	AddFlashInfo(c, LangOf(c).T("auth.loggedOut"))
 	c.Redirect(http.StatusSeeOther, redirectPath)
 }

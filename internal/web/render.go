@@ -17,6 +17,7 @@ import (
 
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
 	"github.com/gin-gonic/gin"
 )
@@ -36,9 +37,17 @@ const devTemplateDir = "internal/web/templates"
 // buffer, and the result is handed to "layout" as pre-rendered Content. This
 // gives the layout a content slot without needing a dynamic {{template}} name,
 // which html/template does not support.
+//
+// The templates are parsed once per language, because {{t "key"}} has to know
+// which edition it is rendering and a FuncMap is bound at parse time. Passing
+// the language through the data instead would mean putting it on every view
+// model — including the ones the deep partials receive, which are bare domain
+// values (an RssSearchResult, a site name) with nowhere to put it. So the
+// language is closed over by the FuncMap instead, and the templates stay clean.
+// The cost is one extra parse of 17KB at boot, and nothing per request.
 type Renderer struct {
 	mu      sync.RWMutex
-	tmpl    *template.Template
+	tmpls   map[lang.Code]*template.Template
 	fsys    fs.FS
 	pattern string
 	reload  bool
@@ -68,40 +77,54 @@ func NewRenderer(cfg *config.Config) (*Renderer, error) {
 			log.Printf("templates: %v not found, serving embedded copies", devTemplateDir)
 		}
 	}
-	tmpl, err := r.parse()
+	tmpls, err := r.parse()
 	if err != nil {
 		return nil, err
 	}
-	r.tmpl = tmpl
+	r.tmpls = tmpls
 	return r, nil
 }
 
-func (r *Renderer) parse() (*template.Template, error) {
-	return template.New("").Funcs(templateFuncs).ParseFS(r.fsys, r.pattern)
+// parse builds one template set per edition. A parse error in any of them is a
+// startup failure, as it was before: the sets differ only in their FuncMap, so
+// in practice they all break together.
+func (r *Renderer) parse() (map[lang.Code]*template.Template, error) {
+	tmpls := make(map[lang.Code]*template.Template, len(lang.All))
+	for _, l := range lang.All {
+		tmpl, err := template.New("").Funcs(templateFuncs(l)).ParseFS(r.fsys, r.pattern)
+		if err != nil {
+			return nil, err
+		}
+		tmpls[l.Code] = tmpl
+	}
+	return tmpls, nil
 }
 
-// templates returns the set to render with, re-reading from disk in dev.
-func (r *Renderer) templates() (*template.Template, error) {
-	if !r.reload {
-		r.mu.RLock()
-		defer r.mu.RUnlock()
-		return r.tmpl, nil
+// templates returns the set to render l with, re-reading from disk in dev.
+func (r *Renderer) templates(l lang.Lang) (*template.Template, error) {
+	if r.reload {
+		tmpls, err := r.parse()
+		if err != nil {
+			return nil, err
+		}
+		r.mu.Lock()
+		r.tmpls = tmpls
+		r.mu.Unlock()
 	}
-	tmpl, err := r.parse()
-	if err != nil {
-		return nil, err
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	tmpl, ok := r.tmpls[l.Code]
+	if !ok {
+		return nil, fmt.Errorf("no template set for language %q", l.Code)
 	}
-	r.mu.Lock()
-	r.tmpl = tmpl
-	r.mu.Unlock()
 	return tmpl, nil
 }
 
 // execute renders name into a buffer. Rendering to a buffer rather than
 // straight to the response means a mid-render failure cannot leave a truncated
 // page behind an already-sent 200.
-func (r *Renderer) execute(name string, data any) ([]byte, error) {
-	tmpl, err := r.templates()
+func (r *Renderer) execute(l lang.Lang, name string, data any) ([]byte, error) {
+	tmpl, err := r.templates(l)
 	if err != nil {
 		return nil, fmt.Errorf("parsing templates: %w", err)
 	}
@@ -113,8 +136,8 @@ func (r *Renderer) execute(name string, data any) ([]byte, error) {
 }
 
 // String renders a template to a string, for embedding in an SSE event.
-func (r *Renderer) String(name string, data any) string {
-	b, err := r.execute(name, data)
+func (r *Renderer) String(c *gin.Context, name string, data any) string {
+	b, err := r.execute(LangOf(c), name, data)
 	if err != nil {
 		log.Printf("render: %v", err)
 		return ""
@@ -133,7 +156,8 @@ func (r *Renderer) write(c *gin.Context, status int, body []byte) {
 // Page renders a page template, wrapped in the layout unless the request came
 // from htmx and only wants the fragment.
 func (r *Renderer) Page(c *gin.Context, status int, name string, base components.BaseViewModel, data any) {
-	body, err := r.execute(name, data)
+	l := LangOf(c)
+	body, err := r.execute(l, name, data)
 	if err != nil {
 		r.fail(c, err)
 		return
@@ -142,7 +166,7 @@ func (r *Renderer) Page(c *gin.Context, status int, name string, base components
 		r.write(c, status, body)
 		return
 	}
-	body, err = r.execute("layout", layoutData{BaseViewModel: base, Content: template.HTML(body)})
+	body, err = r.execute(l, "layout", layoutData{BaseViewModel: base, Content: template.HTML(body)})
 	if err != nil {
 		r.fail(c, err)
 		return
@@ -152,7 +176,7 @@ func (r *Renderer) Page(c *gin.Context, status int, name string, base components
 
 // Partial renders a single template, never wrapped in the layout.
 func (r *Renderer) Partial(c *gin.Context, status int, name string, data any) {
-	body, err := r.execute(name, data)
+	body, err := r.execute(LangOf(c), name, data)
 	if err != nil {
 		r.fail(c, err)
 		return
@@ -167,54 +191,73 @@ func (r *Renderer) fail(c *gin.Context, err error) {
 	c.String(http.StatusInternalServerError, "template error")
 }
 
-var templateFuncs = template.FuncMap{
-	"queryEscape": url.QueryEscape,
-	"lower":       strings.ToLower,
-	"rfc3339":     func(t time.Time) string { return t.Format(time.RFC3339) },
-	"timeAgo":     getTimeDifference,
-	"truncate":    truncateText,
-	"paragraphs":  func(s string) []string { return strings.Split(s, "\n") },
+// templateFuncs is the FuncMap for one edition. Only "t", "ago" and
+// "defaultQuery" actually close over l; the rest are the same in every set.
+//
+// There is deliberately no URL helper. The layout carries <base href="/da/">,
+// so every relative path in a template — including the ones with query strings,
+// which a helper would turn into a printf — resolves under the right edition on
+// its own. See layout.html.
+func templateFuncs(l lang.Lang) template.FuncMap {
+	return template.FuncMap{
+		"queryEscape": url.QueryEscape,
+		"lower":       strings.ToLower,
+		"rfc3339":     func(t time.Time) string { return t.Format(time.RFC3339) },
+		"timeAgo":     getTimeDifference,
+		"truncate":    truncateText,
+		"paragraphs":  func(s string) []string { return strings.Split(s, "\n") },
 
-	// danishAgo renders a duration the way the index page's "seneste raseri"
-	// timestamp does: "for 3 timer siden".
-	"danishAgo": func(t time.Time) string {
-		return config.DanishTimeagoConfig.FormatRelativeDuration(time.Since(t))
-	},
+		// t looks up a message in this edition's catalog. A key missing from the
+		// catalog renders as the key itself; TestCatalogsCoverTemplates is what
+		// stops that reaching production.
+		"t": l.T,
 
-	"placeholderImg": func() string { return config.PlaceholderImgUrl },
+		// defaultQuery is the edition's cliché — "rasende", "outrage" — which the
+		// search box is prefilled with.
+		"defaultQuery": func() string { return l.DefaultQuery },
 
-	// headerLink and titlesSse build the arguments for the templates of the
-	// same name, which take more than the single value {{template}} passes.
-	"headerLink": func(currentPath, linkPath, text string) headerLinkModel {
-		return headerLinkModel{Path: linkPath, Text: text, Current: currentPath == linkPath}
-	},
+		// ago renders a duration the way the index page's "seneste raseri"
+		// timestamp does: "for 3 timer siden".
+		"ago": func(t time.Time) string {
+			return l.TimeAgo.FormatRelativeDuration(time.Since(t))
+		},
 
-	"titlesSse": func(siteId int, cursor string, placeholder bool) components.TitlesSseModel {
-		return components.TitlesSseModel{SiteId: siteId, Cursor: cursor, Placeholder: placeholder}
-	},
+		"placeholderImg": func() string { return config.PlaceholderImgUrl },
 
-	"orDefault": func(s *string, fallback string) string {
-		if s == nil || *s == "" {
-			return fallback
-		}
-		return *s
-	},
+		// headerLink and titlesSse build the arguments for the templates of the
+		// same name, which take more than the single value {{template}} passes.
+		"headerLink": func(currentPath, linkPath, text string) headerLinkModel {
+			return headerLinkModel{Path: linkPath, Text: text, Current: currentPath == linkPath}
+		},
 
-	"articleUrl": func(fn core.FakeNewsDto) string {
-		return "/fake-news/" + url.QueryEscape(fn.Slug())
-	},
+		"titlesSse": func(siteId int, cursor string, placeholder bool) components.TitlesSseModel {
+			return components.TitlesSseModel{SiteId: siteId, Cursor: cursor, Placeholder: placeholder}
+		},
 
-	"articleGeneratorUrl": func(siteId int, title string) string {
-		return fmt.Sprintf("/article-generator?siteId=%v&title=%v", siteId, url.QueryEscape(title))
-	},
+		"orDefault": func(s *string, fallback string) string {
+			if s == nil || *s == "" {
+				return fallback
+			}
+			return *s
+		},
 
-	// jsonAttr serialises a value for an HTML attribute. html/template escapes
-	// the quotes in the result, so it round-trips through JSON.parse in main.js.
-	"jsonAttr": func(v any) (string, error) {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return "", err
-		}
-		return string(b), nil
-	},
+		// Relative, so <base> puts them in the current edition.
+		"articleUrl": func(fn core.FakeNewsDto) string {
+			return "fake-news/" + url.QueryEscape(fn.Slug())
+		},
+
+		"articleGeneratorUrl": func(siteId int, title string) string {
+			return fmt.Sprintf("article-generator?siteId=%v&title=%v", siteId, url.QueryEscape(title))
+		},
+
+		// jsonAttr serialises a value for an HTML attribute. html/template escapes
+		// the quotes in the result, so it round-trips through JSON.parse in main.js.
+		"jsonAttr": func(v any) (string, error) {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			return string(b), nil
+		},
+	}
 }

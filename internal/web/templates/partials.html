@@ -39,7 +39,7 @@
 		</h2>
 		<p class="article-card-excerpt">{{truncate .FakeNews.Content 160}}</p>
 		<div class="article-card-footer">
-			<a href="{{$url}}" target="_blank" rel="noopener noreferrer">Læs mere</a>
+			<a href="{{$url}}" target="_blank" rel="noopener noreferrer">{{t "common.readMore"}}</a>
 			{{template "fakeNewsVotes" .}}
 		</div>
 	</div>
@@ -58,10 +58,10 @@
 		<button
 			class="vote vote-up{{if .HasVotedUp}} voted{{end}}"
 			{{if .HasVotedUp}}disabled{{end}}
-			hx-post="/vote-article"
+			hx-post="vote-article"
 			hx-include="div#fn-votes-{{$id}} > input[name='siteId'], div#fn-votes-{{$id}} > input[name='title']"
 			hx-target="#fn-votes-{{$id}}"
-			aria-label="Stem op"
+			aria-label="{{t "vote.up"}}"
 		>▲</button>
 	</form>
 	<span class="vote-count">{{.FakeNews.Votes}}</span>
@@ -70,10 +70,10 @@
 		<button
 			class="vote vote-down{{if .HasVotedDown}} voted{{end}}"
 			{{if .HasVotedDown}}disabled{{end}}
-			hx-post="/vote-article"
+			hx-post="vote-article"
 			hx-include="div#fn-votes-{{$id}} > input[name='siteId'], div#fn-votes-{{$id}} > input[name='title']"
 			hx-target="#fn-votes-{{$id}}"
-			aria-label="Stem ned"
+			aria-label="{{t "vote.down"}}"
 		>▼</button>
 	</form>
 </div>
@@ -91,9 +91,9 @@
 	id="title-show-more-btn"
 	onclick="this.disabled = true;"
 	data-cursor="{{.Cursor}}"
-	hx-get="/generate-titles-sse?siteId={{.SiteId}}&cursor={{.Cursor}}"
+	hx-get="generate-titles-sse?siteId={{.SiteId}}&cursor={{.Cursor}}"
 	hx-target="#title-sse-container-wrapper"
->Vis mere</button>
+>{{t "common.showMore"}}</button>
 {{end}}
 
 {{/* Takes a TitlesSseModel. */}}
@@ -102,11 +102,11 @@
 	id="title-sse-container"
 	hx-ext="sse"
 	hx-swap="beforeend"
-	sse-connect="/generate-titles?siteId={{.SiteId}}&cursor={{.Cursor}}"
+	sse-connect="generate-titles?siteId={{.SiteId}}&cursor={{.Cursor}}"
 	sse-close="sse-close"
 >
 	<div sse-swap="title">
-		{{if .Placeholder}}<p id="title-placeholder">Finder på overskrifter...</p>{{end}}
+		{{if .Placeholder}}<p id="title-placeholder">{{t "titleGenerator.generating"}}</p>{{end}}
 	</div>
 	<div sse-swap="button"></div>
 </div>

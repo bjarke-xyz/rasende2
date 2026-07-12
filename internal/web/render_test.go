@@ -3,10 +3,14 @@ package web
 import (
 	"errors"
 	"io"
+	"regexp"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
 )
 
@@ -15,7 +19,7 @@ import (
 // otherwise reach production. Execute every template against a model that
 // exercises both sides of each conditional.
 func TestTemplatesExecute(t *testing.T) {
-	tmpl, err := (&Renderer{fsys: templateFS, pattern: "templates/*.html"}).parse()
+	tmpls, err := (&Renderer{fsys: templateFS, pattern: "templates/*.html"}).parse()
 	if err != nil {
 		t.Fatalf("parsing templates: %v", err)
 	}
@@ -41,7 +45,9 @@ func TestTemplatesExecute(t *testing.T) {
 		Datasets: []core.ChartDataset{{Label: "Raseriudbrud", Data: []int{1}}},
 	}}}
 	base := components.BaseViewModel{
-		Path:       "/fake-news",
+		Path:       "/da/fake-news",
+		Lang:       "da",
+		Editions:   []components.Edition{{Path: "/en/fake-news", Text: "In English"}},
 		Title:      "Rasende",
 		FlashInfo:  []string{"info"},
 		FlashWarn:  []string{"warn"},
@@ -52,8 +58,11 @@ func TestTemplatesExecute(t *testing.T) {
 	adminBase.IsAnonymousUser = false
 	adminBase.OpenGraph = &components.BaseOpenGraphModel{Title: "t", Image: imgUrl, Url: "u", Description: "d"}
 
+	// The credit only renders on the index, so the layout has to be exercised
+	// both with and without it.
 	anonBase := base
 	anonBase.IsAnonymousUser = true
+	anonBase.ShowCredit = true
 
 	// Both vote states, so the "voted" branches render.
 	voted := components.FakeNewsItemModel{FakeNews: article, AlreadyVoted: map[string]string{}}
@@ -96,9 +105,74 @@ func TestTemplatesExecute(t *testing.T) {
 		{"barsSvg", nil},
 	}
 
-	for _, tc := range cases {
-		if err := tmpl.ExecuteTemplate(io.Discard, tc.name, tc.data); err != nil {
-			t.Errorf("executing %q: %v", tc.name, err)
+	// Every case runs in every edition. The template sets differ only in their
+	// FuncMap, but that is exactly where {{t}} lives, so a key that only one
+	// catalog defines would otherwise pass here and fail in the other language.
+	for _, l := range lang.All {
+		tmpl := tmpls[l.Code]
+		if tmpl == nil {
+			t.Fatalf("no template set for %q", l.Code)
 		}
+		for _, tc := range cases {
+			if err := tmpl.ExecuteTemplate(io.Discard, tc.name, tc.data); err != nil {
+				t.Errorf("executing %q in %q: %v", tc.name, l.Code, err)
+			}
+		}
+	}
+}
+
+// tKeyPattern finds the {{t "..."}} calls in the template sources.
+var tKeyPattern = regexp.MustCompile(`\{\{-?\s*t\s+"([^"]+)"`)
+
+// Executing the templates only reaches the branches the cases above happen to
+// cover, and a missing key renders as the key itself rather than failing. So scan
+// the sources instead: every key a template asks for must exist in every
+// catalog, and every key a catalog defines must be asked for by someone.
+func TestCatalogsCoverTemplates(t *testing.T) {
+	entries, err := templateFS.ReadDir("templates")
+	if err != nil {
+		t.Fatalf("reading templates: %v", err)
+	}
+
+	used := map[string]string{} // key -> the file that uses it
+	for _, entry := range entries {
+		body, err := templateFS.ReadFile("templates/" + entry.Name())
+		if err != nil {
+			t.Fatalf("reading %v: %v", entry.Name(), err)
+		}
+		for _, match := range tKeyPattern.FindAllStringSubmatch(string(body), -1) {
+			used[match[1]] = entry.Name()
+		}
+	}
+	if len(used) == 0 {
+		t.Fatal("found no {{t}} keys in the templates; the pattern is probably wrong")
+	}
+
+	for _, l := range lang.All {
+		defined := make(map[string]bool, len(l.Keys()))
+		for _, key := range l.Keys() {
+			defined[key] = true
+		}
+		for key, file := range used {
+			if !defined[key] {
+				t.Errorf("%v uses key %q, which the %q catalog does not define", file, key, l.Code)
+			}
+		}
+	}
+
+	// The Go side uses the rest — page titles, chart labels, flashes, the
+	// sign-in mail — so only report a key no template uses if nothing else
+	// plausibly does either. Keeping this loose beats deleting a live key.
+	goSidePrefixes := []string{"page.", "chart.", "auth.", "mail.", "error.", "lang.", "brand", "nav."}
+	for _, key := range lang.All[0].Keys() {
+		if _, ok := used[key]; ok {
+			continue
+		}
+		if slices.ContainsFunc(goSidePrefixes, func(prefix string) bool {
+			return strings.HasPrefix(key, prefix)
+		}) {
+			continue
+		}
+		t.Errorf("catalog key %q is used by no template and looks like nothing else uses it either", key)
 	}
 }

@@ -27,7 +27,7 @@ func TestNewsBlockedTitlePattern(t *testing.T) {
 				Name:                 "Test site",
 				Urls:                 []string{"https://example.org"},
 				Description:          "A test site",
-				DescriptionEn:        "A test site",
+				Language:             "da",
 				Id:                   1,
 				Disabled:             false,
 				ArticleHasContent:    false,

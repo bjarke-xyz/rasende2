@@ -6,7 +6,7 @@
 		<div
 			id="article-sse-container"
 			hx-ext="sse"
-			sse-connect="/generate-article?siteId={{.Site.Id}}&title={{queryEscape .Article.Title}}"
+			sse-connect="generate-article?siteId={{.Site.Id}}&title={{queryEscape .Article.Title}}"
 			sse-close="sse-close"
 		>
 			<div sse-swap="image">
@@ -18,10 +18,10 @@
 			</div>
 		</div>
 		{{if not .Article.Highlighted}}
-			<form method="POST" action="/publish-fake-news">
+			<form method="POST" action="publish-fake-news">
 				<input type="hidden" name="siteId" value="{{.Site.Id}}" />
 				<input type="hidden" name="title" value="{{.Article.Title}}" />
-				<button class="btn-primary" id="publish-btn" type="submit" disabled>Udgiv falsk nyhed</button>
+				<button class="btn-primary" id="publish-btn" type="submit" disabled>{{t "articleGenerator.publish"}}</button>
 			</form>
 		{{end}}
 	</article>

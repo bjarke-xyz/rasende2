@@ -3,10 +3,10 @@
 	<div class="centered">
 		<form class="search-form">
 			<input
-				value="rasende"
+				value="{{defaultQuery}}"
 				type="search"
 				name="search"
-				hx-post="/search"
+				hx-post="search"
 				hx-trigger="change from:[name='content'], load, input changed delay:300ms, search"
 				hx-target="#search-results"
 				hx-indicator=".htmx-indicator"
@@ -16,7 +16,7 @@
 			<div class="search-options">
 				<input name="include-charts" type="hidden" value="on" />
 				<input name="content" type="checkbox" id="checkbox" />
-				<label for="checkbox">Søg i artikel indhold</label>
+				<label for="checkbox">{{t "search.content"}}</label>
 			</div>
 		</form>
 	</div>

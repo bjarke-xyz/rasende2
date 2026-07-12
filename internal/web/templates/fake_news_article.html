@@ -3,17 +3,17 @@
 	<article class="prose">
 		{{if .Base.IsAdmin}}
 			<div class="admin-bar">
-				<form method="POST" action="/publish-fake-news">
+				<form method="POST" action="publish-fake-news">
 					<input type="hidden" name="siteId" value="{{.FakeNews.SiteId}}" />
 					<input type="hidden" name="title" value="{{.FakeNews.Title}}" />
-					<button class="btn-primary">Toggle featured</button>
+					<button class="btn-primary">{{t "admin.toggleFeatured"}}</button>
 				</form>
-				<form method="POST" action="/reset-article-content">
+				<form method="POST" action="reset-article-content">
 					<input type="hidden" name="siteId" value="{{.FakeNews.SiteId}}" />
 					<input type="hidden" name="title" value="{{.FakeNews.Title}}" />
-					<button class="btn-primary">Reset content</button>
+					<button class="btn-primary">{{t "admin.resetContent"}}</button>
 				</form>
-				<a href="{{articleGeneratorUrl .FakeNews.SiteId .FakeNews.Title}}">Article generator</a>
+				<a href="{{articleGeneratorUrl .FakeNews.SiteId .FakeNews.Title}}">{{t "admin.articleGenerator"}}</a>
 			</div>
 		{{end}}
 		<p>{{template "badge" .FakeNews.SiteName}}</p>
