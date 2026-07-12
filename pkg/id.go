@@ -1,9 +1,10 @@
 package pkg
 
-import gonanoid "github.com/matoous/go-nanoid/v2"
+import "crypto/rand"
 
-const nanoidAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_"
-
-func NewNanoid() (string, error) {
-	return gonanoid.Generate(nanoidAlphabet, 21)
+// NewID returns a URL-safe random identifier. Its alphabet must never contain
+// '-': parseArticleSlugV2 splits an article slug on the first '-' to recover
+// the id from it. rand.Text is base32, so that holds.
+func NewID() string {
+	return rand.Text()
 }

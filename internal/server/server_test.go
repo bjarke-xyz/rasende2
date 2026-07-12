@@ -8,6 +8,7 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -68,6 +69,11 @@ type fakeService struct {
 
 	created []string // titles passed to CreateFakeNews
 	votes   int
+
+	// blankContent makes GetFakeNewsByTitle return an article with no content,
+	// which is what sends /generate-article down the generating path instead of
+	// the cached one.
+	blankContent bool
 }
 
 func (f *fakeService) GetIndexPageData(ctx context.Context, l lang.Lang) (*core.IndexPageData, error) {
@@ -132,6 +138,9 @@ func (f *fakeService) GetFakeNewsByTitle(ctx context.Context, siteId int, title 
 	if title != a.Title {
 		return nil, nil
 	}
+	if f.blankContent {
+		a.Content = ""
+	}
 	return &a, nil
 }
 
@@ -176,6 +185,12 @@ type fakeAI struct {
 	// titleStream, when set, is used instead of titleChunks, so a test can hold
 	// the stream open and watch what has reached the client so far.
 	titleStream core.ChatCompletionStream
+
+	// contentStream and genImage do the same for the article path: they let a
+	// test control the order in which the text and the image finish, which is
+	// what decides how the two are interleaved.
+	contentStream core.ChatCompletionStream
+	genImage      func() (string, error)
 }
 
 func (f *fakeAI) GenerateArticleTitles(ctx context.Context, site core.NewsSite, prev []string, n int, temp float32) (core.ChatCompletionStream, error) {
@@ -204,10 +219,16 @@ type chunkResponse string
 func (c chunkResponse) Content() string { return string(c) }
 
 func (f *fakeAI) GenerateArticleContent(ctx context.Context, site core.NewsSite, title string, temp float32) (core.ChatCompletionStream, error) {
+	if f.contentStream != nil {
+		return f.contentStream, nil
+	}
 	return core.NewFakeChatCompletionStream(f.contentChunks), nil
 }
 
 func (f *fakeAI) GenerateImage(ctx context.Context, site core.NewsSite, title string, translate bool) (string, error) {
+	if f.genImage != nil {
+		return f.genImage()
+	}
 	return "https://example.com/generated.png", nil
 }
 
@@ -517,6 +538,71 @@ func TestSseStreamsIncrementally(t *testing.T) {
 	}
 
 	close(gate.chunks)
+}
+
+// A failed image generation must be logged once, not once per streamed token.
+//
+// The image and the text are generated concurrently, and the handler polls the
+// image on every chunk of text until it has one. The failure case used to leave
+// the "still waiting" flag set forever, so once the image had failed, every
+// remaining token of the article re-polled the already-resolved promise and
+// re-logged the same error — a full article produced hundreds of identical
+// lines. Reproducing it needs the image to lose the race, hence the gate.
+func TestSseArticleImageFailureLoggedOnce(t *testing.T) {
+	app := newTestApp(t)
+	app.svc.blankContent = true // take the generating path, not the cached one
+
+	imgFailed := make(chan struct{})
+	app.ai.genImage = func() (string, error) {
+		defer close(imgFailed)
+		return "", fmt.Errorf("image generation returned 0 results")
+	}
+
+	gate := &gatedStream{chunks: make(chan string)}
+	app.ai.contentStream = gate
+
+	var logs bytes.Buffer
+	log.SetOutput(&logs)
+	t.Cleanup(func() { log.SetOutput(io.Discard) })
+
+	srv := httptest.NewServer(app.handler)
+	defer srv.Close()
+
+	// Hold the text back until the image has already failed, then stream the rest
+	// of the article past the resolved promise. Each of these chunks is one more
+	// chance to re-log. The count is well above what is needed to see the bug
+	// (the unfixed handler logs one line per chunk) because the promise marks
+	// itself resolved just after genImage returns, so the first chunk or two can
+	// still slip through the window before the bug is even reachable.
+	const chunks = 50
+	go func() {
+		<-imgFailed
+		for range chunks {
+			gate.chunks <- "afsnit "
+		}
+		close(gate.chunks)
+	}()
+
+	resp, err := srv.Client().Get(srv.URL + "/da/generate-article?siteId=1&title=" + url.QueryEscape(testArticle().Title))
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	if got := strings.Count(logs.String(), "error getting LLM img"); got != 1 {
+		t.Errorf("image failure logged %d times, want 1 (one line per streamed token is the bug)", got)
+	}
+	// The article still has to stream and close cleanly despite the failed image.
+	if !strings.Contains(string(body), "event:sse-close") {
+		t.Errorf("stream did not close cleanly:\n%s", body)
+	}
+	if !strings.Contains(string(body), "afsnit") {
+		t.Errorf("article text did not reach the client:\n%s", body)
+	}
 }
 
 func TestSseArticleContentCached(t *testing.T) {

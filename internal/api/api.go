@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"log"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/httpx"
 	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/pkg"
-	"github.com/samber/lo"
 )
 
 type api struct {
@@ -139,7 +139,7 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusInternalServerError, "sites list was empty")
 		return
 	}
-	site := lo.Sample(sites)
+	site := sites[rand.IntN(len(sites))]
 	recentArticleTitles, err := a.appContext.Deps.Service.GetRecentTitles(ctx, site, 10, true)
 	if err != nil {
 		log.Printf("error getting recent article titles: %v", err)
@@ -162,12 +162,7 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("selected title: %v", selectedTitle)
-	externalId, err := pkg.NewNanoid()
-	if err != nil {
-		log.Printf("error making id: %v", err)
-		httpx.JSON(w, http.StatusInternalServerError, err.Error())
-		return
-	}
+	externalId := pkg.NewID()
 	err = a.appContext.Deps.Service.CreateFakeNews(ctx, site.Id, selectedTitle, externalId)
 	if err != nil {
 		log.Printf("error creating fake news: %v", err)

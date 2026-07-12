@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/session"
 	"github.com/bjarke-xyz/rasende2/internal/web/components"
 	"github.com/bjarke-xyz/rasende2/pkg"
-	"github.com/samber/lo"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -139,9 +139,8 @@ func (h *web) HandleGetTitleGenerator(w http.ResponseWriter, r *http.Request) {
 	}
 	var selectedSite core.NewsSite
 	if selectedSiteId > 0 {
-		_selectedSite, ok := lo.Find(sites, func(s core.NewsSite) bool { return s.Id == selectedSiteId })
-		if ok {
-			selectedSite = _selectedSite
+		if i := slices.IndexFunc(sites, func(s core.NewsSite) bool { return s.Id == selectedSiteId }); i >= 0 {
+			selectedSite = sites[i]
 		}
 	}
 
@@ -241,12 +240,7 @@ func (h *web) HandleGetSseTitles(w http.ResponseWriter, r *http.Request) {
 			// silently dropped.
 			emitTitle()
 			for _, title := range titles {
-				externalId, err := pkg.NewNanoid()
-				if err != nil {
-					log.Printf("error making nanoid: %v", err)
-					continue
-				}
-				if err := h.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title, externalId); err != nil {
+				if err := h.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title, pkg.NewID()); err != nil {
 					log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
 				}
 			}
@@ -367,11 +361,9 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// The error is returned, not logged: resolveImage below is what deals with it.
 	articleImgPromise := pkg.NewPromise(func() (string, error) {
 		imgUrl, err := h.appContext.Deps.AiClient.GenerateImage(ctx, *site, article.Title, true)
-		if err != nil {
-			log.Printf("error maing fake news img: %v", err)
-		}
 		if imgUrl != "" {
 			h.appContext.Deps.Service.SetFakeNewsImgUrl(ctx, site.Id, article.Title, imgUrl)
 		}
@@ -394,15 +386,22 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 	var sb strings.Builder
 	httpx.SSEHeaders(w)
 
-	// sendImage emits the generated image the moment it is ready, which is not
-	// tied to where the text has got to — the two are produced in parallel.
-	imgUrlSent := false
-	sendImage := func(imgUrl string) {
-		if imgUrlSent || imgUrl == "" {
+	// The image and the text are produced in parallel, so the image is emitted the
+	// moment it is ready rather than at any particular point in the text.
+	//
+	// imgDone means the promise has resolved and its outcome is dealt with —
+	// which includes it having failed. It must not mean "an image was sent", or a
+	// failed generation leaves the poll below firing on every content token.
+	imgDone := false
+	resolveImage := func(imgUrl string, err error) {
+		imgDone = true
+		if err != nil {
+			log.Printf("error getting LLM img: %v", err)
+		}
+		if imgUrl == "" {
 			return
 		}
 		httpx.SSEvent(w, "image", h.renderer.String(r, "articleImg", components.ArticleImgModel{Src: imgUrl, Alt: article.Title}))
-		imgUrlSent = true
 	}
 
 	for {
@@ -417,12 +416,8 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 			if err != nil {
 				log.Printf("error saving fake news: %v", err)
 			}
-			if !imgUrlSent {
-				imgUrl, err := articleImgPromise.Get()
-				if err != nil {
-					log.Printf("error getting LLM img: %v", err)
-				}
-				sendImage(imgUrl)
+			if !imgDone {
+				resolveImage(articleImgPromise.Get())
 			}
 			httpx.SSEvent(w, "sse-close", "sse-close")
 			httpx.Flush(w)
@@ -438,13 +433,9 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 		sb.WriteString(content)
 		sseContent := fmt.Sprintf("<span>%v</span>", strings.ReplaceAll(content, "\n", "<br />"))
 		httpx.SSEvent(w, "content", sseContent)
-		if !imgUrlSent {
-			imgUrl, err, articleImgOk := articleImgPromise.Poll()
-			if articleImgOk {
-				if err != nil {
-					log.Printf("error getting LLM img: %v", err)
-				}
-				sendImage(imgUrl)
+		if !imgDone {
+			if imgUrl, err, ok := articleImgPromise.Poll(); ok {
+				resolveImage(imgUrl, err)
 			}
 		}
 		httpx.Flush(w)

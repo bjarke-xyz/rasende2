@@ -31,7 +31,7 @@ The application follows a layered architecture:
   - SQLite FTS5 (`rss_items_fts`) for full-text search
 
 - **internal/web/** - HTTP handlers and templates
-  - Gin web framework for routing
+  - Routing is the standard library's `http.ServeMux` (`internal/server/server.go`); there is no framework
   - `html/template` files in `internal/web/templates/`, embedded with `go:embed`
   - HTMX for dynamic UI updates
   - View models in `internal/web/components/models.go`
@@ -40,7 +40,7 @@ The application follows a layered architecture:
 
 ### Key Technologies
 
-- **Backend**: Go 1.25, Gin web framework
+- **Backend**: Go 1.26, standard-library `net/http` (no web framework)
 - **Database**: local SQLite file (`modernc.org/sqlite`, cgo-free), queried with plain `database/sql`
 - **Search**: SQLite FTS5 + a Danish analyzer in `internal/search`
 - **Templates**: standard-library `html/template`
@@ -159,7 +159,7 @@ See `.env.example` for all configuration options.
 1. `cmd/web/main.go` loads config from environment
 2. Opens database connection and runs migrations
 3. Creates `AppContext` with config, infrastructure, and dependencies
-4. Initializes Gin router with CORS and sessions, and parses the templates
+4. Builds the `http.ServeMux` with session middleware, and parses the templates
 5. Registers API and web routes
 6. Starts metrics server on :9091
 7. Starts main HTTP server with graceful shutdown
