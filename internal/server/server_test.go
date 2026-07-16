@@ -347,7 +347,8 @@ func TestRoutes(t *testing.T) {
 		{name: "search page", method: "GET", path: "/da/search", want: 200, wantBody: "<html"},
 		{name: "fake news list", method: "GET", path: "/da/fake-news", want: 200, wantBody: "<html"},
 		{name: "title generator", method: "GET", path: "/da/title-generator", want: 200, wantBody: "<html"},
-		{name: "login page", method: "GET", path: "/da/login", want: 200, wantBody: "<html"},
+		// Login is delegated: /login redirects to the OIDC provider's /authorize.
+		{name: "login redirect", method: "GET", path: "/da/login", want: 303, wantBody: "/authorize"},
 
 		{
 			name: "article page", method: "GET",
@@ -695,9 +696,9 @@ func TestVoteSetsCookie(t *testing.T) {
 func TestSessionRoundTrip(t *testing.T) {
 	app := newTestApp(t)
 
-	// A bad email produces a flash, which is stored in the session — the simplest
-	// way to make the stack write a session cookie without a user in the database.
-	rec := app.postForm(t, "/da/login", url.Values{"email": {"not-an-email"}})
+	// Logout writes an info flash into the session — the simplest way to make the
+	// stack set a session cookie.
+	rec := app.postForm(t, "/da/logout", nil)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303", rec.Code)
 	}
@@ -713,14 +714,14 @@ func TestSessionRoundTrip(t *testing.T) {
 	}
 
 	// Replaying it must render the flash, then consume it.
-	req := httptest.NewRequest(http.MethodGet, "/da/login", nil)
+	req := httptest.NewRequest(http.MethodGet, "/da", nil)
 	req.AddCookie(session)
 	rec2 := app.do(t, req)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec2.Code)
 	}
-	if !strings.Contains(rec2.Body.String(), "e-mail") && !strings.Contains(rec2.Body.String(), "email") {
-		t.Errorf("expected the invalid-email flash to render\n%s", truncate(rec2.Body.String()))
+	if !strings.Contains(rec2.Body.String(), "flash-info") {
+		t.Errorf("expected the logout flash to render\n%s", truncate(rec2.Body.String()))
 	}
 }
 

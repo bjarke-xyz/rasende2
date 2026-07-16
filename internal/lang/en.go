@@ -53,13 +53,6 @@ var enMsgs = map[string]string{
 	"admin.resetContent":     "Reset content",
 	"admin.articleGenerator": "Article generator",
 
-	"login.heading":          "Login",
-	"login.email":            "Email",
-	"login.password":         "Password",
-	"login.otp":              "One-Time Password (OTP)",
-	"login.emailPlaceholder": "Enter your email",
-	"login.submit":           "Login",
-
 	"error.prefix":        "Error:",
 	"error.unknown":       "unknown error",
 	"error.requiresAdmin": "Requires admin",

@@ -76,8 +76,6 @@ func TestTemplatesExecute(t *testing.T) {
 		{"layout", layoutData{BaseViewModel: anonBase, Content: "<p>hi</p>"}},
 		{"error", components.ErrorModel{Err: errors.New("boom")}},
 		{"error", components.ErrorModel{}}, // nil error must not panic
-		{"login", components.LoginViewModel{Base: base, Password: true, OTP: true}},
-		{"login", components.LoginViewModel{Base: base}},
 		{"index", components.IndexModel{Base: base, SearchResults: core.SearchResult{Items: []core.RssSearchResult{item, item}}, ChartsResult: charts}},
 		{"index", components.IndexModel{Base: base}}, // no results: "Ingen raseri!"
 		{"search", components.SearchViewModel{Base: base}},

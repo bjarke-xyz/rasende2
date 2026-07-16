@@ -40,7 +40,6 @@ type BaseViewModel struct {
 	FlashWarn     []string
 	FlashError    []string
 
-	UserId          int64
 	IsAdmin         bool
 	IsAnonymousUser bool
 }
@@ -126,14 +125,6 @@ type SearchResultsViewModel struct {
 	NextOffset    int
 	Search        string
 	IncludeCharts bool
-}
-
-type LoginViewModel struct {
-	Base       BaseViewModel
-	Password   bool
-	OTP        bool
-	Email      string
-	ReturnPath string
 }
 
 type FakeNewsViewModel struct {

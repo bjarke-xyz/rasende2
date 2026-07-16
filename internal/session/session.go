@@ -23,18 +23,27 @@ const cookieName = "mysession"
 const (
 	keyUserID = "userid"
 	keyAdmin  = "admin"
+
+	// Transient state for the in-progress OIDC login (cleared once completed).
+	keyLoginState    = "login_state"
+	keyLoginVerifier = "login_verifier"
+	keyLoginReturn   = "login_return"
 )
 
 // NewStore builds the cookie store. The secret only authenticates the cookie, it
 // does not encrypt it: the contents are readable by the client, so nothing may go
 // in here that the client is not allowed to see.
-func NewStore(secret string) sessions.Store {
+//
+// secure should be true in production (HTTPS). It is left off in development so
+// the cookie works over plain http; SameSite=Lax is enough for the OIDC callback,
+// which arrives as a top-level GET navigation.
+func NewStore(secret string, secure bool) sessions.Store {
 	store := sessions.NewCookieStore([]byte(secret))
 	store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 30,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
 
 		// gorilla's zero value leaves this false, which let any script on the page
 		// read the login cookie. Nothing needs it from JS.
@@ -83,7 +92,9 @@ func save(w http.ResponseWriter, r *http.Request, s *sessions.Session) {
 
 // --- login ------------------------------------------------------------------
 
-func SetUserID(w http.ResponseWriter, r *http.Request, userID int64, admin bool) {
+// SetUserID records the logged-in user. userID is the OIDC subject (a stable
+// opaque string from the auth server); admin comes from the token's role claim.
+func SetUserID(w http.ResponseWriter, r *http.Request, userID string, admin bool) {
 	s, ok := get(r)
 	if !ok {
 		return
@@ -103,13 +114,53 @@ func ClearUserID(w http.ResponseWriter, r *http.Request) {
 	save(w, r, s)
 }
 
-func UserID(r *http.Request) (int64, bool) {
+// UserID returns the logged-in user's OIDC subject and whether anyone is logged in.
+func UserID(r *http.Request) (string, bool) {
 	s, ok := get(r)
 	if !ok {
-		return 0, false
+		return "", false
 	}
-	userID, ok := s.Values[keyUserID].(int64)
-	return userID, ok
+	userID, ok := s.Values[keyUserID].(string)
+	return userID, ok && userID != ""
+}
+
+// --- OIDC login flow --------------------------------------------------------
+
+// SetLoginFlow stashes the transient state of an in-progress OIDC login: the
+// anti-CSRF state, the PKCE verifier, and where to send the user afterwards.
+func SetLoginFlow(w http.ResponseWriter, r *http.Request, state, verifier, returnPath string) {
+	s, ok := get(r)
+	if !ok {
+		return
+	}
+	s.Values[keyLoginState] = state
+	s.Values[keyLoginVerifier] = verifier
+	s.Values[keyLoginReturn] = returnPath
+	save(w, r, s)
+}
+
+// LoginFlow returns the stashed login flow, if any.
+func LoginFlow(r *http.Request) (state, verifier, returnPath string, ok bool) {
+	s, sok := get(r)
+	if !sok {
+		return "", "", "", false
+	}
+	state, _ = s.Values[keyLoginState].(string)
+	verifier, _ = s.Values[keyLoginVerifier].(string)
+	returnPath, _ = s.Values[keyLoginReturn].(string)
+	return state, verifier, returnPath, state != "" && verifier != ""
+}
+
+// ClearLoginFlow removes the transient login state once the callback is handled.
+func ClearLoginFlow(w http.ResponseWriter, r *http.Request) {
+	s, ok := get(r)
+	if !ok {
+		return
+	}
+	delete(s.Values, keyLoginState)
+	delete(s.Values, keyLoginVerifier)
+	delete(s.Values, keyLoginReturn)
+	save(w, r, s)
 }
 
 func IsAdmin(r *http.Request) bool {

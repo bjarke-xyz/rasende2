@@ -80,13 +80,6 @@ var daMsgs = map[string]string{
 	"admin.resetContent":     "Nulstil indhold",
 	"admin.articleGenerator": "Artikelgenerator",
 
-	"login.heading":          "Login",
-	"login.email":            "Email",
-	"login.password":         "Adgangskode",
-	"login.otp":              "Engangskode (OTP)",
-	"login.emailPlaceholder": "Indtast din email",
-	"login.submit":           "Login",
-
 	"error.prefix":        "Fejl:",
 	"error.unknown":       "ukendt fejl",
 	"error.requiresAdmin": "Kræver admin",

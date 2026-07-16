@@ -44,6 +44,18 @@ type Config struct {
 	CookieSecret string
 
 	BaseUrl string
+
+	// OIDC configures the external auth server this app delegates login to.
+	// The client id/secret are issued by that server's `auth project add`.
+	OIDCIssuer       string
+	OIDCClientID     string
+	OIDCClientSecret string
+}
+
+// OIDCRedirectURI is the callback the auth server redirects back to after login.
+// It must be registered as a redirect URI on the project there.
+func (c *Config) OIDCRedirectURI() string {
+	return c.BaseUrl + "/auth/callback"
 }
 
 const (
@@ -106,5 +118,8 @@ func NewConfig() (*Config, error) {
 		UseFakeLLM:             os.Getenv("USE_FAKE_LLM") == "true",
 		CookieSecret:           os.Getenv("COOKIE_SECRET"),
 		BaseUrl:                os.Getenv("BASE_URL"),
+		OIDCIssuer:             os.Getenv("OIDC_ISSUER"),
+		OIDCClientID:           os.Getenv("OIDC_CLIENT_ID"),
+		OIDCClientSecret:       os.Getenv("OIDC_CLIENT_SECRET"),
 	}, nil
 }

@@ -30,11 +30,3 @@ func Open(connStringer ConnectionStringer) (*sql.DB, error) {
 		return db, nil
 	}
 }
-
-func OpenQueries(connStringer ConnectionStringer) (*Queries, error) {
-	db, err := Open(connStringer)
-	if err != nil {
-		return nil, err
-	}
-	return NewQueries(db), nil
-}

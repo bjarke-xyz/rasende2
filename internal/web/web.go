@@ -105,6 +105,10 @@ func (h *web) Route(mux *http.ServeMux) {
 		h.routes(mux, l)
 	}
 
+	// The OIDC callback is edition-agnostic (one registered redirect URI); the
+	// edition is carried in the return path stashed during login.
+	mux.HandleFunc("GET /auth/callback", h.HandleGetAuthCallback)
+
 	h.routeRoot(mux)
 }
 
@@ -139,8 +143,6 @@ func (h *web) routes(mux *http.ServeMux, l lang.Lang) {
 	handle(http.MethodPost, "/vote-article", h.HandlePostArticleVote)
 	handle(http.MethodPost, "/reset-article-content", h.HandlePostResetContent)
 	handle(http.MethodGet, "/login", h.HandleGetLogin)
-	handle(http.MethodGet, "/login-link", h.HandleGetLoginLink)
-	handle(http.MethodPost, "/login", h.HandlePostLogin)
 	handle(http.MethodPost, "/logout", h.HandlePostLogout)
 
 	// /da/ 301s to /da. gin redirected the trailing slash away for free; ServeMux
@@ -202,7 +204,7 @@ func (h *web) getBaseModel(w http.ResponseWriter, r *http.Request, title string)
 	}
 	hxRequest := r.Header.Get("HX-Request")
 	includeLayout := hxRequest == "" || hxRequest == "false"
-	userId, ok := session.UserID(r)
+	_, loggedIn := session.UserID(r)
 	l := LangOf(r)
 	model := components.BaseViewModel{
 		Path:            r.URL.Path,
@@ -214,8 +216,7 @@ func (h *web) getBaseModel(w http.ResponseWriter, r *http.Request, title string)
 		FlashInfo:       session.Flashes(w, r, core.FlashTypeInfo),
 		FlashWarn:       session.Flashes(w, r, core.FlashTypeWarn),
 		FlashError:      session.Flashes(w, r, core.FlashTypeError),
-		UserId:          userId,
-		IsAnonymousUser: !ok,
+		IsAnonymousUser: !loggedIn,
 		IsAdmin:         session.IsAdmin(r),
 	}
 	return model

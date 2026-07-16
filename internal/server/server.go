@@ -44,6 +44,6 @@ func New(appContext *core.AppContext) (http.Handler, error) {
 	return httpx.Chain(mux,
 		httpx.Logger(inProduction),
 		httpx.Recovery,
-		session.Middleware(session.NewStore(cfg.CookieSecret)),
+		session.Middleware(session.NewStore(cfg.CookieSecret, inProduction)),
 	), nil
 }
