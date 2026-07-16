@@ -6,20 +6,15 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/ai"
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
-	"github.com/bjarke-xyz/rasende2/internal/mail"
 	"github.com/bjarke-xyz/rasende2/internal/news"
 	"github.com/bjarke-xyz/rasende2/internal/repository"
 )
 
 func AppContext(cfg *config.Config) *core.AppContext {
-	mailService := mail.NewMail(cfg)
 
 	appContext := &core.AppContext{
 		Config: cfg,
-		Infra: &core.AppInfra{
-			Mail: mailService,
-		},
-		Deps: &core.AppDeps{},
+		Deps:   &core.AppDeps{},
 	}
 
 	rssRepository := repository.NewSqliteNews(appContext)

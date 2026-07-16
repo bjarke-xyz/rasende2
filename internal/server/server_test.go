@@ -24,7 +24,6 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/lang"
-	"github.com/bjarke-xyz/rasende2/internal/mail"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/server"
 )
@@ -274,7 +273,6 @@ func newTestApp(t *testing.T) *testApp {
 
 	appCtx := &core.AppContext{
 		Config: cfg,
-		Infra:  &core.AppInfra{Mail: mail.NewMail(cfg)},
 		Deps:   &core.AppDeps{Service: svc, AiClient: ai},
 	}
 
