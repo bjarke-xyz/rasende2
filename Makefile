@@ -1,4 +1,4 @@
-.PHONY: build npm-ci npm-build-prod npm-build-dev dev test clean duda
+.PHONY: build go-build npm-ci npm-build-prod npm-build-dev dev test clean duda
 
 BINARY_NAME=rasende2
 
@@ -14,10 +14,14 @@ npm-build-prod:
 npm-build-dev: npm-build-prod
 	cp node_modules/chart.js/dist/chart.umd.js.map internal/web/static/js/vendor
 
+# go-build compiles the binary, assuming the vendored JS is already in place.
+# The Dockerfile vendors it in a separate stage and calls this directly.
+go-build:
+	go build -ldflags="-w -s" -o ${BINARY_NAME} cmd/web/main.go
+
 # build compiles the binary. Templates and CSS are embedded, not generated.
 build: npm-ci npm-build-prod
-	go mod tidy && \
-	go build -ldflags="-w -s" -o ${BINARY_NAME} cmd/web/main.go
+	go mod tidy && $(MAKE) go-build
 
 # dev runs the development server. Outside APP_ENV=production the templates are
 # re-read from disk on every request, so editing a .html file only needs a
