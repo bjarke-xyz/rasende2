@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -57,7 +57,7 @@ func (h *web) HandleGetAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	returnPath = safeReturn(returnPath)
 	if e := q.Get("error"); e != "" {
-		log.Printf("oidc: callback error: %v (%v)", e, q.Get("error_description"))
+		slog.Warn("oidc: callback error", "error", e, "description", q.Get("error_description"))
 		session.AddFlashWarn(w, r, LangOf(r).T("auth.genericError"))
 		http.Redirect(w, r, returnPath, http.StatusSeeOther)
 		return
@@ -65,14 +65,14 @@ func (h *web) HandleGetAuthCallback(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := h.oidcExchange(ctx, q.Get("code"), verifier)
 	if err != nil {
-		log.Printf("oidc: token exchange: %v", err)
+		slog.Error("oidc: token exchange failed", "error", err)
 		session.AddFlashError(w, r, fmt.Errorf("%v", LangOf(r).T("auth.genericError")))
 		http.Redirect(w, r, returnPath, http.StatusSeeOther)
 		return
 	}
 	info, err := h.oidcUserinfo(ctx, tok.AccessToken)
 	if err != nil {
-		log.Printf("oidc: userinfo: %v", err)
+		slog.Error("oidc: userinfo failed", "error", err)
 		session.AddFlashError(w, r, fmt.Errorf("%v", LangOf(r).T("auth.genericError")))
 		http.Redirect(w, r, returnPath, http.StatusSeeOther)
 		return

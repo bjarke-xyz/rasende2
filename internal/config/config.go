@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -91,7 +91,7 @@ func NewConfig() (*Config, error) {
 	if buildTimeStr != "" {
 		_buildTime, err := time.Parse("2006-01-02 15:04:05", buildTimeStr)
 		if err != nil {
-			log.Printf("error parsing BUILD_TIME env: %v", err)
+			slog.Warn("parsing BUILD_TIME env failed", "error", err)
 		}
 		buildTime = &_buildTime
 	}

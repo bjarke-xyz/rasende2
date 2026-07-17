@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"runtime/debug"
@@ -92,9 +92,17 @@ func Logger(trustCloudflare bool) Middleware {
 			if status == 0 {
 				status = http.StatusOK // handler wrote nothing; net/http will send 200
 			}
-			log.Printf("%3d | %13v | %15s | %-6s %s",
-				status, time.Since(start).Round(time.Microsecond),
-				clientIP(r, trustCloudflare), r.Method, path)
+			// duration_ms is a float rather than a time.Duration because the two
+			// handlers encode a Duration differently — JSON writes raw nanoseconds,
+			// text writes "1.23ms" — which would make the field's type depend on
+			// LOG_FORMAT.
+			slog.Info("request",
+				"method", r.Method,
+				"path", path,
+				"status", status,
+				"duration_ms", float64(time.Since(start).Microseconds())/1000,
+				"ip", clientIP(r, trustCloudflare),
+			)
 		})
 	}
 }
@@ -128,7 +136,15 @@ func Recovery(next http.Handler) http.Handler {
 			if rec == http.ErrAbortHandler {
 				panic(rec)
 			}
-			log.Printf("panic serving %s %s: %v\n%s", r.Method, r.URL.Path, rec, debug.Stack())
+			// The stack is its own attribute rather than part of the message:
+			// under the JSON handler that keeps the whole trace in one record
+			// and one Loki event, recoverable with `jq -r .stack`.
+			slog.Error("panic serving request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"panic", fmt.Sprint(rec),
+				"stack", string(debug.Stack()),
+			)
 
 			// A stream that has already sent bytes cannot be turned into a 500;
 			// writing one would append garbage to a response the client is
@@ -171,7 +187,7 @@ func SSEvent(w io.Writer, event, data string) error {
 // when the writer is wrapped by the middleware above.
 func Flush(w http.ResponseWriter) {
 	if err := http.NewResponseController(w).Flush(); err != nil {
-		log.Printf("sse: flush: %v", err)
+		slog.Warn("sse: flush failed", "error", err)
 	}
 }
 
@@ -190,7 +206,7 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("http: writing json: %v", err)
+		slog.Error("http: writing json failed", "error", err)
 	}
 }
 
@@ -205,6 +221,6 @@ func String(w http.ResponseWriter, status int, format string, args ...any) {
 		_, err = fmt.Fprintf(w, format, args...)
 	}
 	if err != nil {
-		log.Printf("http: writing string: %v", err)
+		slog.Error("http: writing string failed", "error", err)
 	}
 }

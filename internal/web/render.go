@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -74,7 +74,7 @@ func NewRenderer(cfg *config.Config) (*Renderer, error) {
 		if _, err := os.Stat(devTemplateDir); err == nil {
 			r.fsys, r.pattern, r.reload = os.DirFS(devTemplateDir), "*.html", true
 		} else {
-			log.Printf("templates: %v not found, serving embedded copies", devTemplateDir)
+			slog.Info("templates not found, serving embedded copies", "dir", devTemplateDir)
 		}
 	}
 	tmpls, err := r.parse()
@@ -139,7 +139,7 @@ func (r *Renderer) execute(l lang.Lang, name string, data any) ([]byte, error) {
 func (r *Renderer) String(req *http.Request, name string, data any) string {
 	b, err := r.execute(LangOf(req), name, data)
 	if err != nil {
-		log.Printf("render: %v", err)
+		slog.Error("render failed", "error", err)
 		return ""
 	}
 	return string(b)
@@ -149,7 +149,7 @@ func (r *Renderer) write(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if _, err := w.Write(body); err != nil {
-		log.Printf("render: writing response: %v", err)
+		slog.Error("render: writing response failed", "error", err)
 	}
 }
 
@@ -187,7 +187,7 @@ func (r *Renderer) Partial(w http.ResponseWriter, req *http.Request, status int,
 // fail is the last resort when a template itself is broken; rendering the error
 // page would likely fail the same way.
 func (r *Renderer) fail(w http.ResponseWriter, err error) {
-	log.Printf("render: %v", err)
+	slog.Error("render failed", "error", err)
 	httpx.String(w, http.StatusInternalServerError, "template error")
 }
 

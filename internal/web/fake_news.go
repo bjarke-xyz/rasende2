@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"net/url"
@@ -34,7 +34,7 @@ func (h *web) HandleGetFakeNews(w http.ResponseWriter, r *http.Request) {
 		cursorQueryParts := strings.Split(cursorQuery, "¤")
 		_publishedOffset, err := time.Parse(time.RFC3339Nano, cursorQueryParts[0])
 		if err != nil {
-			log.Printf("error parsing cursor: %v", err)
+			slog.Warn("parsing cursor failed", "error", err)
 		}
 		if err == nil {
 			publishedOffset = &_publishedOffset
@@ -42,7 +42,7 @@ func (h *web) HandleGetFakeNews(w http.ResponseWriter, r *http.Request) {
 		if len(cursorQueryParts) >= 2 {
 			votesOffset, err = strconv.Atoi(cursorQueryParts[1])
 			if err != nil {
-				log.Printf("error parsing cursor int: %v", err)
+				slog.Warn("parsing cursor int failed", "error", err)
 			}
 		}
 	}
@@ -56,7 +56,7 @@ func (h *web) HandleGetFakeNews(w http.ResponseWriter, r *http.Request) {
 		fakeNews, err = h.appContext.Deps.Service.GetRecentFakeNews(ctx, limit, publishedOffset)
 	}
 	if err != nil {
-		log.Printf("error getting highlighted fake news: %v", err)
+		slog.Error("getting highlighted fake news failed", "error", err)
 		h.renderErrorFragment(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -86,19 +86,19 @@ func (h *web) HandleGetFakeNewsArticle(w http.ResponseWriter, r *http.Request) {
 	querySlug, _ := url.QueryUnescape(r.PathValue("slug"))
 	externalId, _, err := parseArticleSlugV2(querySlug)
 	if err != nil {
-		log.Printf("error parsing slug '%v': %v", querySlug, err)
+		slog.Warn("parsing slug failed", "slug", querySlug, "error", err)
 		h.renderError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	fakeNewsDto, err := h.appContext.Deps.Service.GetFakeNews(ctx, externalId)
 	if err != nil {
-		log.Printf("error getting fake news: %v", err)
+		slog.Error("getting fake news failed", "error", err)
 		h.renderError(w, r, http.StatusInternalServerError, err)
 		return
 	}
 	if fakeNewsDto == nil {
 		err = fmt.Errorf("fake news not found")
-		log.Printf("error getting fake news: %v", err)
+		slog.Error("getting fake news failed", "error", err)
 		h.renderError(w, r, http.StatusNotFound, err)
 		return
 	}
@@ -133,7 +133,7 @@ func (h *web) HandleGetTitleGenerator(w http.ResponseWriter, r *http.Request) {
 
 	sites, err := h.appContext.Deps.Service.GetSiteInfos(ctx, LangOf(r))
 	if err != nil {
-		log.Printf("error getting sites: %v", err)
+		slog.Error("getting sites failed", "error", err)
 		h.renderError(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -200,7 +200,7 @@ func (h *web) HandleGetSseTitles(w http.ResponseWriter, r *http.Request) {
 	rand.Shuffle(len(itemTitles), func(i, j int) { itemTitles[i], itemTitles[j] = itemTitles[j], itemTitles[i] })
 	stream, err := h.appContext.Deps.AiClient.GenerateArticleTitles(ctx, *siteInfo, itemTitles, 10, temperature)
 	if err != nil {
-		log.Printf("LLM failed: %v", err)
+		slog.Error("llm failed", "error", err)
 
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
@@ -241,7 +241,7 @@ func (h *web) HandleGetSseTitles(w http.ResponseWriter, r *http.Request) {
 			emitTitle()
 			for _, title := range titles {
 				if err := h.appContext.Deps.Service.CreateFakeNews(ctx, siteInfo.Id, title, pkg.NewID()); err != nil {
-					log.Printf("create fake news failed for site %v, title %v: %v", siteInfo.Name, title, err)
+					slog.Error("create fake news failed", "site", siteInfo.Name, "title", title, "error", err)
 				}
 			}
 			httpx.SSEvent(w, "button", h.renderer.String(r, "showMoreTitlesButton", components.ShowMoreTitlesModel{SiteId: siteInfo.Id, Cursor: cursor}))
@@ -250,7 +250,7 @@ func (h *web) HandleGetSseTitles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err != nil {
-			log.Printf("\nStream error: %v\n", err)
+			slog.Error("stream error", "error", err)
 			return
 		}
 		for _, ch := range response.Content() {
@@ -348,7 +348,7 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 	}
 
 	if len(article.Content) > 0 {
-		log.Printf("found existing fake news for site %v title %v", site.Name, article.Title)
+		slog.Debug("found existing fake news", "site", site.Name, "title", article.Title)
 		httpx.SSEHeaders(w)
 		imgSrc := config.PlaceholderImgUrl
 		if article.ImageUrl != nil && *article.ImageUrl != "" {
@@ -373,7 +373,7 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 	var temperature float32 = 1.0
 	stream, err := h.appContext.Deps.AiClient.GenerateArticleContent(ctx, *site, article.Title, temperature)
 	if err != nil {
-		log.Printf("LLM failed: %v", err)
+		slog.Error("llm failed", "error", err)
 		var apiError *openai.APIError
 		if errors.As(err, &apiError) && apiError.HTTPStatusCode == 429 {
 			h.renderErrorFragment(w, r, http.StatusTooManyRequests, err)
@@ -396,7 +396,7 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 	resolveImage := func(imgUrl string, err error) {
 		imgDone = true
 		if err != nil {
-			log.Printf("error getting LLM img: %v", err)
+			slog.Error("error getting LLM img", "error", err)
 		}
 		if imgUrl == "" {
 			return
@@ -410,11 +410,11 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 		}
 		response, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			log.Println("\nStream finished")
+			slog.Debug("stream finished")
 			articleContent := sb.String()
 			err = h.appContext.Deps.Service.UpdateFakeNews(ctx, site.Id, articleTitle, articleContent)
 			if err != nil {
-				log.Printf("error saving fake news: %v", err)
+				slog.Error("saving fake news failed", "error", err)
 			}
 			if !imgDone {
 				resolveImage(articleImgPromise.Get())
@@ -424,7 +424,7 @@ func (h *web) HandleGetSseArticleContent(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		if err != nil {
-			log.Printf("\nStream error: %v\n", err)
+			slog.Error("stream error", "error", err)
 			httpx.SSEvent(w, "sse-close", "sse-close")
 			httpx.Flush(w)
 			return
@@ -607,7 +607,6 @@ func parseArticleSlugV2(slug string) (string, string, error) {
 	externalId := ""
 	title := ""
 	parts := strings.Split(slug, "-")
-	log.Println(len(parts), parts)
 	if len(parts) < 2 {
 		return externalId, title, fmt.Errorf("invalid slug")
 	}

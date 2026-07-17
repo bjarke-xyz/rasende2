@@ -12,7 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,7 +31,12 @@ import (
 func TestMain(m *testing.M) {
 	// The access log and the handlers' own logging would otherwise bury the test
 	// output. A failing test reports what it needs itself.
-	log.SetOutput(io.Discard)
+	//
+	// This silences slog rather than the log package: the handlers log through
+	// slog, and only cmd/web installs a handler, so a test binary would
+	// otherwise fall back to slog's default. Discarding at the slog end is what
+	// keeps this true no matter which of the two a call site uses.
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	m.Run()
 }
 
@@ -561,8 +566,8 @@ func TestSseArticleImageFailureLoggedOnce(t *testing.T) {
 	app.ai.contentStream = gate
 
 	var logs bytes.Buffer
-	log.SetOutput(&logs)
-	t.Cleanup(func() { log.SetOutput(io.Discard) })
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil))) })
 
 	srv := httptest.NewServer(app.handler)
 	defer srv.Close()

@@ -7,7 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"slices"
@@ -76,7 +76,7 @@ func (r *RssService) GetIndexPageData(ctx context.Context, l lang.Lang) (*core.I
 
 	results, err := r.SearchItems(ctx, l, query, searchContent, offset, limit, orderBy)
 	if err != nil {
-		log.Printf("failed to get items with query %v: %v", query, err)
+		slog.Error("getting items failed", "query", query, "error", err)
 		return &core.IndexPageData{}, err
 	}
 	if len(results) > limit {
@@ -87,7 +87,7 @@ func (r *RssService) GetIndexPageData(ctx context.Context, l lang.Lang) (*core.I
 	}
 	chartsData, err := chartsPromise.Get()
 	if err != nil {
-		log.Printf("failed to get charts data: %v", err)
+		slog.Error("getting charts data failed", "error", err)
 		return &core.IndexPageData{}, err
 	}
 	indexPageData.SearchResult = &searchResults
@@ -110,13 +110,13 @@ func (r *RssService) GetChartData(ctx context.Context, l lang.Lang, query string
 	tomorrow := now.Add(time.Hour * 24)
 	itemCount, err := r.GetItemCountForSearchQuery(ctx, l, query, false, &sevenDaysAgo, &tomorrow, "published")
 	if err != nil {
-		log.Printf("failed to get items with query %v: %v", query, err)
+		slog.Error("getting items failed", "query", query, "error", err)
 		return core.ChartsResult{}, err
 	}
 
 	siteCount, err := siteCountPromise.Get()
 	if err != nil {
-		log.Printf("failed to get site count with query %v: %v", query, err)
+		slog.Error("getting site count failed", "query", query, "error", err)
 		return core.ChartsResult{}, err
 	}
 
@@ -142,14 +142,14 @@ func (r *RssService) Initialise(ctx context.Context) {
 	// background, so a fresh database becomes searchable without operator action.
 	indexEmpty, err := r.search.IsEmpty(ctx)
 	if err != nil {
-		log.Printf("failed to check search index: %v", err)
+		slog.Error("checking search index failed", "error", err)
 	} else if indexEmpty {
 		go r.RebuildSearchIndexAndLogError(context.Background())
 	}
 
 	err = r.RefreshMetrics(ctx)
 	if err != nil {
-		log.Printf("error refreshing metrics: %v", err)
+		slog.Error("refreshing metrics failed", "error", err)
 	}
 }
 
@@ -158,7 +158,7 @@ func (r *RssService) Dispose() {
 
 func (r *RssService) RebuildSearchIndexAndLogError(ctx context.Context) {
 	if err := r.search.Rebuild(ctx); err != nil {
-		log.Printf("error rebuilding search index: %v", err)
+		slog.Error("rebuilding search index failed", "error", err)
 	}
 }
 
@@ -293,7 +293,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl cor
 	if err != nil {
 		return fmt.Errorf("failed to get items from feed %v: %w", rssUrl.Name, err)
 	}
-	log.Printf("FetchAndSaveNewItems: %v took %v to parse", rssUrl.Name, time.Since(now))
+	slog.Debug("fetch and save new items: parsed", "site", rssUrl.Name, "duration_ms", float64(time.Since(now).Microseconds())/1000)
 
 	fromFeedItemIds := make([]string, len(fromFeed))
 	for i, fromFeedItem := range fromFeed {
@@ -319,7 +319,7 @@ func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl cor
 		}
 	}
 
-	log.Printf("FetchAndSaveNewItems: %v inserted %v new items. Took %v", rssUrl.Name, len(toInsert), time.Since(dbNow))
+	slog.Debug("fetch and save new items: inserted", "site", rssUrl.Name, "count", len(toInsert), "duration_ms", float64(time.Since(dbNow).Microseconds())/1000)
 	// InsertItems indexes each new row into rss_items_fts in the same transaction.
 	articleCount, err := r.repository.InsertItems(ctx, rssUrl, toInsert)
 	if err != nil {
@@ -343,7 +343,7 @@ func (r *RssService) FetchAndSaveNewItems(ctx context.Context) error {
 	var wg sync.WaitGroup
 	for _, rssUrl := range rssUrls {
 		if (len(rssUrl.Urls)) == 0 {
-			log.Printf("not getting items for %v: Urls list is empty", rssUrl.Name)
+			slog.Warn("not getting items: urls list is empty", "site", rssUrl.Name)
 			continue
 		}
 		wg.Add(1)
@@ -352,7 +352,7 @@ func (r *RssService) FetchAndSaveNewItems(ctx context.Context) error {
 			defer wg.Done()
 			siteErr := r.fetchAndSaveNewItemsForSite(ctx, rssUrl)
 			if siteErr != nil {
-				log.Printf("fetchAndSaveNewItemsForSite failed for %v: %v", rssUrl.Name, siteErr)
+				slog.Error("fetch and save new items for site failed", "site", rssUrl.Name, "error", siteErr)
 			}
 		}()
 	}
@@ -419,7 +419,7 @@ func (r *RssService) getContents(rssUrl core.NewsSite) ([]string, error) {
 		}
 		bodyStr := string(body)
 		if resp.StatusCode > 299 {
-			log.Printf("error getting %v, got status code %v. headers='%v', body='%v'", url, resp.StatusCode, resp.Header, bodyStr)
+			slog.Warn("unexpected status fetching feed", "url", url, "status", resp.StatusCode, "headers", fmt.Sprintf("%v", resp.Header), "body", bodyStr)
 			return nil, fmt.Errorf("error getting %v, returned error code %v", url, resp.StatusCode)
 		}
 		contents = append(contents, bodyStr)
@@ -430,7 +430,7 @@ func (r *RssService) getContents(rssUrl core.NewsSite) ([]string, error) {
 func (r *RssService) GetRecentTitles(ctx context.Context, siteInfo core.NewsSite, limit int, shuffle bool) ([]string, error) {
 	items, err := r.repository.GetRecentItems(ctx, siteInfo.Id, limit, nil)
 	if err != nil {
-		log.Printf("get items failed: %v", err)
+		slog.Error("get items failed", "error", err)
 		return []string{}, err
 	}
 	if len(items) == 0 {
@@ -484,7 +484,7 @@ func (r *RssService) VoteFakeNews(ctx context.Context, siteId int, title string,
 func (r *RssService) CleanUpFakeNewsAndLogError(ctx context.Context) {
 	err := r.CleanUpFakeNews(ctx)
 	if err != nil {
-		log.Printf("error in CleanUpFakeNews: %v", err)
+		slog.Error("clean up fake news failed", "error", err)
 	}
 }
 
@@ -608,9 +608,9 @@ func processBatch(ctx context.Context, client *s3.Client, db *sql.DB, bucket str
 				Key:    aws.String(obj.key),
 			})
 			if err != nil {
-				log.Println("Failed to delete", obj.key, ":", err)
+				slog.Warn("deleting object failed", "key", obj.key, "error", err)
 			} else {
-				log.Println("Deleted", obj.key)
+				slog.Debug("deleted object", "key", obj.key)
 			}
 		}
 	}

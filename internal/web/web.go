@@ -5,7 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -252,7 +252,7 @@ var staticFileNames = []string{
 func staticFiles(mux *http.ServeMux, staticFs fs.FS) {
 	staticWeb, err := fs.Sub(staticFs, "static")
 	if err != nil {
-		log.Printf("failed to get fs sub for static: %v", err)
+		slog.Error("static fs sub failed", "error", err)
 		return
 	}
 

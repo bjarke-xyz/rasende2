@@ -9,7 +9,7 @@ package session
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
@@ -71,7 +71,7 @@ func Middleware(store sessions.Store) httpx.Middleware {
 func get(r *http.Request) (*sessions.Session, bool) {
 	store, ok := r.Context().Value(storeKey{}).(sessions.Store)
 	if !ok {
-		log.Printf("session: no store on request; is the middleware installed?")
+		slog.Error("session: no store on request; is the middleware installed?")
 		return nil, false
 	}
 	// An error here means the cookie was unreadable (wrong secret, tampering, an
@@ -79,14 +79,14 @@ func get(r *http.Request) (*sessions.Session, bool) {
 	// we want: treat the visitor as logged out rather than failing the request.
 	s, err := store.Get(r, cookieName)
 	if err != nil {
-		log.Printf("session: decoding %q: %v", cookieName, err)
+		slog.Warn("session: decoding cookie failed", "cookie", cookieName, "error", err)
 	}
 	return s, s != nil
 }
 
 func save(w http.ResponseWriter, r *http.Request, s *sessions.Session) {
 	if err := s.Save(r, w); err != nil {
-		log.Printf("session: save: %v", err)
+		slog.Error("session: save failed", "error", err)
 	}
 }
 
@@ -215,7 +215,7 @@ func Flashes(w http.ResponseWriter, r *http.Request, flashType string) []string 
 	for _, flash := range flashes {
 		msg, ok := flash.(string)
 		if !ok {
-			log.Printf("session: flash is not a string: %v", flash)
+			slog.Warn("session: flash is not a string", "flash", flash)
 			continue
 		}
 		msgs = append(msgs, msg)

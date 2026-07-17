@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,13 +13,14 @@ import (
 	"github.com/bjarke-xyz/rasende2/internal/app"
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/logging"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 	"github.com/bjarke-xyz/rasende2/internal/server"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	logging.Setup()
 
 	// Create a context that will be canceled when we receive a shutdown signal
 	ctx, cancel := context.WithCancel(context.Background())
@@ -31,17 +32,17 @@ func main() {
 
 	cfg, err := config.NewConfig()
 	if err != nil {
-		log.Printf("failed to load config: %v", err)
+		slog.Error("failed to load config", "error", err)
 	}
 
 	dbConn, err := db.Open(cfg)
 	if err != nil {
-		log.Printf("error opening db: %v", err)
+		slog.Error("opening db failed", "error", err)
 	}
 	if dbConn != nil {
 		err = db.Migrate("up", dbConn)
 		if err != nil {
-			log.Printf("failed to migrate: %v", err)
+			slog.Error("migration failed", "error", err)
 		}
 	}
 
@@ -53,18 +54,20 @@ func main() {
 
 	srv, err := Server(appContext)
 	if err != nil {
-		log.Fatalf("failed to create server: %v", err)
+		slog.Error("creating server failed", "error", err)
+		os.Exit(1)
 	}
 	go func() {
-		log.Printf("Starting server on http://localhost%v", srv.Addr)
+		slog.Info("listening", "addr", srv.Addr, "url", "http://localhost"+srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("ListenAndServe(): %v", err)
+			slog.Error("listen and serve failed", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	// Block until we receive a signal
 	<-stop
-	log.Println("Shutting down server...")
+	slog.Info("shutting down server")
 
 	// Cancel the context to signal all handlers that the server is shutting down
 	cancel()
@@ -75,9 +78,10 @@ func main() {
 
 	// Shutdown the server gracefully
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server Shutdown Failed:%+v", err)
+		slog.Error("server shutdown failed", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Server exited properly")
+	slog.Info("server exited properly")
 }
 
 func runMetricsServer() {

@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -75,7 +75,7 @@ func (o *llmClient) GenerateImage(ctx context.Context, site core.NewsSite, artic
 		translateResp, err := o.client.CreateChatCompletion(ctx, req)
 		metrics.AiCounterTranslateInc()
 		if err != nil {
-			log.Printf("translate failed: %v", err)
+			slog.Error("translate failed", "error", err)
 		} else {
 			if len(translateResp.Choices) > 0 {
 				translatedTitle := translateResp.Choices[0].Message.Content
@@ -105,7 +105,7 @@ func (o *llmClient) GenerateImage(ctx context.Context, site core.NewsSite, artic
 	promptResp, err := o.client.CreateChatCompletion(ctx, promptReq)
 	metrics.AiCounterImagePromptInc()
 	if err != nil {
-		log.Printf("prompt request failed: %v", err)
+		slog.Error("prompt request failed", "error", err)
 	} else {
 		if len(promptResp.Choices) > 0 {
 			newPrompt := promptResp.Choices[0].Message.Content
@@ -155,8 +155,8 @@ func (o *llmClient) GenerateImage(ctx context.Context, site core.NewsSite, artic
 		Modalities: []string{"image", "text"},
 	}
 
-	log.Printf("GenerateImage - site: %v, articleTitle: %v", site.Name, articleTitle)
-	log.Printf("GenerateImage - Prompt=%v", prompt)
+	slog.Debug("generate image", "site", site.Name, "article_title", articleTitle)
+	slog.Debug("generate image prompt", "prompt", prompt)
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
@@ -302,7 +302,7 @@ func (o *llmClient) GenerateArticleTitles(ctx context.Context, site core.NewsSit
 	// and trim, so it bought nothing — and the model imitated the quotes in the
 	// example, emitting every title wrapped in apostrophes.
 	sysPrompt := fmt.Sprintf("You are a journalist on a satirical news media like The Onion or Rokoko Posten. You must come up with new article titles, in the style of the news media '%v', but they must be fun and satirical so they can get published in The Onion or Rokoko Posten. %v Start each title on a new line. Return only titles, nothing else: no numbering, no bullets, and do not wrap a title in quotation marks. Make at most %v titles. The titles MUST be written in %v!. The titles MUST start with a capital letter.", site.Name, source, newTitlesCount, siteLang(site).Name)
-	log.Printf("GenerateArticleTitles - site: %v, previousTitles: %v", site.Name, len(previousTitles))
+	slog.Debug("generate article titles", "site", site.Name, "previous_titles", len(previousTitles))
 	// The user turn is the recent headlines. It must exist even when there are
 	// none: given only system messages the model has nothing to answer and returns
 	// an empty completion, so an unfetched site would silently generate nothing.
@@ -330,7 +330,7 @@ func (o *llmClient) GenerateArticleTitles(ctx context.Context, site core.NewsSit
 		Messages:    messages,
 		Stream:      true,
 	}
-	log.Printf("GenerateArticleTitles - Prompts=%+v", req.Messages)
+	slog.Debug("generate article titles prompts", "prompts", fmt.Sprintf("%+v", req.Messages))
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	metrics.AiCounterTitlesInc()
 	if err != nil {
@@ -343,7 +343,7 @@ func (o *llmClient) SelectBestArticleTitle(ctx context.Context, site core.NewsSi
 	if o.useFake {
 		return articleTitles[0], nil
 	}
-	log.Printf("SelectBestArticleTitle - site: %v", site.Name)
+	slog.Debug("select best article title", "site", site.Name)
 	// sysPrompt := fmt.Sprintf("You are the editor of a news media called '%v'. %v. \n You are given %v news article titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", site.Name, site.Description, len(articleTitles))
 	sysPrompt := fmt.Sprintf("You are the editor of a satirical news media like the Onion or Rokoko Posten. You are given %v news articles titles. You must pick the one title which is most likely to get the most clicks. **RETURN ONLY THE TITLE, NOTHING ELSE**", len(articleTitles))
 	req := openai.ChatCompletionRequest{
@@ -361,7 +361,7 @@ func (o *llmClient) SelectBestArticleTitle(ctx context.Context, site core.NewsSi
 		},
 		Stream: true,
 	}
-	log.Printf("SelectBestArticleTitle - Prompts=%+v", req.Messages)
+	slog.Debug("select best article title prompts", "prompts", fmt.Sprintf("%+v", req.Messages))
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	metrics.AiCounterSelectTitleInc()
 	if err != nil {
@@ -411,7 +411,7 @@ func (o *llmClient) GenerateArticleContent(ctx context.Context, site core.NewsSi
 	if o.useFake {
 		return o.generateArticleContentFake()
 	}
-	log.Printf("GenerateArticleContent - site: %v, title: %v, temperature: %v", site.Name, articleTitle, temperature)
+	slog.Debug("generate article content", "site", site.Name, "title", articleTitle, "temperature", temperature)
 	sysPrompt := fmt.Sprintf("You are a journalist of a satirical news media like The Onion or Rokoko Posten. You are given an article title, and the name and description of a news media. You must write an article that fits the title, and the theme of the news media. But don't forget this is for a satirical news media like The Onion or Rokoko Posten. Keep it short, 2-3 paragraphs. The article MUST NOT start with the title!! The article MUST be written in %v.", siteLang(site).Name)
 	req := openai.ChatCompletionRequest{
 		Model:       chatModel,
@@ -432,7 +432,7 @@ func (o *llmClient) GenerateArticleContent(ctx context.Context, site core.NewsSi
 		},
 		Stream: true,
 	}
-	log.Printf("GenerateArticleContent - Prompts=%+v", req.Messages)
+	slog.Debug("generate article content prompts", "prompts", fmt.Sprintf("%+v", req.Messages))
 	stream, err := o.client.CreateChatCompletionStream(ctx, req)
 	metrics.AiCounterArticleContentInc()
 	if err != nil {

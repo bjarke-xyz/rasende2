@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -216,7 +216,7 @@ func (s *RssSearch) CountByDay(ctx context.Context, lang string, query string, s
 		}
 		timestamp, err := time.Parse(time.DateOnly, day)
 		if err != nil {
-			log.Printf("error parsing day %v: %v", day, err)
+			slog.Warn("parsing day failed", "day", day, "error", err)
 			continue
 		}
 		counts = append(counts, core.SearchQueryCount{Timestamp: timestamp, Count: count})
@@ -275,7 +275,7 @@ func (s *RssSearch) Rebuild(ctx context.Context) error {
 		return err
 	}
 	startTime := time.Now()
-	log.Printf("rebuilding search index...")
+	slog.Info("rebuilding search index")
 
 	// 'delete-all' is the FTS5 command for emptying a contentless table.
 	if _, err := dbConn.ExecContext(ctx, "INSERT INTO rss_items_fts(rss_items_fts) VALUES('delete-all')"); err != nil {
@@ -295,10 +295,12 @@ func (s *RssSearch) Rebuild(ctx context.Context) error {
 		count += indexed
 		skipped += skippedInBatch
 		lastId = nextId
-		log.Printf("indexed %d documents in %.2fs", count, time.Since(startTime).Seconds())
+		slog.Debug("indexed documents", "count", count, "duration_s", time.Since(startTime).Seconds())
 	}
-	log.Printf("rebuilt search index with %d documents in %.2fs (%d skipped for having no known site)",
-		count, time.Since(startTime).Seconds(), skipped)
+	slog.Info("rebuilt search index",
+		"documents", count,
+		"duration_s", time.Since(startTime).Seconds(),
+		"skipped_no_known_site", skipped)
 	s.RefreshMetrics()
 	return nil
 }
@@ -393,7 +395,7 @@ func (s *RssSearch) IsEmpty(ctx context.Context) (bool, error) {
 func (s *RssSearch) RefreshMetrics() {
 	stat, err := os.Stat(s.context.Config.DbConnStr)
 	if err != nil {
-		log.Printf("error stat'ing database %v: %v", s.context.Config.DbConnStr, err)
+		slog.Error("stat database failed", "path", s.context.Config.DbConnStr, "error", err)
 		return
 	}
 	dbSizeGauge.Set(float64(stat.Size()))

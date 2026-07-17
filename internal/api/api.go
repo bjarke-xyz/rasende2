@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
-	"log"
+	"log/slog"
 	"math/rand/v2"
 	"net/http"
 	"strings"
@@ -44,7 +44,7 @@ func (a *api) requireJobKey(next http.Handler) http.Handler {
 		// matched it, which left these open to anyone who guessed the path. No key
 		// configured now means no access.
 		if key == "" {
-			log.Printf("api: JOB_KEY is not set; refusing %v", r.URL.Path)
+			slog.Error("api: JOB_KEY is not set; refusing request", "path", r.URL.Path)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -81,7 +81,7 @@ func (a *api) CleanUpFakeNews(w http.ResponseWriter, r *http.Request) {
 			httpx.String(w, http.StatusInternalServerError, "fake news clean up failed: %v", err)
 			return
 		}
-		log.Printf("fake news clean up success")
+		slog.Info("fake news clean up success")
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -104,7 +104,7 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 	for _, l := range lang.All {
 		sites, err := a.appContext.Deps.Service.GetSiteInfos(ctx, l)
 		if err != nil {
-			log.Printf("error site infos: %v", err)
+			slog.Error("getting site infos failed", "error", err)
 			httpx.JSON(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -112,7 +112,7 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 	}
 	latestFakeNews, err := a.appContext.Deps.Service.GetRecentFakeNews(ctx, 3, nil)
 	if err != nil {
-		log.Printf("error getting recent fake news: %v", err)
+		slog.Error("getting recent fake news failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -142,7 +142,7 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 	site := sites[rand.IntN(len(sites))]
 	recentArticleTitles, err := a.appContext.Deps.Service.GetRecentTitles(ctx, site, 10, true)
 	if err != nil {
-		log.Printf("error getting recent article titles: %v", err)
+		slog.Error("getting recent article titles failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -150,22 +150,22 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 	var generatedTitleCount = 30
 	generatedArticleTitles, err := a.appContext.Deps.AiClient.GenerateArticleTitlesList(ctx, site, recentArticleTitles, generatedTitleCount, temperature)
 	if err != nil {
-		log.Printf("error getting generated article titles: %v", err)
+		slog.Error("getting generated article titles failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	log.Printf("generated titles: %v", strings.Join(generatedArticleTitles, ", "))
+	slog.Debug("generated titles", "titles", strings.Join(generatedArticleTitles, ", "))
 	selectedTitle, err := a.appContext.Deps.AiClient.SelectBestArticleTitle(ctx, site, generatedArticleTitles)
 	if err != nil {
-		log.Printf("error selecting best article title: %v", err)
+		slog.Error("selecting best article title failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	log.Printf("selected title: %v", selectedTitle)
+	slog.Debug("selected title", "title", selectedTitle)
 	externalId := pkg.NewID()
 	err = a.appContext.Deps.Service.CreateFakeNews(ctx, site.Id, selectedTitle, externalId)
 	if err != nil {
-		log.Printf("error creating fake news: %v", err)
+		slog.Error("creating fake news failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -173,7 +173,7 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 	articleImgPromise := pkg.NewPromise(func() (string, error) {
 		imgUrl, err := a.appContext.Deps.AiClient.GenerateImage(ctx, site, selectedTitle, true)
 		if err != nil {
-			log.Printf("error making fake news img: %v", err)
+			slog.Error("making fake news img failed", "error", err)
 		}
 		if imgUrl != "" {
 			a.appContext.Deps.Service.SetFakeNewsImgUrl(ctx, site.Id, selectedTitle, imgUrl)
@@ -183,37 +183,37 @@ func (a *api) AutoGenerateFakeNews(w http.ResponseWriter, r *http.Request) {
 
 	articleContent, err := a.appContext.Deps.AiClient.GenerateArticleContentStr(ctx, site, selectedTitle, temperature)
 	if err != nil {
-		log.Printf("error generating article content: %v", err)
+		slog.Error("generating article content failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	err = a.appContext.Deps.Service.UpdateFakeNews(ctx, site.Id, selectedTitle, articleContent)
 	if err != nil {
-		log.Printf("error updating fake news: %v", err)
+		slog.Error("updating fake news failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	log.Printf("waiting for img...")
+	slog.Debug("waiting for img")
 	articleImgPromise.Get()
-	log.Printf("img done!")
+	slog.Debug("img done")
 
 	err = a.appContext.Deps.Service.SetFakeNewsHighlighted(ctx, site.Id, selectedTitle, true)
 	if err != nil {
-		log.Printf("error setting highlighted: %v", err)
+		slog.Error("setting highlighted failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	createdFakeNews, err := a.appContext.Deps.Service.GetFakeNews(ctx, externalId)
 	if err != nil {
-		log.Printf("error getting fake news: %v", err)
+		slog.Error("getting fake news failed", "error", err)
 		httpx.JSON(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if createdFakeNews == nil {
-		log.Printf("fake news was nil")
+		slog.Warn("fake news was nil")
 		httpx.JSON(w, http.StatusInternalServerError, "fake new was nil")
 		return
 	}

@@ -1,7 +1,7 @@
 package web
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
@@ -42,7 +42,7 @@ func (h *web) HandlePostSearch(w http.ResponseWriter, r *http.Request) {
 	orderBy := allowedOrderBys[0]
 	results, err := h.appContext.Deps.Service.SearchItems(ctx, l, query, searchContent, offset, limit, orderBy)
 	if err != nil {
-		log.Printf("failed to get items with query %v: %v", query, err)
+		slog.Error("getting items failed", "query", query, "error", err)
 		h.renderErrorFragment(w, r, http.StatusInternalServerError, err)
 		return
 	}
@@ -51,7 +51,7 @@ func (h *web) HandlePostSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	chartsResult, err := chartsPromise.Get()
 	if err != nil {
-		log.Printf("failed to get charts with query %v: %v", query, err)
+		slog.Error("getting charts failed", "query", query, "error", err)
 		h.renderErrorFragment(w, r, http.StatusInternalServerError, err)
 		return
 	}
