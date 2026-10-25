@@ -37,12 +37,11 @@
   },
   {
     "name": "Jyllands-Posten",
-    "urls": [
-      "https://jyllands-posten.dk/?service=rssfeed&mode=area&areaNames=level0,topflow"
-    ],
+    "urls": [],
     "description": "Jyllands-Posten is a Danish newspaper and one of the country's most prominent and influential news media. The newspaper was founded in 1871 and has since played a significant role in Danish media history. Jyllands-Posten is published both in print and digitally, covering a wide range of topics, including politics, society, economy, culture, sports, and international events. The newspaper has a large number of journalists and correspondents reporting from Denmark and around the world. Jyllands-Posten is known for providing comprehensive news coverage and in-depth analyses.",
     "language": "da",
-    "id": 14
+    "id": 14,
+    "disabled": true
   },
   {
     "name": "Politiken",
@@ -244,23 +243,21 @@
   },
   {
     "name": "The Mirror",
-    "urls": [
-      "https://www.mirror.co.uk/news/rss.xml"
-    ],
+    "urls": [],
     "description": "The Mirror is a British tabloid newspaper founded in 1903, traditionally left-leaning and working-class in outlook. It mixes hard news with celebrity gossip, human-interest stories and sensational headlines, and is known for an emotive, dramatic tone and a fondness for outrage and scandal.",
     "language": "en",
     "id": 27,
-    "userAgentKey": "chrome"
+    "userAgentKey": "chrome",
+    "disabled": true
   },
   {
     "name": "Daily Express",
-    "urls": [
-      "https://www.express.co.uk/posts/rss/1"
-    ],
+    "urls": [],
     "description": "The Daily Express is a British tabloid newspaper founded in 1900, with a right-leaning, populist editorial stance. It is known for dramatic front pages, strong opinions on politics and immigration, weather scare stories and health scares, delivered in an urgent and often indignant tone.",
     "language": "en",
     "id": 28,
-    "userAgentKey": "chrome"
+    "userAgentKey": "chrome",
+    "disabled": true
   },
   {
     "name": "Metro",
