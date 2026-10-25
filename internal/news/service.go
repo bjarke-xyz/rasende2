@@ -29,10 +29,13 @@ import (
 )
 
 type RssService struct {
-	context    *core.AppContext
-	repository core.NewsRepository
-	sanitizer  *bluemonday.Policy
-	search     *RssSearch
+	context          *core.AppContext
+	repository       core.NewsRepository
+	sanitizer        *bluemonday.Policy
+	search           *RssSearch
+	indexPageRefresh sync.Mutex
+	indexPageCacheMu sync.RWMutex
+	indexPageCache   map[lang.Code]*core.IndexPageData
 }
 
 var (
@@ -53,14 +56,59 @@ var (
 
 func NewRssService(context *core.AppContext, repository core.NewsRepository, search *RssSearch) core.NewsService {
 	return &RssService{
-		context:    context,
-		repository: repository,
-		sanitizer:  bluemonday.StrictPolicy(),
-		search:     search,
+		context:        context,
+		repository:     repository,
+		sanitizer:      bluemonday.StrictPolicy(),
+		search:         search,
+		indexPageCache: make(map[lang.Code]*core.IndexPageData, len(lang.All)),
 	}
 }
 
 func (r *RssService) GetIndexPageData(ctx context.Context, l lang.Lang) (*core.IndexPageData, error) {
+	r.indexPageCacheMu.RLock()
+	cached, ok := r.indexPageCache[l.Code]
+	r.indexPageCacheMu.RUnlock()
+	if ok {
+		return cloneIndexPageData(cached), nil
+	}
+
+	indexPageData, err := r.buildIndexPageData(ctx, l)
+	if err != nil {
+		return nil, err
+	}
+	r.indexPageCacheMu.Lock()
+	if cached, ok = r.indexPageCache[l.Code]; ok {
+		indexPageData = cached
+	} else {
+		r.indexPageCache[l.Code] = indexPageData
+	}
+	r.indexPageCacheMu.Unlock()
+	return cloneIndexPageData(indexPageData), nil
+}
+
+func cloneIndexPageData(data *core.IndexPageData) *core.IndexPageData {
+	cloned := *data
+	if data.SearchResult != nil {
+		searchResult := *data.SearchResult
+		searchResult.Items = slices.Clone(searchResult.Items)
+		cloned.SearchResult = &searchResult
+	}
+	if data.ChartsResult != nil {
+		chartsResult := *data.ChartsResult
+		chartsResult.Charts = slices.Clone(chartsResult.Charts)
+		for i := range chartsResult.Charts {
+			chartsResult.Charts[i].Labels = slices.Clone(chartsResult.Charts[i].Labels)
+			chartsResult.Charts[i].Datasets = slices.Clone(chartsResult.Charts[i].Datasets)
+			for j := range chartsResult.Charts[i].Datasets {
+				chartsResult.Charts[i].Datasets[j].Data = slices.Clone(chartsResult.Charts[i].Datasets[j].Data)
+			}
+		}
+		cloned.ChartsResult = &chartsResult
+	}
+	return &cloned
+}
+
+func (r *RssService) buildIndexPageData(ctx context.Context, l lang.Lang) (*core.IndexPageData, error) {
 	query := l.DefaultQuery
 	offset := 0
 	limit := 10
@@ -93,6 +141,25 @@ func (r *RssService) GetIndexPageData(ctx context.Context, l lang.Lang) (*core.I
 	indexPageData.SearchResult = &searchResults
 	indexPageData.ChartsResult = &chartsData
 	return indexPageData, nil
+}
+
+func (r *RssService) refreshIndexPageCache(ctx context.Context) error {
+	r.indexPageRefresh.Lock()
+	defer r.indexPageRefresh.Unlock()
+
+	refreshed := make(map[lang.Code]*core.IndexPageData, len(lang.All))
+	for _, l := range lang.All {
+		indexPageData, err := r.buildIndexPageData(ctx, l)
+		if err != nil {
+			return fmt.Errorf("refreshing %s index page cache: %w", l.Code, err)
+		}
+		refreshed[l.Code] = indexPageData
+	}
+
+	r.indexPageCacheMu.Lock()
+	r.indexPageCache = refreshed
+	r.indexPageCacheMu.Unlock()
+	return nil
 }
 
 // GetChartData builds the two charts for a query. The edition's own word gets
@@ -145,6 +212,8 @@ func (r *RssService) Initialise(ctx context.Context) {
 		slog.Error("checking search index failed", "error", err)
 	} else if indexEmpty {
 		go r.RebuildSearchIndexAndLogError(context.Background())
+	} else if err := r.refreshIndexPageCache(ctx); err != nil {
+		slog.Error("warming index page cache failed", "error", err)
 	}
 
 	err = r.RefreshMetrics(ctx)
@@ -159,6 +228,10 @@ func (r *RssService) Dispose() {
 func (r *RssService) RebuildSearchIndexAndLogError(ctx context.Context) {
 	if err := r.search.Rebuild(ctx); err != nil {
 		slog.Error("rebuilding search index failed", "error", err)
+		return
+	}
+	if err := r.refreshIndexPageCache(ctx); err != nil {
+		slog.Error("refreshing index page cache after index rebuild failed", "error", err)
 	}
 }
 
@@ -359,6 +432,9 @@ func (r *RssService) FetchAndSaveNewItems(ctx context.Context) error {
 	wg.Wait()
 	// No index reconciliation needed: InsertItems indexes each new row in the same
 	// transaction that inserts it.
+	if err := r.refreshIndexPageCache(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 

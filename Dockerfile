@@ -2,7 +2,7 @@
 # then go:embed'ed into the binary. Its own stage keeps node out of the Go
 # builder and off the cache path of every Go-only change.
 # https://hub.docker.com/_/node
-FROM node:22-alpine AS vendor
+FROM --platform=$BUILDPLATFORM node:22-alpine AS vendor
 
 RUN apk add --no-cache make
 
@@ -17,7 +17,10 @@ RUN mkdir -p internal/web/static/js/vendor && make npm-build-prod
 # Use the offical golang image to create a binary.
 # This is based on Debian and sets the GOPATH to /go.
 # https://hub.docker.com/_/golang
-FROM golang:1.26-bookworm AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 # Create and change to the app directory.
 WORKDIR /app
@@ -35,7 +38,7 @@ COPY --from=vendor /app/internal/web/static/js/vendor internal/web/static/js/ven
 # modernc.org/sqlite is pure Go, so CGO can stay off — which lets the runtime
 # image be a near-empty base with no libc. Templates, static assets and
 # migrations are all go:embed'ed, so the binary is the whole app.
-RUN CGO_ENABLED=0 make go-build
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH make go-build
 
 # Distroless static: ~2MB, ships ca-certificates and tzdata, and nothing else —
 # no shell, no package manager. Suits a static CGO-free binary.

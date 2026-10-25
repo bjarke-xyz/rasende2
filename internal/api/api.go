@@ -63,9 +63,17 @@ func (a *api) RunJob(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
 	if fireAndForget {
-		go a.appContext.Deps.Service.FetchAndSaveNewItems(ctx)
+		go func() {
+			if err := a.appContext.Deps.Service.FetchAndSaveNewItems(ctx); err != nil {
+				slog.Error("RSS job failed", "error", err)
+			}
+		}()
 	} else {
-		a.appContext.Deps.Service.FetchAndSaveNewItems(ctx)
+		if err := a.appContext.Deps.Service.FetchAndSaveNewItems(ctx); err != nil {
+			slog.Error("RSS job failed", "error", err)
+			httpx.String(w, http.StatusInternalServerError, "RSS job failed: %v", err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusOK)
 }

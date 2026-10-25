@@ -8,6 +8,7 @@ import (
 
 	"github.com/bjarke-xyz/rasende2/internal/config"
 	"github.com/bjarke-xyz/rasende2/internal/core"
+	"github.com/bjarke-xyz/rasende2/internal/lang"
 	"github.com/bjarke-xyz/rasende2/internal/repository"
 	"github.com/bjarke-xyz/rasende2/internal/repository/db"
 )
@@ -121,6 +122,11 @@ func TestSearchTitleOnlyExcludesContentMatches(t *testing.T) {
 	if got, want := itemIds(titleOnly), []string{"a", "b"}; !equal(got, want) {
 		t.Errorf("title-only = %v, want %v", got, want)
 	}
+	for _, result := range titleOnly {
+		if result.Content != "" {
+			t.Errorf("search result content = %q, want empty", result.Content)
+		}
+	}
 
 	withContent, err := rssSearch.Search(ctx, "da", "rasende", true, nil, nil, "published", 10, 0)
 	if err != nil {
@@ -128,6 +134,54 @@ func TestSearchTitleOnlyExcludesContentMatches(t *testing.T) {
 	}
 	if got, want := itemIds(withContent), []string{"d", "a", "b"}; !equal(got, want) {
 		t.Errorf("title+content = %v, want %v", got, want)
+	}
+}
+
+func TestIndexPageCacheRefreshesAfterNewItems(t *testing.T) {
+	rssSearch := newTestSearch(t, corpus(t))
+	service := NewRssService(rssSearch.context, rssSearch.repository, rssSearch).(*RssService)
+	ctx := context.Background()
+	edition := lang.MustGet(lang.Da)
+
+	before, err := service.GetIndexPageData(ctx, edition)
+	if err != nil {
+		t.Fatalf("get initial index page data: %v", err)
+	}
+	if got, want := before.SearchResult.Items[0].ItemId, "b"; got != want {
+		t.Fatalf("initial latest item = %q, want %q", got, want)
+	}
+
+	newItem := item(t, "new", "Rasende minister svarer", "Nyt indhold.", "2025-01-01T10:00:00Z")
+	if _, err := rssSearch.repository.InsertItems(ctx, testSite, []core.RssItemDto{newItem}); err != nil {
+		t.Fatalf("insert new item: %v", err)
+	}
+
+	cached, err := service.GetIndexPageData(ctx, edition)
+	if err != nil {
+		t.Fatalf("get cached index page data: %v", err)
+	}
+	if got := cached.SearchResult.Items[0].ItemId; got != "b" {
+		t.Errorf("cached latest item = %q, want old cached item %q", got, "b")
+	}
+
+	if err := service.refreshIndexPageCache(ctx); err != nil {
+		t.Fatalf("refresh index page cache: %v", err)
+	}
+	refreshed, err := service.GetIndexPageData(ctx, edition)
+	if err != nil {
+		t.Fatalf("get refreshed index page data: %v", err)
+	}
+	if got := refreshed.SearchResult.Items[0].ItemId; got != "new" {
+		t.Errorf("refreshed latest item = %q, want %q", got, "new")
+	}
+
+	refreshed.SearchResult.Items[0].Title = "mutated by caller"
+	again, err := service.GetIndexPageData(ctx, edition)
+	if err != nil {
+		t.Fatalf("get index page data after caller mutation: %v", err)
+	}
+	if got := again.SearchResult.Items[0].Title; got == "mutated by caller" {
+		t.Error("caller mutation changed cached index page data")
 	}
 }
 

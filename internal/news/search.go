@@ -156,7 +156,7 @@ func (s *RssSearch) Search(ctx context.Context, lang string, query string, searc
 		return results, err
 	}
 	rangeClause, args := publishedBetween(start, end)
-	sqlQuery := "SELECT i.item_id, i.title, i.content, i.link, i.published, i.site_id" + searchFrom + siteClause + rangeClause +
+	sqlQuery := "SELECT i.item_id, i.title, i.link, i.published, i.site_id" + searchFrom + siteClause + rangeClause +
 		" ORDER BY " + orderByClause(orderBy) + " LIMIT ? OFFSET ?"
 	args = append(append([]any{expr}, siteArgs...), args...)
 	args = append(args, limit, offset)
@@ -168,12 +168,9 @@ func (s *RssSearch) Search(ctx context.Context, lang string, query string, searc
 	defer rows.Close()
 	for rows.Next() {
 		var result core.RssSearchResult
-		var content, link *string
-		if err := rows.Scan(&result.ItemId, &result.Title, &content, &link, &result.Published, &result.SiteId); err != nil {
+		var link *string
+		if err := rows.Scan(&result.ItemId, &result.Title, &link, &result.Published, &result.SiteId); err != nil {
 			return results, fmt.Errorf("error scanning search result: %w", err)
-		}
-		if content != nil {
-			result.Content = *content
 		}
 		if link != nil {
 			result.Link = *link
