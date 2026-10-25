@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/bjarke-xyz/rasende2/internal/core"
 	"github.com/bjarke-xyz/rasende2/internal/httpx"
@@ -196,11 +195,9 @@ func redirectToDefaultEdition(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *web) getBaseModel(w http.ResponseWriter, r *http.Request, title string) components.BaseViewModel {
-	var unixBuildTime int64 = 0
+	var unixBuildTime int64
 	if h.appContext.Config.BuildTime != nil {
 		unixBuildTime = h.appContext.Config.BuildTime.Unix()
-	} else {
-		unixBuildTime = time.Now().Unix()
 	}
 	hxRequest := r.Header.Get("HX-Request")
 	includeLayout := hxRequest == "" || hxRequest == "false"
@@ -271,8 +268,8 @@ func serveFile(fsys fs.FS, name string) http.Handler {
 	})
 }
 
-// staticCache marks the fingerprinted assets as immutable. Only js and css carry
-// a build-time query string, so only they are safe to cache forever.
+// staticCache marks the build-versioned assets as immutable. Only js and css
+// carry a build-time query string, so only they are safe to cache forever.
 func staticCache(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path

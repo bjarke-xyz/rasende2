@@ -63,6 +63,8 @@ const (
 	AppEnvProduction  = "production"
 )
 
+var buildTimestamp string
+
 // ConnectionString returns a modernc.org/sqlite DSN for the local database file.
 //
 // WAL lets the RSS fetcher write while requests read; busy_timeout absorbs the
@@ -86,15 +88,7 @@ func NewConfig() (*Config, error) {
 			return nil, fmt.Errorf("failed to validate APP_ENV: invalid value %q", appEnv)
 		}
 	}
-	buildTimeStr := os.Getenv("BUILD_TIME")
-	var buildTime *time.Time
-	if buildTimeStr != "" {
-		_buildTime, err := time.Parse("2006-01-02 15:04:05", buildTimeStr)
-		if err != nil {
-			slog.Warn("parsing BUILD_TIME env failed", "error", err)
-		}
-		buildTime = &_buildTime
-	}
+	configuredBuildTime := configuredBuildTimestamp()
 	return &Config{
 		Port:                   pkg.MustAtoi(os.Getenv("PORT")),
 		DbConnStr:              os.Getenv("DB_CONN_STR"),
@@ -106,7 +100,7 @@ func NewConfig() (*Config, error) {
 		JobKey:                 os.Getenv("JOB_KEY"),
 		LLMAPIKey:              os.Getenv("LLM_API_KEY"),
 		AppEnv:                 appEnv,
-		BuildTime:              buildTime,
+		BuildTime:              configuredBuildTime,
 		UseFakeLLM:             os.Getenv("USE_FAKE_LLM") == "true",
 		CookieSecret:           os.Getenv("COOKIE_SECRET"),
 		BaseUrl:                os.Getenv("BASE_URL"),
@@ -114,4 +108,24 @@ func NewConfig() (*Config, error) {
 		OIDCClientID:           os.Getenv("OIDC_CLIENT_ID"),
 		OIDCClientSecret:       os.Getenv("OIDC_CLIENT_SECRET"),
 	}, nil
+}
+
+func configuredBuildTimestamp() *time.Time {
+	for _, value := range []string{os.Getenv("BUILD_TIME"), buildTimestamp} {
+		if value == "" {
+			continue
+		}
+		parsed, err := time.Parse(time.RFC3339, value)
+		if err != nil {
+			parsed, err = time.Parse("2006-01-02 15:04:05", value)
+		}
+		if err != nil {
+			slog.Warn("parsing build timestamp failed", "error", err)
+			continue
+		}
+		return &parsed
+	}
+
+	now := time.Now()
+	return &now
 }

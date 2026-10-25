@@ -1,6 +1,7 @@
 .PHONY: build go-build npm-ci npm-build-prod npm-build-dev dev test clean duda
 
 BINARY_NAME=rasende2
+BUILD_TIME ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 
 npm-ci:
 	npm ci
@@ -17,7 +18,7 @@ npm-build-dev: npm-build-prod
 # go-build compiles the binary, assuming the vendored JS is already in place.
 # The Dockerfile vendors it in a separate stage and calls this directly.
 go-build:
-	go build -ldflags="-w -s" -o ${BINARY_NAME} cmd/web/main.go
+	go build -ldflags="-w -s -X github.com/bjarke-xyz/rasende2/internal/config.buildTimestamp=$(BUILD_TIME)" -o ${BINARY_NAME} cmd/web/main.go
 
 # build compiles the binary. Templates and CSS are embedded, not generated.
 build: npm-ci npm-build-prod
@@ -27,7 +28,7 @@ build: npm-ci npm-build-prod
 # re-read from disk on every request, so editing a .html file only needs a
 # refresh. Go changes still need a restart.
 dev: npm-build-dev
-	go run cmd/web/main.go
+	go run -ldflags="-X github.com/bjarke-xyz/rasende2/internal/config.buildTimestamp=$(BUILD_TIME)" cmd/web/main.go
 
 test:
 	go test ./...
