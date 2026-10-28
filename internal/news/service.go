@@ -36,9 +36,16 @@ type RssService struct {
 	indexPageRefresh sync.Mutex
 	indexPageCacheMu sync.RWMutex
 	indexPageCache   map[lang.Code]*core.IndexPageData
+	rssFailureMu     sync.Mutex
+	rssFailures      map[string]time.Time
 }
 
 var (
+	rssFailureStarted = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "rasende2_rss_failure_started_timestamp_seconds",
+		Help: "Unix timestamp when consecutive RSS fetch failures started, or zero when healthy, by site name.",
+	}, []string{"name"})
+
 	rssFetchStatusCodes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "rasende2_rss_fetch_status_codes",
 		Help: "The total number of rss fetch status codes",
@@ -61,6 +68,7 @@ func NewRssService(context *core.AppContext, repository core.NewsRepository, sea
 		sanitizer:      bluemonday.StrictPolicy(),
 		search:         search,
 		indexPageCache: make(map[lang.Code]*core.IndexPageData, len(lang.All)),
+		rssFailures:    make(map[string]time.Time),
 	}
 }
 
@@ -360,7 +368,9 @@ func (r *RssService) GetSiteCountForSearchQuery(ctx context.Context, l lang.Lang
 	return items, nil
 }
 
-func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl core.NewsSite) error {
+func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl core.NewsSite) (fetchErr error) {
+	defer func() { r.recordRSSFetchResult(rssUrl.Name, fetchErr) }()
+
 	now := time.Now()
 	fromFeed, err := r.parse(rssUrl)
 	if err != nil {
@@ -402,6 +412,27 @@ func (r *RssService) fetchAndSaveNewItemsForSite(ctx context.Context, rssUrl cor
 		rssArticleCount.WithLabelValues(rssUrl.Name).Set(float64(articleCount))
 	}
 	return nil
+}
+
+func (r *RssService) recordRSSFetchResult(siteName string, fetchErr error) {
+	r.rssFailureMu.Lock()
+	defer r.rssFailureMu.Unlock()
+
+	if r.rssFailures == nil {
+		r.rssFailures = make(map[string]time.Time)
+	}
+
+	failureStarted := rssFailureStarted.WithLabelValues(siteName)
+	if fetchErr == nil {
+		delete(r.rssFailures, siteName)
+		failureStarted.Set(0)
+		return
+	}
+
+	if _, exists := r.rssFailures[siteName]; !exists {
+		r.rssFailures[siteName] = time.Now()
+	}
+	failureStarted.Set(float64(r.rssFailures[siteName].Unix()))
 }
 
 func (r *RssService) GetSites(ctx context.Context) ([]core.NewsSite, error) {
