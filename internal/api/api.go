@@ -57,18 +57,29 @@ func (a *api) requireJobKey(next http.Handler) http.Handler {
 	})
 }
 
+var rssJobLock = make(chan struct{}, 1)
+
 func (a *api) RunJob(w http.ResponseWriter, r *http.Request) {
+	select {
+	case rssJobLock <- struct{}{}:
+	default:
+		httpx.String(w, http.StatusConflict, "RSS job already running")
+		return
+	}
+
 	fireAndForget := r.URL.Query().Get("fireAndForget") == "true"
 	//using context.Background to not cancel, if this method times out
 	ctx := context.Background()
 
 	if fireAndForget {
 		go func() {
+			defer func() { <-rssJobLock }()
 			if err := a.appContext.Deps.Service.FetchAndSaveNewItems(ctx); err != nil {
 				slog.Error("RSS job failed", "error", err)
 			}
 		}()
 	} else {
+		defer func() { <-rssJobLock }()
 		if err := a.appContext.Deps.Service.FetchAndSaveNewItems(ctx); err != nil {
 			slog.Error("RSS job failed", "error", err)
 			httpx.String(w, http.StatusInternalServerError, "RSS job failed: %v", err)
