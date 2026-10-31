@@ -601,7 +601,11 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	db, err := db.Open(r.context.Config)
+	readDB, err := db.Open(r.context.Config)
+	if err != nil {
+		return err
+	}
+	writeDB, err := db.OpenWriter(r.context.Config)
 	if err != nil {
 		return err
 	}
@@ -609,7 +613,7 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 	publicBaseUrl := r.context.Config.S3ImagePublicBaseUrl
 	var continuationToken *string = nil
 
-	_, err = db.ExecContext(ctx, "DELETE FROM fake_news WHERE highlighted = 0")
+	_, err = writeDB.ExecContext(ctx, "DELETE FROM fake_news WHERE highlighted = 0")
 	if err != nil {
 		return fmt.Errorf("failed to delete non-highlighted from fake_news: %w", err)
 	}
@@ -637,7 +641,7 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 
 			// If batch size is reached, process the batch
 			if len(batch) >= batchSize {
-				err = processBatch(ctx, client, db, bucket, batch)
+				err = processBatch(ctx, client, readDB, bucket, batch)
 				if err != nil {
 					return fmt.Errorf("failed to process batch: %w", err)
 				}
@@ -647,7 +651,7 @@ func (r *RssService) CleanUpFakeNews(ctx context.Context) error {
 
 		// Process any remaining items in the last batch
 		if len(batch) > 0 {
-			err = processBatch(ctx, client, db, bucket, batch)
+			err = processBatch(ctx, client, readDB, bucket, batch)
 			if err != nil {
 				return fmt.Errorf("failed to process batch: %w", err)
 			}

@@ -35,7 +35,7 @@ func main() {
 		slog.Error("failed to load config", "error", err)
 	}
 
-	dbConn, err := db.Open(cfg)
+	dbConn, err := db.OpenWriter(cfg)
 	if err != nil {
 		slog.Error("opening db failed", "error", err)
 	}

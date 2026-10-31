@@ -12,21 +12,38 @@ type ConnectionStringer interface {
 	ConnectionString() string
 }
 
-var connections map[string]*sql.DB = make(map[string]*sql.DB)
-var lock sync.RWMutex
+var (
+	readConnections  = make(map[string]*sql.DB)
+	writeConnections = make(map[string]*sql.DB)
+	lock             sync.Mutex
+)
 
+// Open returns the read pool, which can use multiple SQLite connections.
 func Open(connStringer ConnectionStringer) (*sql.DB, error) {
+	return open(connStringer, readConnections, 0)
+}
+
+// OpenWriter returns the single-connection write pool. All application writes
+// must use it so SQLite writes from this process are serialized.
+func OpenWriter(connStringer ConnectionStringer) (*sql.DB, error) {
+	return open(connStringer, writeConnections, 1)
+}
+
+func open(connStringer ConnectionStringer, connections map[string]*sql.DB, maxOpenConnections int) (*sql.DB, error) {
 	lock.Lock()
 	defer lock.Unlock()
-	existingDb, ok := connections[connStringer.ConnectionString()]
-	if ok {
-		return existingDb, nil
-	} else {
-		db, err := sql.Open("sqlite", connStringer.ConnectionString())
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to db: %w", err)
-		}
-		connections[connStringer.ConnectionString()] = db
-		return db, nil
+	connectionString := connStringer.ConnectionString()
+	if existingDB, ok := connections[connectionString]; ok {
+		return existingDB, nil
 	}
+
+	database, err := sql.Open("sqlite", connectionString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to db: %w", err)
+	}
+	if maxOpenConnections > 0 {
+		database.SetMaxOpenConns(maxOpenConnections)
+	}
+	connections[connectionString] = database
+	return database, nil
 }

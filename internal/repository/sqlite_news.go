@@ -328,7 +328,7 @@ func (r *sqliteNewsRepository) InsertItems(ctx context.Context, rssUrl core.News
 	if len(items) == 0 {
 		return 0, nil
 	}
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return 0, err
 	}
@@ -480,7 +480,7 @@ func (r *sqliteNewsRepository) GetFakeNewsByTitle(ctx context.Context, siteId in
 }
 
 func (r *sqliteNewsRepository) CreateFakeNews(ctx context.Context, siteId int, title string, externalId string) error {
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -493,7 +493,7 @@ func (r *sqliteNewsRepository) CreateFakeNews(ctx context.Context, siteId int, t
 }
 
 func (r *sqliteNewsRepository) UpdateFakeNews(ctx context.Context, siteId int, title string, content string) error {
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -506,7 +506,7 @@ func (r *sqliteNewsRepository) UpdateFakeNews(ctx context.Context, siteId int, t
 }
 
 func (r *sqliteNewsRepository) SetFakeNewsImgUrl(ctx context.Context, siteId int, title string, imgUrl string) error {
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -518,7 +518,7 @@ func (r *sqliteNewsRepository) SetFakeNewsImgUrl(ctx context.Context, siteId int
 }
 
 func (r *sqliteNewsRepository) SetFakeNewsHighlighted(ctx context.Context, siteId int, title string, highlighted bool) error {
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -530,7 +530,7 @@ func (r *sqliteNewsRepository) SetFakeNewsHighlighted(ctx context.Context, siteI
 }
 
 func (r *sqliteNewsRepository) ResetFakeNewsContent(ctx context.Context, siteId int, title string) error {
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return err
 	}
@@ -542,7 +542,7 @@ func (r *sqliteNewsRepository) ResetFakeNewsContent(ctx context.Context, siteId 
 }
 
 func (r *sqliteNewsRepository) VoteFakeNews(ctx context.Context, siteId int, title string, votes int) (int, error) {
-	db, err := db.Open(r.appContext.Config)
+	db, err := db.OpenWriter(r.appContext.Config)
 	if err != nil {
 		return 0, err
 	}

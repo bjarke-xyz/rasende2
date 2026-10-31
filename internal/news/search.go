@@ -263,7 +263,11 @@ const rebuildBatchSize = 5000
 // one language for the whole table: rebuilding everything as Danish would leave
 // the English edition matching nothing, silently.
 func (s *RssSearch) Rebuild(ctx context.Context) error {
-	dbConn, err := db.Open(s.context.Config)
+	readDB, err := db.Open(s.context.Config)
+	if err != nil {
+		return err
+	}
+	writeDB, err := db.OpenWriter(s.context.Config)
 	if err != nil {
 		return err
 	}
@@ -275,14 +279,14 @@ func (s *RssSearch) Rebuild(ctx context.Context) error {
 	slog.Info("rebuilding search index")
 
 	// 'delete-all' is the FTS5 command for emptying a contentless table.
-	if _, err := dbConn.ExecContext(ctx, "INSERT INTO rss_items_fts(rss_items_fts) VALUES('delete-all')"); err != nil {
+	if _, err := writeDB.ExecContext(ctx, "INSERT INTO rss_items_fts(rss_items_fts) VALUES('delete-all')"); err != nil {
 		return fmt.Errorf("error clearing search index: %w", err)
 	}
 
 	count, skipped := 0, 0
 	lastId := int64(0)
 	for {
-		indexed, skippedInBatch, nextId, err := s.indexBatch(ctx, dbConn, languages, lastId)
+		indexed, skippedInBatch, nextId, err := s.indexBatch(ctx, readDB, writeDB, languages, lastId)
 		if err != nil {
 			return err
 		}
@@ -311,8 +315,8 @@ func (s *RssSearch) Rebuild(ctx context.Context) error {
 // it cannot be stemmed — and siteFilter already excludes it from every search,
 // so indexing it would only add tokens nothing can ever match. Skip it, and
 // report how many, rather than guessing at a language.
-func (s *RssSearch) indexBatch(ctx context.Context, dbConn *sql.DB, languages map[int]string, afterId int64) (int, int, int64, error) {
-	rows, err := dbConn.QueryContext(ctx,
+func (s *RssSearch) indexBatch(ctx context.Context, readDB, writeDB *sql.DB, languages map[int]string, afterId int64) (int, int, int64, error) {
+	rows, err := readDB.QueryContext(ctx,
 		"SELECT id, title, content, site_id FROM rss_items WHERE id > ? ORDER BY id ASC LIMIT ?", afterId, rebuildBatchSize)
 	if err != nil {
 		return 0, 0, afterId, fmt.Errorf("error reading items to index: %w", err)
@@ -358,7 +362,7 @@ func (s *RssSearch) indexBatch(ctx context.Context, dbConn *sql.DB, languages ma
 		return 0, skipped, lastId, nil
 	}
 
-	tx, err := dbConn.BeginTx(ctx, nil)
+	tx, err := writeDB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, 0, afterId, fmt.Errorf("failed to begin index tx: %w", err)
 	}
